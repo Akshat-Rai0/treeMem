@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TreeMem — Memory X-Ray Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/cytoscape.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="3"></circle>
+          <line x1="12" y1="8" x2="12" y2="14"></line>
+          <circle cx="6" cy="19" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="12" y1="14" x2="6" y2="16"></line>
+          <line x1="12" y1="14" x2="18" y2="16"></line>
+        </svg>
+        TreeMem
+      </div>
+      <div id="live-toggle" class="badge badge-live" title="Toggle live event auto-follow">
+        <span class="dot pulse"></span>
+        <span id="live-text">live</span>
+      </div>
+      <span id="session-tag" class="recall-tag">session: default</span>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="node-search" placeholder="Search nodes..." aria-label="Search nodes">
+      <span class="kbd-hint">/</span>
+    </div>
+
+    <div class="header-right">
+      <div class="token-meter-container" id="token-meter" title="Tokens read in selected recall vs flat dump baseline">
+        <span>Tokens: <strong id="meter-tokens">0</strong> / <span id="meter-baseline">0</span></span>
+        <div class="token-bar">
+          <div id="meter-bar-fill" class="token-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-content">
+    <!-- Left panel: Recalls -->
+    <aside class="panel-left">
+      <div class="panel-header">
+        <span>Recall history</span>
+        <select id="recall-filter" class="filter-select" aria-label="Filter recall history">
+          <option value="all">All</option>
+          <option value="parent-stop">Parent-stops only</option>
+          <option value="dirty">Hit dirty nodes</option>
+        </select>
+      </div>
+      <div id="recall-list" class="recall-list" role="list"></div>
+    </aside>
+
+    <!-- Center panel: Graph Canvas -->
+    <main class="panel-center">
+      <div class="canvas-controls">
+        <button id="btn-fit" class="btn" title="Fit to path (f)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+          </svg>
+          Fit (f)
+        </button>
+        <button id="btn-toggle-layout" class="btn" title="Toggle tree / radial layout">
+          Layout: Tree
+        </button>
+        <button id="btn-toggle-view" class="btn" title="Toggle accessible list view">
+          List view
+        </button>
+      </div>
+
+      <div id="cy" role="region" aria-label="Tree memory graph canvas"></div>
+      <div id="list-view" role="region" aria-label="Accessible tree memory list"></div>
+    </main>
+
+    <!-- Right panel: Inspector -->
+    <aside class="panel-right">
+      <div class="inspector-section">
+        <div class="inspector-title">Selected Node</div>
+        <div id="insp-path" class="node-path-display">/</div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="inspector-title">Summary</div>
+        <div id="insp-summary" class="summary-content">Select a node to inspect summary.</div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="inspector-title">Metadata</div>
+        <div class="meta-grid">
+          <span class="meta-label">Tokens:</span>
+          <span class="meta-val" id="insp-tokens">0</span>
+
+          <span class="meta-label">Dirty:</span>
+          <span class="meta-val" id="insp-dirty">false</span>
+
+          <span class="meta-label">Sensitivity:</span>
+          <span class="meta-val" id="insp-sensitivity">normal</span>
+
+          <span class="meta-label">Aliases:</span>
+          <span class="meta-val" id="insp-aliases">none</span>
+
+          <span class="meta-label">Updated:</span>
+          <span class="meta-val" id="insp-updated">-</span>
+
+          <span class="meta-label">Raw facts:</span>
+          <span class="meta-val" id="insp-facts">0</span>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="inspector-title">Children</div>
+        <ul id="insp-children" class="children-list">
+          <li class="children-item-teaser">No children.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <div class="replay-controls">
+      <button id="btn-step-first" class="btn" title="First step (Home)">|&lt;</button>
+      <button id="btn-step-prev" class="btn" title="Previous step (Left Arrow)">&lt;</button>
+      <button id="btn-play-pause" class="btn" title="Play/Pause (Space)">▶</button>
+      <button id="btn-step-next" class="btn" title="Next step (Right Arrow)">&gt;</button>
+      <button id="btn-step-last" class="btn" title="Last step (End)">&gt;|</button>
+
+      <select id="replay-speed" class="filter-select" aria-label="Replay speed">
+        <option value="0.5">0.5x</option>
+        <option value="1.0" selected>1x</option>
+        <option value="2.0">2x</option>
+      </select>
+      <span id="replay-status" class="replay-step">Replay: ready</span>
+    </div>
+
+    <div id="health-btn" class="health-status" title="Check system health">
+      <span id="health-dot" class="health-dot health-green"></span>
+      <span id="health-text">Health: OK</span>
+    </div>
+  </footer>
+
+  <!-- Health modal -->
+  <div id="health-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="health-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="health-modal-title">System Invariant Checks</h3>
+        <button id="btn-close-modal" class="btn">Close (Esc)</button>
+      </div>
+      <p id="health-modal-summary" style="margin-bottom: 8px; font-size: 13px;"></p>
+      <div id="health-violations" class="violations-list"></div>
+    </div>
+  </div>
+
+  <div id="live-announcer" class="sr-only" aria-live="polite" style="position: absolute; left: -9999px;"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

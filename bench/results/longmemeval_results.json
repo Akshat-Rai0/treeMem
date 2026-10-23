@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-10-22T23:43:12Z",
+  "total_questions": 5,
+  "accuracy_pct": 100.0,
+  "parent_stop_rate": 0.2,
+  "parent_stop_correctness": 1.0,
+  "avg_tokens_tree": 59.2,
+  "avg_tokens_flat": 67,
+  "token_reduction_pct": 11.6,
+  "latency_p50_ms": 1.79,
+  "latency_p95_ms": 2.01,
+  "records": [
+    {
+      "query_id": "q1",
+      "question": "What is my full name?",
+      "depth_needed": 0,
+      "stopped_at": "/",
+      "tokens_tree": 41,
+      "tokens_flat": 67,
+      "latency_ms": 1.16
+    },
+    {
+      "query_id": "q2",
+      "question": "What degree program am I enrolled in?",
+      "depth_needed": 1,
+      "stopped_at": "education",
+      "tokens_tree": 67,
+      "tokens_flat": 67,
+      "latency_ms": 1.74
+    },
+    {
+      "query_id": "q3",
+      "question": "What is my current age?",
+      "depth_needed": 2,
+      "stopped_at": "identity/age",
+      "tokens_tree": 62,
+      "tokens_flat": 67,
+      "latency_ms": 2.01
+    },
+    {
+      "query_id": "q4",
+      "question": "What is the repo URL for the TreeMem project?",
+      "depth_needed": 2,
+      "stopped_at": "projects/treemem",
+      "tokens_tree": 69,
+      "tokens_flat": 67,
+      "latency_ms": 1.79
+    },
+    {
+      "query_id": "q5",
+      "question": "Which gym do I train at?",
+      "depth_needed": 2,
+      "stopped_at": "hobbies/fitness",
+      "tokens_tree": 57,
+      "tokens_flat": 67,
+      "latency_ms": 1.84
+    }
+  ]
+}

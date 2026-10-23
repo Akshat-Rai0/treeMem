@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "treemem"
+version = "0.1.0"
+description = "Hierarchical, agent-writable memory for LLM agents exposed as an MCP server with an X-ray dashboard"
+authors = [{ name = "Akshat Rai" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "sse-starlette>=1.6.0",
+    "rank-bm25>=0.2.2",
+    "tiktoken>=0.5.0",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+treemem = "treemem.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
