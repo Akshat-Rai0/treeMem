@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 32 Passing](https://img.shields.io/badge/tests-32%20passed-brightgreen.svg)]()
+[![Tests: 42 Passing](https://img.shields.io/badge/tests-42%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -197,6 +197,7 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 | `recall` | `path: str = "/"` | Reads node summary and 1-line child teasers (**never** child bodies). |
 | `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. |
 | `compress` | `path: str` | Returns compression prompt and child text to clean a dirty node. |
+| `auto_compress` | `path?: str` | Automatically compresses dirty nodes bottom-up using server-side LLM (Option B). |
 | `commit_summary` | `path: str, text: str` | Validates token cap, child list, and privacy before committing atomically. |
 | `search` | `query: str, limit: int = 10` | BM25 lexical search over log entries and leaves (fallback mechanism). |
 | `split` | `path: str, groups: dict` | Splits an overflowing node into subtopics to preserve branching caps. |
@@ -276,8 +277,14 @@ treemem check [path]
 # Reconstruct all nodes and facts from the append-only daily logs
 treemem rebuild [path]
 
+# Automatically compress dirty nodes bottom-up using server-side LLM (Option B)
+treemem compress [path] [--node path]
+
 # Start the local read-only web dashboard
 treemem serve [path] --port 8765
+
+# Start dashboard with background auto-compressor daemon active
+treemem serve [path] --auto-compress
 
 # Launch as a stdio MCP server for agent harnesses
 treemem serve [path] --mcp

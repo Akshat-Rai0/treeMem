@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **v2 Option B Background Auto-Summarizer (`src/treemem/auto_compress.py`)**:
+  - Server-side LLM auto-compression engine that finds and cleans dirty nodes in strict bottom-up topological order.
+  - Validation-retry feedback loop (re-prompts LLM with specific validator error if generated summary fails length or child list checks).
+  - Background daemon thread worker (`AutoCompressor.start_background_worker`) with periodic cleanup.
+  - New CLI command `treemem compress [path]` and `--auto-compress` daemon flag for `treemem serve`.
+  - New MCP tool `auto_compress(path?)` for autonomous agent triggering.
+  - 4 unit tests in `tests/test_auto_compress.py` (42/42 passing).
 - **v1.5 Transclusion Engine (`src/treemem/transclusion.py`)**:
   - Dynamic at-read resolution of `![[path#ref]]` embeds in parent summaries.
   - Keyword and tag-based reference resolution (`latest`, `volatile`, entry ID, or topic keyword).

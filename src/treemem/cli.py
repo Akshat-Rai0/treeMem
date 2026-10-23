@@ -57,6 +57,32 @@ def cmd_rebuild(args):
     print(f"Rebuilt successfully! Facts restored: {res['rebuilt_facts']}")
 
 
+def cmd_compress(args):
+    from treemem.auto_compress import AutoCompressor
+    target = Path(args.path or "memory").resolve()
+    mgr = TreeManager(target)
+    compressor = AutoCompressor(mgr)
+
+    if args.node:
+        print(f"Auto-compressing node: '{args.node}' at {target}...")
+        res = compressor.compress_node(args.node)
+        if res.get("ok"):
+            print(f"[SUCCESS] Node '{res['path']}' compressed ({res['tokens']} tokens) in {res['attempts']} attempt(s).")
+        else:
+            print(f"[FAIL] Failed to compress '{args.node}': {res.get('error')}")
+            sys.exit(1)
+    else:
+        print(f"Finding and auto-compressing all dirty nodes at {target}...")
+        res = compressor.compress_all_dirty()
+        print(f"Result: Cleaned={res['cleaned_count']} | Errors={res['error_count']}")
+        for c in res["cleaned_nodes"]:
+            print(f"  - Cleaned: {c['path']} ({c['tokens']} tokens)")
+        for e in res["errors"]:
+            print(f"  - Error in {e['path']}: {e['error']}")
+        if not res["ok"]:
+            sys.exit(1)
+
+
 def run_demo_script(mgr: TreeManager):
     """Run scripted demo sequence for the dashboard demo mode."""
     time.sleep(1.5)
@@ -116,6 +142,12 @@ def cmd_serve(args):
     print(f" Access URL: {url}")
     print("=" * 60)
 
+    if getattr(args, "auto_compress", False):
+        from treemem.auto_compress import AutoCompressor
+        compressor = AutoCompressor(mgr)
+        compressor.start_background_worker(interval_seconds=30.0)
+        print("[Auto-Compressor] Background worker active (30s interval)")
+
     if args.demo:
         print("[Demo Mode] Scripted recall sequence starting in 1.5s...")
         t = threading.Thread(target=run_demo_script, args=(mgr,), daemon=True)
@@ -140,12 +172,18 @@ def main():
     p_reb = subparsers.add_parser("rebuild", help="Rebuild the tree from append-only log")
     p_reb.add_argument("path", nargs="?", default="memory", help="Path to memory vault directory")
 
+    # compress
+    p_cmp = subparsers.add_parser("compress", help="Auto-compress dirty nodes using server-side LLM (Option B)")
+    p_cmp.add_argument("path", nargs="?", default="memory", help="Path to memory vault directory")
+    p_cmp.add_argument("--node", help="Specific node path to compress (default: all dirty nodes bottom-up)")
+
     # serve
     p_srv = subparsers.add_parser("serve", help="Serve the dashboard or stdio MCP server")
     p_srv.add_argument("path", nargs="?", default="memory", help="Path to memory vault directory")
     p_srv.add_argument("--port", type=int, default=8765, help="Port for web dashboard")
     p_srv.add_argument("--demo", action="store_true", help="Launch demo mode with sample memory & sequence")
     p_srv.add_argument("--mcp", action="store_true", help="Run as stdio MCP server instead of HTTP dashboard")
+    p_srv.add_argument("--auto-compress", action="store_true", help="Run background worker to automatically compress dirty nodes")
 
     args = parser.parse_args()
     if args.command == "init":
@@ -154,6 +192,8 @@ def main():
         cmd_check(args)
     elif args.command == "rebuild":
         cmd_rebuild(args)
+    elif args.command == "compress":
+        cmd_compress(args)
     elif args.command == "serve":
         cmd_serve(args)
     else:

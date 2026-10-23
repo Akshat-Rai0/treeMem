@@ -114,6 +114,25 @@ def commit_summary(path: str, text: str) -> str:
 
 
 @mcp.tool()
+def auto_compress(path: Optional[str] = None) -> str:
+    """
+    Option B Auto-Summarizer: Automatically compress dirty nodes in the vault using server-side LLM.
+    Compresses nodes in bottom-up topological order (deepest nodes first).
+
+    Args:
+        path: Optional specific path to compress. If omitted, compresses all dirty nodes in the vault.
+    """
+    from treemem.auto_compress import AutoCompressor
+    mgr = get_manager()
+    compressor = AutoCompressor(mgr)
+    if path:
+        res = compressor.compress_node(path)
+    else:
+        res = compressor.compress_all_dirty()
+    return json.dumps(res, indent=2)
+
+
+@mcp.tool()
 def search(query: str, limit: int = 10) -> str:
     """
     Lexical BM25 search over all log entries and leaf notes (fallback when descent fails).

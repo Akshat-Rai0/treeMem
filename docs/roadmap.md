@@ -76,13 +76,13 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 - [x] Backlink index (`TransclusionManager.backlink_index`); changes to an embedded line do not dirty the parent.
 - [x] Test suite: `tests/test_transclusion.py` (6 new tests, 38/38 passing).
 
-## v2 candidates (pick based on results)
+## v2 Milestones & Features
 
-- Learned descent gate: small classifier predicting "parent is enough", evaluated on accuracy vs tokens.
-- Obsidian plugin: dirty nodes and token cost per node inside the vault.
-- Editing from the dashboard with conflict handling.
-- Optional server-side summarizer (Option B) as a pluggable backend.
-- Embedding-based candidate scoring for placement.
+- [x] Pluggable server-side Auto-Summarizer (Option B): bottom-up topological compression, validation-retry loop, and daemon worker (`src/treemem/auto_compress.py`, `tests/test_auto_compress.py`).
+- [ ] Learned descent gate: small classifier predicting "parent is enough", evaluated on accuracy vs tokens.
+- [ ] Obsidian plugin: dirty nodes and token cost per node inside the vault.
+- [ ] Editing from the dashboard with conflict handling.
+- [ ] Embedding-based candidate scoring for placement.
 
 ## Cross-cutting rules
 
