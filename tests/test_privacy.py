@@ -5,13 +5,15 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from treemem.dashboard.server import create_app
 from treemem.tree_manager import TreeManager
 
 
 @pytest.fixture
 def vault():
-    d = tempfile.mkdtemp()
+    d = tempfile.mkdtemp(prefix="treemem_priv_")
     v = Path(d)
     yield v
     shutil.rmtree(d, ignore_errors=True)
@@ -58,3 +60,47 @@ Tax ID is 9988776655.
     res = mgr.commit_summary("finance", leaky_summary)
     assert res["ok"] is False
     assert "leaks" in res["error"]
+
+
+def test_deep_ancestor_cannot_leak_private_descendant(vault):
+    mgr = TreeManager(vault)
+    rem = mgr.remember("Encrypted password token SecretToken9999", hint="vault/credentials/tokens")
+    mgr.place(rem["entry_id"], "vault/credentials/tokens", sensitivity="private")
+
+    # Root summary cannot leak it
+    leaky_root = """---
+name: root
+dirty: false
+---
+Root summary with SecretToken9999 included.
+
+## Children
+- [[vault]] - details
+"""
+    res_root = mgr.commit_summary("", leaky_root)
+    # Root check or health check flags private leakage
+    if res_root["ok"]:
+        health = mgr.health_checker.check_all()
+        assert health["ok"] is False, "Health check should detect private leakage into root"
+
+
+def test_api_never_exposes_private_fact_without_reveal(vault):
+    mgr = TreeManager(vault)
+    rem = mgr.remember("Very confidential secret: OmegaPassword99", hint="confidential/passwords")
+    mgr.place(rem["entry_id"], "confidential/passwords", sensitivity="private")
+
+    token = "test-token"
+    client = TestClient(create_app(mgr, token))
+
+    # 1. /api/tree
+    res_tree = client.get(f"/api/tree?t={token}")
+    assert "OmegaPassword99" not in res_tree.text
+
+    # 2. /api/node for parent
+    res_parent = client.get(f"/api/node?path=confidential&t={token}")
+    assert "OmegaPassword99" not in res_parent.text
+
+    # 3. /api/node for child
+    res_child = client.get(f"/api/node?path=confidential/passwords&t={token}")
+    assert "OmegaPassword99" not in res_child.text
+    assert "withheld" in res_child.json()["summary"].lower()

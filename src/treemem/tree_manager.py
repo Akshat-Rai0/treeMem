@@ -494,9 +494,11 @@ class TreeManager:
             self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
             return {"ok": False, "error": err}
 
-        # Validation 3: Privacy check - no content from private children
-        for ch in actual_children:
-            ch_path = f"{clean_path}/{ch}" if clean_path else ch
+        # Validation 3: Privacy check - no content from private descendants
+        all_node_paths = self.health_checker.get_all_node_paths()
+        prefix = (clean_path + "/") if clean_path else ""
+        descendant_paths = [p for p in all_node_paths if p.startswith(prefix) and p != clean_path]
+        for ch_path in descendant_paths:
             ch_node = self.store.read_node(ch_path)
             if ch_node and ch_node.sensitivity == "private":
                 # Check summary substring
