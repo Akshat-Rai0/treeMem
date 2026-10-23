@@ -42,17 +42,18 @@ def remember(fact: str, hint: str = "") -> str:
 
 
 @mcp.tool()
-def place(entry_id: str, path: str, sensitivity: str = "normal") -> str:
+def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool = False) -> str:
     """
-    Place a logged fact into a specific leaf node topic, dirtying ancestors.
+    Place a logged fact into a specific leaf node topic, dirtying ancestors (unless transcluded).
 
     Args:
         entry_id: The date#line ID returned by `remember`.
         path: Relative folder path (e.g. 'identity/age').
         sensitivity: 'normal' or 'private'.
+        volatile: If True, indicates a volatile scalar fact that can be transcluded without dirtying embedding parents.
     """
     mgr = get_manager()
-    res = mgr.place(entry_id=entry_id, path=path, sensitivity=sensitivity)
+    res = mgr.place(entry_id=entry_id, path=path, sensitivity=sensitivity, volatile=volatile)
     return json.dumps(res, indent=2)
 
 

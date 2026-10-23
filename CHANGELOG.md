@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **v1.5 Transclusion Engine (`src/treemem/transclusion.py`)**:
+  - Dynamic at-read resolution of `![[path#ref]]` embeds in parent summaries.
+  - Keyword and tag-based reference resolution (`latest`, `volatile`, entry ID, or topic keyword).
+  - Cap enforcement: max 5 transclusion embeds per summary to protect token bounds.
+  - Transclusion backlink index (`backlink_index`): tracks which parent summaries embed each child node.
+  - Volatile fact flag (`volatile=True` in `place` tool): updating volatile facts does not dirty ancestors that transclude them.
+  - Comprehensive unit test suite in `tests/test_transclusion.py` (6 tests, 38/38 passing).
+- Portfolio and resume highlight document (`docs/portfolio.md`) with empirical metrics from real Groq LLM benchmarks.
+
 ## [0.1.1] - 2026-10-23
 
 ### Changed

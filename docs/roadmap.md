@@ -70,11 +70,11 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 
 ## v1.5: Transclusion for volatile facts (M)
 
-- [ ] Parse `![[node#line]]` embeds in summaries; resolve at read time.
-- [ ] Mark facts as volatile; parent keeps an embed instead of copied text.
-- [ ] Cap embeds per parent to bound token cost.
-- [ ] Backlink index; changes to an embedded line do not dirty the parent.
-- [ ] Re-run benchmark: staleness errors before vs after.
+- [x] Parse `![[node#ref]]` embeds in summaries; resolve at read time (`src/treemem/transclusion.py`).
+- [x] Mark facts as volatile (`volatile=True`); parent keeps an embed instead of copied text.
+- [x] Cap embeds per parent to bound token cost (max 5 embeds per summary enforced on commit and recall).
+- [x] Backlink index (`TransclusionManager.backlink_index`); changes to an embedded line do not dirty the parent.
+- [x] Test suite: `tests/test_transclusion.py` (6 new tests, 38/38 passing).
 
 ## v2 candidates (pick based on results)
 

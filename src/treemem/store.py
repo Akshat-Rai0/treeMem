@@ -13,7 +13,7 @@ import yaml
 
 from treemem.tokenizer import count_tokens
 
-FACT_PATTERN = re.compile(r"^-\s+(.*?)\s+\(log:\s*([^)]+)\)\s*$", re.MULTILINE)
+FACT_PATTERN = re.compile(r"^-\s+(.*?)\s+\(log:\s*([^)]+)\)\s*(?:\[(volatile)\])?\s*$", re.MULTILINE)
 CHILD_LINE_PATTERN = re.compile(r"^-\s+\[\[([^\]]+)\]\]\s*(?:-\s*(.*))?$", re.MULTILINE)
 
 
@@ -139,7 +139,8 @@ class Store:
         for m in FACT_PATTERN.finditer(main_body):
             fact_text = m.group(1).strip()
             entry_id = m.group(2).strip()
-            facts.append({"fact": fact_text, "entry_id": entry_id})
+            is_vol = bool(m.group(3))
+            facts.append({"fact": fact_text, "entry_id": entry_id, "volatile": is_vol})
 
         # Clean summary body: remove leaf fact lines
         summary_lines = []
@@ -205,7 +206,10 @@ class Store:
             parts.append(node.summary)
 
         if node.facts:
-            facts_text = "\n".join(f"- {f['fact']} (log: {f['entry_id']})" for f in node.facts)
+            facts_text = "\n".join(
+                f"- {f['fact']} (log: {f['entry_id']})" + (" [volatile]" if f.get("volatile") else "")
+                for f in node.facts
+            )
             parts.append(facts_text)
 
         if node.children:

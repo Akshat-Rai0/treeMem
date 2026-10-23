@@ -12,6 +12,7 @@ from treemem.index import SearchIndex
 from treemem.log_writer import LogWriter
 from treemem.store import NodeData, Store
 from treemem.tokenizer import count_tokens
+from treemem.transclusion import TransclusionManager
 
 
 def norm_path(path: str) -> str:
@@ -55,8 +56,10 @@ class TreeManager:
         self.event_bus = EventBus(self.root_dir)
         self.index = SearchIndex()
         self.health_checker = HealthChecker(self.store, self.log_writer)
+        self.transclusion_mgr = TransclusionManager(self.store)
         self.init_tree()
         self.rebuild_index()
+        self.transclusion_mgr.rebuild_index(self.health_checker.get_all_node_paths())
 
     def init_tree(self) -> None:
         """Initialize the root memory vault if not present."""
@@ -149,13 +152,14 @@ class TreeManager:
         entry_id: str,
         path: str,
         sensitivity: str = "normal",
+        volatile: bool = False,
         session: str = "default",
     ) -> Dict[str, Any]:
         """
-        Tool: place(entry_id, path)
+        Tool: place(entry_id, path, sensitivity="normal", volatile=False)
         Writes the fact into the leaf at path. Creates intermediate nodes if missing.
         Enforces branching cap.
-        Marks leaf and ALL ancestors dirty: true.
+        Marks leaf and ancestors dirty: true (skipping ancestors that transclude this target).
         """
         clean_path = norm_path(path)
         if not clean_path:
@@ -230,24 +234,34 @@ class TreeManager:
                 if sensitivity == "private":
                     leaf_node.sensitivity = "private"
 
-            # Append fact if not already present
-            if not any(f.get("entry_id") == entry_id for f in leaf_node.facts):
-                leaf_node.facts.append({"fact": fact_text, "entry_id": entry_id})
+            # Append fact if not already present, or update if existing
+            existing_fact = next((f for f in leaf_node.facts if f.get("entry_id") == entry_id), None)
+            if not existing_fact:
+                leaf_node.facts.append({"fact": fact_text, "entry_id": entry_id, "volatile": volatile})
+            else:
+                existing_fact["fact"] = fact_text
+                if volatile:
+                    existing_fact["volatile"] = True
 
             self.store.write_node_atomic(clean_path, leaf_node)
 
             # Update immediate parent's children list to include leaf
+            embedding_parents = self.transclusion_mgr.get_embedding_parents(clean_path)
             if p_node:
                 child_labels = {c["label"] for c in p_node.children}
                 if leaf_name not in child_labels:
                     teaser = "contains private details" if leaf_node.sensitivity == "private" else f"Details on {leaf_name}"
                     p_node.children.append({"label": leaf_name, "teaser": teaser})
-                p_node.dirty = True
+                if leaf_parent not in embedding_parents:
+                    p_node.dirty = True
                 self.store.write_node_atomic(leaf_parent, p_node)
 
-            # 3. Propagate dirty flag to ALL ancestors
+            # 3. Propagate dirty flag to ancestors (skipping ancestors that transclude this target)
             dirtied_paths = [clean_path]
             for anc in ancestors:
+                if anc in embedding_parents:
+                    # Ancestor transcludes this fact dynamically; do not mark dirty
+                    continue
                 anc_node = self.store.read_node(anc)
                 if anc_node:
                     anc_node.dirty = True
@@ -301,10 +315,15 @@ class TreeManager:
                 teaser = "contains private details, expand to view"
             child_teasers.append({"label": ch_label, "teaser": teaser})
 
+        # Dynamically resolve ![[path#ref]] transclusion embeds at read time
+        resolved_summary, embeds = self.transclusion_mgr.resolve_summary(node.summary)
+
         payload: Dict[str, Any] = {
             "path": clean_path or "/",
             "name": node.name,
-            "summary": node.summary,
+            "summary": resolved_summary,
+            "raw_summary": node.summary,
+            "embeds": embeds,
             "children": child_teasers,
             "dirty": node.dirty,
             "sensitivity": node.sensitivity,
@@ -313,8 +332,8 @@ class TreeManager:
         if node.dirty:
             payload["stale_note"] = f"Warning: This node was last summarized at {node.updated}. Its children or facts have changed since. Run compress('{clean_path or '/'}') to refresh."
 
-        # Compute tokens
-        rendered = f"{node.summary}\n" + "\n".join(f"{c['label']}: {c['teaser']}" for c in child_teasers)
+        # Compute tokens from resolved text
+        rendered = f"{resolved_summary}\n" + "\n".join(f"{c['label']}: {c['teaser']}" for c in child_teasers)
         tok_count = count_tokens(rendered)
         payload["tokens"] = tok_count
 
@@ -479,6 +498,13 @@ class TreeManager:
             self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
             return {"ok": False, "error": err}
 
+        # Validation 1b: Transclusion embeds cap (max 5)
+        embed_count = self.transclusion_mgr.count_embeds(summary)
+        if embed_count > self.transclusion_mgr.max_embeds:
+            err = f"Summary exceeds maximum allowed transclusion embeds (cap is {self.transclusion_mgr.max_embeds}, got {embed_count})."
+            self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+            return {"ok": False, "error": err}
+
         # Validation 2: Children matching actual children
         actual_children = set(self.store.list_child_dirs(clean_path))
         submitted_children = {c["label"] for c in children_parsed}
@@ -540,6 +566,7 @@ class TreeManager:
         with self.store.lock_paths([clean_path], timeout=5.0):
             self.store.write_node_atomic(clean_path, node)
 
+        self.transclusion_mgr.index_node(clean_path)
         self.rebuild_index()
 
         self.event_bus.emit(
