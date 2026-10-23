@@ -23,7 +23,7 @@ def tmp_vault():
 def test_invariant_1_every_node_has_summary_md(tmp_vault):
     """Invariant 1: Every node directory in the vault MUST have summary.md."""
     mgr = TreeManager(tmp_vault)
-    rem = mgr.remember("User is studying at Stanford", hint="college")
+    rem = mgr.remember("User is studying at Metro University", hint="college")
     mgr.place(rem["entry_id"], "college/undergrad")
 
     health = mgr.health_checker.check_all()

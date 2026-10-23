@@ -35,6 +35,20 @@ htmlcov/
 .vscode/
 .idea/
 
-# Local testing vaults
+# Local testing vaults and events
 memory/
+.events/
+**/.*events/
+.locks/
+*.lock
 /tmp/treemem*
+
+# API keys and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Large raw benchmark transcripts (> 5MB)
+bench/results/raw_transcripts/*.large
+bench/results/raw/*.large

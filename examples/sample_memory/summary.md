@@ -2,13 +2,13 @@
 name: root
 aliases: [root, vault]
 dirty: false
-updated: '2026-10-22T18:13:27.322317+00:00'
-tokens: 19
+updated: '2026-10-23T13:44:25.383383+00:00'
+tokens: 17
 sensitivity: normal
 children_cap: 12
 ---
 
-Personal memory vault for Akshat Rai, 21-year-old AI engineer in San Francisco.
+Personal memory vault for Alex Mercer, 28-year-old software engineer in Metropolis.
 
 ## Children
 - [[identity]] - Personal bio and contact

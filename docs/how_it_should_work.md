@@ -117,9 +117,9 @@ agent needs info about X
 
 ## 8. Worked example: "What is my age?"
 
-1. `recall("/")` -> summary: "Akshat, student, ..."; children: identity, college, projects. Does not answer age.
+1. `recall("/")` -> summary: "Alex, software engineer, ..."; children: identity, college, projects. Does not answer age.
 2. `recall("identity")` -> summary mentions age category; children: age, location. Teaser for `age`: "current age".
-3. `expand("age")` -> leaf fact: "21 (log: 2026-10-22#14)". Answer found.
+3. `expand("age")` -> leaf fact: "28 (log: 2026-10-22#14)". Answer found.
 4. Dashboard shows path root -> identity -> age; stop depth 2; tokens summed.
 
 Contrast: "What's my name?" -> root summary alone answers it, so parent-stop at depth 0.

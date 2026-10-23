@@ -2,7 +2,7 @@
 name: age
 aliases: [age]
 dirty: false
-updated: '2026-10-22T18:13:27.203605+00:00'
+updated: '2026-10-23T13:44:25.238678+00:00'
 tokens: 5
 sensitivity: normal
 children_cap: 12
@@ -10,4 +10,4 @@ children_cap: 12
 
 Leaf notes on age.
 
-- User age is 21 (log: 2026-10-22#2)
+- User age is 28 (log: 2026-10-23#2)
