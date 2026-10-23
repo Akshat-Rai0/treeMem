@@ -503,7 +503,7 @@ class TreeManager:
             if ch_node and ch_node.sensitivity == "private":
                 # Check summary substring
                 if ch_node.summary and len(ch_node.summary) > 10 and ch_node.summary.lower() in summary.lower():
-                    err = f"Summary leaks exact content from private child '{ch}'"
+                    err = f"Summary leaks exact content from private child '{ch_path}'"
                     self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                     return {"ok": False, "error": err}
 
@@ -511,13 +511,13 @@ class TreeManager:
                 for f in ch_node.facts:
                     f_text = f.get("fact", "").strip().lower()
                     if len(f_text) > 5 and f_text in summary.lower():
-                        err = f"Summary leaks private fact from child '{ch}': '{f_text}'"
+                        err = f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
                         self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                         return {"ok": False, "error": err}
                     for token in re.findall(r"\b\w+\b", f_text):
                         if (len(token) >= 5 or token.isdigit()) and token in summary.lower():
                             if token not in {"user", "details", "private", "information", "about", "their"}:
-                                err = f"Summary leaks private details from child '{ch}' (term: '{token}')"
+                                err = f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
                                 self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                                 return {"ok": False, "error": err}
 
@@ -526,7 +526,7 @@ class TreeManager:
                 sum_words = set(re.findall(r"\b\w{4,}\b", summary.lower()))
                 overlap = priv_words.intersection(sum_words) - {"child", "details", "private", "expand", "view"}
                 if len(overlap) >= 3:
-                    err = f"Summary leaks private details from child '{ch}' (overlapping terms: {list(overlap)[:3]})"
+                    err = f"Summary leaks private details from child '{ch_path}' (overlapping terms: {list(overlap)[:3]})"
                     self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                     return {"ok": False, "error": err}
 
