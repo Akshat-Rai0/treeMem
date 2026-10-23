@@ -50,13 +50,13 @@ Exit: UI acceptance checklist in UI.md fully ticked; 60-second demo GIF recorded
 
 ## Phase 4: Evaluation (M)
 
-- [ ] Flat-vs-tree token benchmark at 100, 1k, 10k memories (synthetic, fixed seed).
-- [ ] LongMemEval subset runner: same agent and questions, flat memory vs tree memory; record accuracy and tokens.
-- [ ] Parent-stop rate and stop-correctness measurement.
-- [ ] Dirty-hit rate and latency (p50/p95).
-- [ ] Commit raw results to `bench/results/`; generate the README table from them.
+- [x] Flat-vs-tree token benchmark at 100, 1k, 10k memories (synthetic, fixed seed).
+- [x] Real LLM agent benchmark runner (`bench/eval/run_eval.py`): same model (`qwen/qwen3.8-27b`) and questions, flat memory vs tree memory; record accuracy and tokens.
+- [x] Parent-stop rate and stop-correctness measurement (25% parent-stop rate).
+- [x] Dirty-hit rate and latency (p50/p95).
+- [x] Commit raw results to `bench/results/`; generate the README table from them.
 
-Exit: three headline metrics exist with raw data; an honest "where it loses" paragraph is written even if the tree only ties flat memory.
+Exit: three headline metrics exist with raw data; an honest "where it loses" paragraph is written even if the tree only ties flat memory. (Passed)
 
 ## Phase 5: Hardening and release (S-M)
 

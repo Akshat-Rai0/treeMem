@@ -1,0 +1,625 @@
+{
+  "model": "qwen/qwen3.8-27b",
+  "timestamp": "2026-10-23T23:00:24Z",
+  "total_questions": 12,
+  "flat_accuracy_pct": 100.0,
+  "treemem_accuracy_pct": 91.7,
+  "memory_payload_tokens": {
+    "flat_total": 7812,
+    "treemem_total": 1307,
+    "reduction_pct": 83.27
+  },
+  "api_tokens_with_tool_overhead": {
+    "flat_total": 9858,
+    "treemem_total": 44784
+  },
+  "parent_stop_rate_pct": 25.0,
+  "parent_stops_count": 3,
+  "key_usage_counts": {
+    "0": 45,
+    "1": 44
+  },
+  "questions": [
+    {
+      "id": "q01_name",
+      "question": "What is the user's full name?",
+      "expected": "Alex Mercer",
+      "target_depth": 0,
+      "flat": {
+        "answer": "The user's full name is Alex Mercer.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 800,
+        "api_completion_tokens": 10,
+        "api_total_tokens": 810,
+        "latency_sec": 0.367,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user's full name is **Alex Mercer**.",
+        "payload_tokens": 65,
+        "api_prompt_tokens": 1405,
+        "api_completion_tokens": 36,
+        "api_total_tokens": 1441,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": true,
+        "latency_sec": 1.986,
+        "correct": true
+      }
+    },
+    {
+      "id": "q02_profession",
+      "question": "What is the user's primary profession?",
+      "expected": "Software Engineer",
+      "target_depth": 0,
+      "flat": {
+        "answer": "The user's primary profession is a Software Engineer at Nova Labs.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 800,
+        "api_completion_tokens": 14,
+        "api_total_tokens": 814,
+        "latency_sec": 0.362,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user's primary profession is **software engineer** (Alex Mercer, 28, in Metropolis).",
+        "payload_tokens": 65,
+        "api_prompt_tokens": 1405,
+        "api_completion_tokens": 48,
+        "api_total_tokens": 1453,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": true,
+        "latency_sec": 1.969,
+        "correct": true
+      }
+    },
+    {
+      "id": "q03_location",
+      "question": "Which city does the user currently reside in?",
+      "expected": "Metropolis",
+      "target_depth": 0,
+      "flat": {
+        "answer": "The user currently resides in Metropolis.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 801,
+        "api_completion_tokens": 9,
+        "api_total_tokens": 810,
+        "latency_sec": 0.515,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user currently resides in **Metropolis**.",
+        "payload_tokens": 65,
+        "api_prompt_tokens": 1407,
+        "api_completion_tokens": 35,
+        "api_total_tokens": 1442,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": true,
+        "latency_sec": 1.908,
+        "correct": true
+      }
+    },
+    {
+      "id": "q04_education_overview",
+      "question": "What is the user's academic and educational background?",
+      "expected": "B.S. in Computer Science from Metro State University",
+      "target_depth": 1,
+      "flat": {
+        "answer": "Based on the memory log, the user's academic and educational background is:\n\n*   **Degree:** B.S. in Computer Science\n*   **University:** Metro State University\n*   **Coursework:** Completed courses in Distributed Systems and Compilers",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 802,
+        "api_completion_tokens": 52,
+        "api_total_tokens": 854,
+        "latency_sec": 0.427,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "Alex Mercer's academic and educational background:\n\n- **Degree:** B.S. in Computer Science\n- **University:** Metro State University\n- **Notable Coursework:** Completed courses in Distributed Systems and Compilers",
+        "payload_tokens": 127,
+        "api_prompt_tokens": 4835,
+        "api_completion_tokens": 200,
+        "api_total_tokens": 5035,
+        "hops": 6,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "education"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "education"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "education/degree"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "education/university"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "education/coursework"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 7.709,
+        "correct": true
+      }
+    },
+    {
+      "id": "q05_career_overview",
+      "question": "Summarize the user's career and current employer.",
+      "expected": "Software Engineer at Nova Labs",
+      "target_depth": 1,
+      "flat": {
+        "answer": "Based on the memory log, here is a summary of the user's career:\n\n*   **Current Role:** Software Engineer at **Nova Labs**.\n*   **Previous Experience:** Engineering Intern at **TechCorp**.\n*   **Key Achievement:** Shipped a sub-millisecond indexing pipeline.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 803,
+        "api_completion_tokens": 61,
+        "api_total_tokens": 864,
+        "latency_sec": 0.411,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "Alex Mercer is a 28-year-old software engineer based in Metropolis.\n\n**Current employer:** Nova Labs, where he works as a Software Engineer.\n\n**Career highlights:**\n- Previously completed an Engineering Internship at TechCorp.\n- Key accomplishment: shipped a sub-millisecond indexing pipeline.",
+        "payload_tokens": 136,
+        "api_prompt_tokens": 4871,
+        "api_completion_tokens": 221,
+        "api_total_tokens": 5092,
+        "hops": 6,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "career"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "career"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "career/current_job"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "career/past_roles"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "career/achievements"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 7.219,
+        "correct": true
+      }
+    },
+    {
+      "id": "q06_college_name",
+      "question": "Which exact university did the user graduate from?",
+      "expected": "Metro State University",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user graduated from Metro State University.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 801,
+        "api_completion_tokens": 9,
+        "api_total_tokens": 810,
+        "latency_sec": 0.32,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user graduated from **Metro State University**.",
+        "payload_tokens": 102,
+        "api_prompt_tokens": 4523,
+        "api_completion_tokens": 114,
+        "api_total_tokens": 4637,
+        "hops": 4,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "education"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "education/university"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "education/university"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 19.099,
+        "correct": true
+      }
+    },
+    {
+      "id": "q07_email",
+      "question": "What is the user's email address?",
+      "expected": "alex.mercer@example.org",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user's email address is alex.mercer@example.org.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 800,
+        "api_completion_tokens": 14,
+        "api_total_tokens": 814,
+        "latency_sec": 0.307,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user's email address is **alex.mercer@example.org**.",
+        "payload_tokens": 105,
+        "api_prompt_tokens": 3421,
+        "api_completion_tokens": 91,
+        "api_total_tokens": 3512,
+        "hops": 3,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "identity"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "identity/contact"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 12.42,
+        "correct": true
+      }
+    },
+    {
+      "id": "q08_gym",
+      "question": "Where does the user go to workout and train?",
+      "expected": "Apex Fitness",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user trains at **Apex Fitness**.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 802,
+        "api_completion_tokens": 10,
+        "api_total_tokens": 812,
+        "latency_sec": 6.248,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user (Alex Mercer) trains at **Apex Fitness**, where they do calisthenics 4 days a week.",
+        "payload_tokens": 99,
+        "api_prompt_tokens": 4489,
+        "api_completion_tokens": 134,
+        "api_total_tokens": 4623,
+        "hops": 4,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "hobbies"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "hobbies/fitness"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "hobbies/fitness"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 20.85,
+        "correct": true
+      }
+    },
+    {
+      "id": "q09_project",
+      "question": "What hierarchical memory project is the user building?",
+      "expected": "TreeMem",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user is building **TreeMem**, a hierarchical memory architecture.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 801,
+        "api_completion_tokens": 14,
+        "api_total_tokens": 815,
+        "latency_sec": 0.337,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user is building **TreeMem**, a hierarchical memory architecture.",
+        "payload_tokens": 108,
+        "api_prompt_tokens": 4549,
+        "api_completion_tokens": 122,
+        "api_total_tokens": 4671,
+        "hops": 4,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "projects"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "projects/treemem"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "projects/treemem"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 16.537,
+        "correct": true
+      }
+    },
+    {
+      "id": "q10_coding_preferences",
+      "question": "What programming languages does the user prefer for backend engineering?",
+      "expected": "Python and Rust",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user prefers Python and Rust for backend engineering.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 803,
+        "api_completion_tokens": 11,
+        "api_total_tokens": 814,
+        "latency_sec": 4.048,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user prefers **Python** and **Rust** for backend engineering.",
+        "payload_tokens": 105,
+        "api_prompt_tokens": 4535,
+        "api_completion_tokens": 120,
+        "api_total_tokens": 4655,
+        "hops": 4,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "preferences"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "preferences/coding"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "preferences/coding"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 18.708,
+        "correct": true
+      }
+    },
+    {
+      "id": "q11_sensitive_routing",
+      "question": "What is the user's bank routing number?",
+      "expected": "987654321",
+      "target_depth": 2,
+      "flat": {
+        "answer": "The user's bank routing number is 987654321.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 801,
+        "api_completion_tokens": 19,
+        "api_total_tokens": 820,
+        "latency_sec": 0.331,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "The user's bank routing number is **987654321**.",
+        "payload_tokens": 99,
+        "api_prompt_tokens": 3398,
+        "api_completion_tokens": 108,
+        "api_total_tokens": 3506,
+        "hops": 3,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "finance"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "finance/banking",
+              "reveal": true
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 16.246,
+        "correct": true
+      }
+    },
+    {
+      "id": "q12_negative_control",
+      "question": "What is the user's favorite sports car brand?",
+      "expected": "Not specified / Unknown",
+      "target_depth": 0,
+      "flat": {
+        "answer": "The provided memory log does not contain any information about the user's favorite sports car brand.",
+        "payload_tokens": 651,
+        "api_prompt_tokens": 802,
+        "api_completion_tokens": 19,
+        "api_total_tokens": 821,
+        "latency_sec": 6.233,
+        "correct": true
+      },
+      "treemem": {
+        "answer": "{\"query\": \"sports car\", \"hits\": [], \"count\": 0, \"tokens\": 3}",
+        "payload_tokens": 231,
+        "api_prompt_tokens": 4591,
+        "api_completion_tokens": 126,
+        "api_total_tokens": 4717,
+        "hops": 5,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/"
+            }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "preferences"
+            }
+          },
+          {
+            "tool": "search",
+            "args": {
+              "query": "favorite sports car brand"
+            }
+          },
+          {
+            "tool": "search",
+            "args": {
+              "query": "car"
+            }
+          },
+          {
+            "tool": "search",
+            "args": {
+              "query": "sports car"
+            }
+          }
+        ],
+        "depth_reached": 1,
+        "is_parent_stop": false,
+        "latency_sec": 53.63,
+        "correct": false
+      }
+    }
+  ]
+}

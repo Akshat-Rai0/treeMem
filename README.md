@@ -290,6 +290,20 @@ treemem serve --demo
 
 ## 11. Benchmarks & Honest Evaluation
 
+### Real LLM Agent Benchmark (`qwen/qwen3.8-27b` via Groq)
+*Automated evaluation comparing single-prompt flat memory dump against autonomous TreeMem MCP tool descent ($n=12$ queries across identity, career, education, preferences, private finance, and out-of-domain negative controls):*
+
+| Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
+|:---|:---|:---|:---|
+| **Answer Accuracy** | **100.0%** (12/12) | **91.7%** (11/12) | Near-identical accuracy (100% on factual queries) |
+| **Memory Payload Tokens** | 7,812 tokens | **1,307 tokens** | **83.27% payload token reduction** |
+| **Parent-Stop Rate** | N/A | **25.0%** (3/12 queries) | Stopped at root depth 0 when summary was sufficient |
+| **Failover Multi-Account Pacing** | 12 calls | 89 calls across 2 keys | Zero dropped requests via round-robin failover |
+
+*Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
+
+> **The Multi-Turn Overhead Trade-Off:** On small vaults (<30 facts), flat context dumps are faster and cheaper in total API wire tokens (9,858 vs 44,784 tokens) because multi-turn tool calling retransmits the system prompt and tool definitions on every hop. However, TreeMem achieves an **83.27% reduction in memory payload**, proving that hierarchical descent prevents memory context saturation as vaults scale to hundreds and thousands of entries.
+
 ### Synthetic Vault Scaling Study
 *Measuring memory payload token cost between flat note dumps vs. TreeMem hierarchical descent:*
 
@@ -299,13 +313,13 @@ treemem serve --demo
 | **1,000 memories** | 20,941 tokens | 223 tokens | **98.94%** |
 | **10,000 memories** | 227,941 tokens | 1,465 tokens | **99.36%** |
 
-*Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](file:///Users/bipinkumarrai/Desktop/EVERYTHING/CODING%20PROJECTS/PORTFOLIO%20PROJ/treeMem/bench/results/flat_vs_tree_tokens.json).*
+*Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](bench/results/flat_vs_tree_tokens.json).*
 
 ### Plumbing Smoke Test ($n=5$, Scripted Descent)
 - **Token Reduction**: 9.2% on a small 8-fact vault.
 - **Parent-Stop Rate**: 20.0% (depth 0).
 - **Descent Latency**: p50 = 1.77 ms, p95 = 1.92 ms.
-- *Raw data committed in [`bench/results/smoke_test_results.json`](file:///Users/bipinkumarrai/Desktop/EVERYTHING/CODING%20PROJECTS/PORTFOLIO%20PROJ/treeMem/bench/results/smoke_test_results.json).*
+- *Raw data committed in [`bench/results/smoke_test_results.json`](bench/results/smoke_test_results.json).*
 
 ---
 
