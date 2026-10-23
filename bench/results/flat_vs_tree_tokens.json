@@ -1,6 +1,7 @@
 {
-  "timestamp": "2026-10-22T23:41:32Z",
-  "benchmark": "flat_vs_tree_tokens",
+  "timestamp": "2026-10-23T19:10:13Z",
+  "benchmark": "flat_vs_tree_tokens_synthetic",
+  "benchmark_type": "synthetic vault, scripted descent, tokens only",
   "scales": {
     "100": {
       "num_memories": 100,
@@ -10,7 +11,7 @@
       "tree_depth2_tokens": 153,
       "avg_tree_recall_tokens": 110,
       "token_savings_pct": 94.61,
-      "build_time_seconds": 0.53
+      "build_time_seconds": 0.52
     },
     "1000": {
       "num_memories": 1000,
@@ -20,7 +21,7 @@
       "tree_depth2_tokens": 531,
       "avg_tree_recall_tokens": 223,
       "token_savings_pct": 98.94,
-      "build_time_seconds": 4.64
+      "build_time_seconds": 4.72
     },
     "10000": {
       "num_memories": 10000,
@@ -30,7 +31,7 @@
       "tree_depth2_tokens": 4671,
       "avg_tree_recall_tokens": 1465,
       "token_savings_pct": 99.36,
-      "build_time_seconds": 94.59
+      "build_time_seconds": 98.81
     }
   }
 }

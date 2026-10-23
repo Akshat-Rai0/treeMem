@@ -1,4 +1,4 @@
-"""Benchmark comparing token cost of flat dump vs TreeMem hierarchical recall at 100, 1,000, and 10,000 memories."""
+"""Scaling benchmark comparing token cost of flat dump vs TreeMem hierarchical recall (synthetic vault, scripted descent, tokens only)."""
 
 import json
 import random
@@ -50,11 +50,12 @@ def run_benchmark():
     scales = [100, 1000, 10000]
     results = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "benchmark": "flat_vs_tree_tokens",
+        "benchmark": "flat_vs_tree_tokens_synthetic",
+        "benchmark_type": "synthetic vault, scripted descent, tokens only",
         "scales": {},
     }
 
-    print("Running Flat vs. TreeMem Token Scaling Benchmark...")
+    print("Running Scaling Benchmark (synthetic vault, scripted descent, tokens only)...")
 
     for scale in scales:
         temp_dir = tempfile.mkdtemp(prefix=f"treemem_bench_{scale}_")

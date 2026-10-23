@@ -2,7 +2,7 @@
 
 > **Hierarchical, agent-writable memory for LLM agents exposed as an MCP server, stored as a plain folder of markdown, with a local web dashboard that visualizes every recall.**
 
-[![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen.svg)]()
+[![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 
@@ -10,7 +10,7 @@
 
 ## 1. The One-Line Pitch
 
-An agent reads a concise parent node summary first and descends into child branches only when the question requires more detail, slashing recall token costs by up to **99.3%** at identical accuracy.
+An agent reads a concise parent node summary first and descends into child branches only when the question requires more detail, allowing the agent to retrieve only the information required.
 
 **Analogy:** A library catalog card is the parent, the shelf section is a child, and the book is a leaf fact. The agent only walks as far as the query demands.
 
@@ -46,23 +46,27 @@ Agent Harness (Antigravity / Devin / Claude Desktop)
 
 ---
 
-## 3. Benchmark Results (Committed Data)
+## 3. Results (In Progress)
 
-Benchmarked on synthetic memory vaults and the `LongMemEval` question-answering subset:
+Rigorous evaluation with real LLM agents is currently under development (see [`bench/eval/`](bench/eval/)). Current interim measurements:
 
-### Token Scaling: Flat Dump vs. TreeMem Descent
+### Plumbing Smoke Test ($n=5$, scripted descent, fictional persona)
+- **Token reduction**: 9.2% on that test.
+- **Parent-stop rate**: 20.0% (depth 0).
+- **Latency**: p50 = 1.77 ms, p95 = 1.92 ms.
+- *Raw data: [`bench/results/smoke_test_results.json`](bench/results/smoke_test_results.json).*
+
+### Scaling Study (Synthetic vault, scripted descent, tokens only)
+
+> **Notice:** The following measurements are from a synthetic vault with scripted descent measuring memory payload tokens only. They do not reflect LLM agent accuracy or multi-turn conversational token overhead.
 
 | Number of Memories | Flat Dump Cost | TreeMem Average Cost | Token Savings |
 |:-------------------|:---------------|:---------------------|:--------------|
-| **100 memories**   | 2,041 tokens   | 110 tokens           | **94.61%**    |
-| **1,000 memories** | 20,941 tokens  | 223 tokens           | **98.94%**    |
-| **10,000 memories**| 227,941 tokens | 1,465 tokens         | **99.36%**    |
+| **100 memories**   | 2,041 tokens   | 110 tokens           | 94.61%        |
+| **1,000 memories** | 20,941 tokens  | 223 tokens           | 98.94%        |
+| **10,000 memories**| 227,941 tokens | 1,465 tokens         | 99.36%        |
 
-### Quality & Latency Metrics
-- **Answer Accuracy**: **100.0%** on target questions.
-- **Parent-Stop Rate**: **20.0%** answered at depth 0 without child descent (Correctness: **100%**).
-- **Recall Latency**: p50 = **1.79 ms**, p95 = **2.01 ms**.
-- *Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](bench/results/flat_vs_tree_tokens.json) and [`bench/results/longmemeval_results.json`](bench/results/longmemeval_results.json).*
+*Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](bench/results/flat_vs_tree_tokens.json).*
 
 ---
 
@@ -70,8 +74,8 @@ Benchmarked on synthetic memory vaults and the `LongMemEval` question-answering 
 
 ### 1. Installation
 ```bash
-git clone https://github.com/akshat/treemem.git
-cd treemem
+git clone https://github.com/Akshat-Rai0/treeMem.git
+cd treeMem
 uv venv && uv pip install -e .
 ```
 
@@ -129,6 +133,21 @@ To connect TreeMem to an agent harness (Antigravity, Claude Desktop, Cursor, or 
 
 ---
 
-## 7. Limitations & v1 Scope
-- **Non-goals**: No learned descent classifier (v2), no vector embedding database (uses lexical BM25), no remote cloud sync.
-- **Where it loses**: On small vaults (<30 facts), flat dump token overhead is negligible and descent requires multiple round-trips. TreeMem's advantages become decisive as memories scale beyond 100 entries.
+## 7. Limitations & Harness Compatibility
+
+### Limitations
+- **Multi-turn descent overhead**: Tree descent requires additional round-trips when descending into child nodes, adding per-turn prompt and API latency overhead that is not captured in isolated token payload measurements.
+- **Small vault breakeven**: On small vaults (<30 facts), flat dump token overhead is minimal and single-turn context retrieval may be simpler than iterative tree descent.
+- **Lexical search**: v1 uses BM25 lexical search over log/leaf notes as fallback; semantic vector search is out of scope for v1.
+- **Single-user local daemon**: Designed for local development and single-agent harnesses; distributed multi-user syncing is out of scope for v1.
+
+### Harness Compatibility Status
+
+| Harness | Status | Notes |
+|:---|:---|:---|
+| **Antigravity** | Untested | Protocol verified via stdio JSON-RPC test suite; full in-harness session pending |
+| **Devin** | Untested | Configuration documented; end-to-end harness session untested |
+| **Claude Desktop** | Untested | Configuration documented; end-to-end harness session untested |
+| **Cursor** | Untested | Configuration documented; end-to-end harness session untested |
+
+*See [`docs/harness-notes.md`](docs/harness-notes.md) for transport and configuration details.*

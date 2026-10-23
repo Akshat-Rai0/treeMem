@@ -140,7 +140,8 @@ treemem/
     test_concurrency.py
   bench/
     flat_vs_tree_tokens.py
-    longmemeval_subset.py
+    smoke_test.py
+    eval/
     results/ (committed raw outputs)
   docs/
     project_difination.md  how_it_should_work.md  system-wiring.md  UI.md  roadmap.md

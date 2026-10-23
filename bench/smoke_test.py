@@ -1,4 +1,4 @@
-"""Long-term memory evaluation subset benchmark measuring accuracy, token cost, parent-stop rate, and latency."""
+"""Smoke test runner measuring basic descent plumbing on 5 sample questions with scripted descent."""
 
 import json
 import shutil
@@ -10,12 +10,12 @@ from typing import Any, Dict, List
 from treemem.tokenizer import count_tokens
 from treemem.tree_manager import TreeManager
 
-# Evaluation dataset with varying question complexities and target descent depths
-EVAL_DATASET = [
+# Fictional sample persona questions with varying target descent depths
+SMOKE_DATASET = [
     {
         "id": "q1",
         "question": "What is my full name?",
-        "expected_answer": "Akshat Rai",
+        "expected_answer": "Alex Mercer",
         "target_path": "identity",
         "depth_needed": 0,  # Answered directly by root summary
     },
@@ -29,67 +29,67 @@ EVAL_DATASET = [
     {
         "id": "q3",
         "question": "What is my current age?",
-        "expected_answer": "21",
+        "expected_answer": "28",
         "target_path": "identity/age",
         "depth_needed": 2,  # Leaf fact
     },
     {
         "id": "q4",
         "question": "What is the repo URL for the TreeMem project?",
-        "expected_answer": "github.com/akshat/treemem",
+        "expected_answer": "github.com/example/treemem",
         "target_path": "projects/treemem",
         "depth_needed": 2,
     },
     {
         "id": "q5",
         "question": "Which gym do I train at?",
-        "expected_answer": "Equinox",
+        "expected_answer": "Apex Fitness",
         "target_path": "hobbies/fitness",
         "depth_needed": 2,
     },
 ]
 
 
-def setup_eval_vault(vault_path: Path) -> TreeManager:
+def setup_smoke_vault(vault_path: Path) -> TreeManager:
     mgr = TreeManager(vault_path)
 
     facts = [
-        ("User full name is Akshat Rai", "identity"),
-        ("User age is 21", "identity/age"),
-        ("User lives in San Francisco", "identity/location"),
+        ("User full name is Alex Mercer", "identity"),
+        ("User age is 28", "identity/age"),
+        ("User lives in Metropolis", "identity/location"),
         ("Enrolled in B.S. in Computer Science", "education/degree"),
-        ("GPA is 3.92", "education/grades"),
-        ("Building TreeMem at github.com/akshat/treemem", "projects/treemem"),
-        ("Trains at Equinox Downtown", "hobbies/fitness"),
+        ("GPA is 3.85", "education/grades"),
+        ("Building TreeMem at github.com/example/treemem", "projects/treemem"),
+        ("Trains at Apex Fitness", "hobbies/fitness"),
         ("Favorite programming language is Python", "skills/languages"),
     ]
 
     for fact, hint in facts:
-        rem = mgr.remember(fact=fact, hint=hint, session="eval")
+        rem = mgr.remember(fact=fact, hint=hint, session="smoke")
         mgr.place(rem["entry_id"], hint)
 
     # Set up realistic root and parent summaries
     mgr.commit_summary(
         "",
-        "---\nname: root\ndirty: false\n---\nPersonal catalog for Akshat Rai, 21-year-old student and engineer.\n\n"
+        "---\nname: root\ndirty: false\n---\nPersonal catalog for Alex Mercer, 28-year-old software engineer.\n\n"
         "## Children\n- [[identity]] - Personal bio\n- [[education]] - Academic background\n"
         "- [[projects]] - Software projects\n- [[hobbies]] - Personal fitness\n- [[skills]] - Technical skills\n"
     )
 
     mgr.commit_summary(
         "education",
-        "---\nname: education\ndirty: false\n---\nEnrolled in B.S. in Computer Science with a 3.92 GPA.\n\n"
+        "---\nname: education\ndirty: false\n---\nEnrolled in B.S. in Computer Science with a 3.85 GPA.\n\n"
         "## Children\n- [[degree]] - degree info\n- [[grades]] - academic grades\n"
     )
 
     return mgr
 
 
-def run_longmemeval():
-    temp_dir = tempfile.mkdtemp(prefix="treemem_longmemeval_")
+def run_smoke_test():
+    temp_dir = tempfile.mkdtemp(prefix="treemem_smoke_")
     vault_path = Path(temp_dir)
     try:
-        mgr = setup_eval_vault(vault_path)
+        mgr = setup_smoke_vault(vault_path)
 
         latencies = []
         tokens_tree = []
@@ -107,12 +107,12 @@ def run_longmemeval():
 
         eval_records = []
 
-        for item in EVAL_DATASET:
+        for item in SMOKE_DATASET:
             t0 = time.time()
             query_id = item["id"]
             depth_needed = item["depth_needed"]
 
-            # Simulated Agent Descent Logic
+            # Simulated Agent Descent Logic (Scripted plumbing check)
             # 1. Start with root recall
             r_root = mgr.recall("/", query_id=query_id)
             tokens_read = r_root["tokens"]
@@ -162,9 +162,10 @@ def run_longmemeval():
 
         summary = {
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "total_questions": len(EVAL_DATASET),
-            "accuracy_pct": round((correct_answers / len(EVAL_DATASET)) * 100, 1),
-            "parent_stop_rate": round(parent_stops / len(EVAL_DATASET), 3),
+            "test_type": "smoke_test_scripted_descent",
+            "total_questions": len(SMOKE_DATASET),
+            "accuracy_pct": round((correct_answers / len(SMOKE_DATASET)) * 100, 1),
+            "parent_stop_rate": round(parent_stops / len(SMOKE_DATASET), 3),
             "parent_stop_correctness": round(correct_stops / max(1, parent_stops), 3),
             "avg_tokens_tree": round(sum(tokens_tree) / len(tokens_tree), 1),
             "avg_tokens_flat": flat_tokens_per_query,
@@ -174,14 +175,14 @@ def run_longmemeval():
             "records": eval_records,
         }
 
-        out_file = Path(__file__).parent / "results" / "longmemeval_results.json"
+        out_file = Path(__file__).parent / "results" / "smoke_test_results.json"
         out_file.parent.mkdir(parents=True, exist_ok=True)
         with open(out_file, "w") as f:
             json.dump(summary, f, indent=2)
 
-        print("\nLongMemEval Subset Results:")
+        print("\nSmoke Test (Scripted Descent, n=5) Results:")
         print(f" Accuracy: {summary['accuracy_pct']}%")
-        print(f" Parent-stop rate: {summary['parent_stop_rate'] * 100}% (Correctness: {summary['parent_stop_correctness'] * 100}%)")
+        print(f" Parent-stop rate: {summary['parent_stop_rate'] * 100}%")
         print(f" Average tokens per recall: {summary['avg_tokens_tree']} (vs flat dump {summary['avg_tokens_flat']} tok, {summary['token_reduction_pct']}% reduction)")
         print(f" Latency: p50 = {summary['latency_p50_ms']} ms | p95 = {summary['latency_p95_ms']} ms")
         print(f" Committed results to: {out_file}")
@@ -192,4 +193,4 @@ def run_longmemeval():
 
 
 if __name__ == "__main__":
-    run_longmemeval()
+    run_smoke_test()
