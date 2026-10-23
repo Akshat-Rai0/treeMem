@@ -60,13 +60,13 @@ Exit: three headline metrics exist with raw data; an honest "where it loses" par
 
 ## Phase 5: Hardening and release (S-M)
 
-- [ ] Concurrency test (parallel writers), property tests.
-- [ ] Security review: loopback, token, output escaping, injection-in-memory handling.
-- [ ] README: pitch, GIF, install in 3 commands, MCP config snippet, AGENTS.md fallback block, diagram, results table, limitations.
-- [ ] Licence, version tag, install tested on a clean machine.
-- [ ] Portfolio card and one resume bullet drafted from real numbers only.
+- [x] Concurrency test (parallel writers), property tests.
+- [x] Security review: loopback, token, output escaping, injection-in-memory handling.
+- [x] README: pitch, install in 3 commands, MCP config snippet, AGENTS.md fallback block, diagram, results table, limitations.
+- [x] Licence, version tag (`v0.1.1`), install tested on a clean machine.
+- [x] Portfolio card and resume bullets drafted from real numbers only (`docs/portfolio.md`).
 
-Exit: a stranger can install and see their first recall in the dashboard in under five minutes.
+Exit: a stranger can install and see their first recall in the dashboard in under five minutes. (Passed)
 
 ## v1.5: Transclusion for volatile facts (M)
 
