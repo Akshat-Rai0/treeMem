@@ -485,3 +485,56 @@ footer {
   border-bottom: 1px solid var(--border-color);
   color: var(--color-danger);
 }
+
+/* ── Inspector action buttons ─────────────────────────────────────── */
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.btn-amber {
+  background: #78350f;
+  border-color: #f59e0b;
+  color: #fef3c7;
+}
+.btn-amber:hover {
+  background: #92400e;
+}
+
+.btn-primary {
+  background: #1e40af;
+  border-color: #3b82f6;
+  color: #eff6ff;
+}
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.action-status {
+  font-size: 12px;
+  width: 100%;
+  min-height: 16px;
+}
+
+/* ── Edit Summary modal textarea ──────────────────────────────────── */
+.edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  resize: vertical;
+  outline: none;
+  margin-top: 8px;
+}
+.edit-textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}

@@ -1,9 +1,17 @@
-"""BM25 search index over log entries, leaves, and candidate scoring."""
+"""BM25 + TF-IDF hybrid search index over log entries, leaves, and candidate scoring."""
 
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from rank_bm25 import BM25Okapi
+
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    _SKLEARN_AVAILABLE = True
+except ImportError:
+    _SKLEARN_AVAILABLE = False
 
 
 def tokenize(text: str) -> List[str]:
@@ -12,7 +20,11 @@ def tokenize(text: str) -> List[str]:
 
 
 class SearchIndex:
-    """Maintains BM25 index over log entries and leaf nodes with placement mapping."""
+    """Maintains BM25 + TF-IDF hybrid index over log entries and leaf nodes."""
+
+    # Weights for hybrid scoring in candidate_nodes()
+    _W_TFIDF = 0.60
+    _W_BM25 = 0.40
 
     def __init__(self):
         self.entry_docs: List[Dict[str, Any]] = []
@@ -20,6 +32,9 @@ class SearchIndex:
         self.node_docs: List[Dict[str, Any]] = []  # path, name, aliases, summary
         self.bm25_entries: Optional[BM25Okapi] = None
         self.bm25_nodes: Optional[BM25Okapi] = None
+        # TF-IDF semantic layer
+        self._tfidf_vectorizer: Optional[Any] = None  # TfidfVectorizer
+        self._tfidf_matrix: Optional[Any] = None      # fitted sparse matrix
 
     def build(
         self,
@@ -60,9 +75,11 @@ class SearchIndex:
             self.bm25_entries = None
 
         node_corpus: List[List[str]] = []
+        node_texts: List[str] = []
         for n in self.node_docs:
             aliases_str = " ".join(n.get("aliases", []))
             node_text = f"{n.get('name', '')} {aliases_str} {n.get('summary', '')}"
+            node_texts.append(node_text)
             toks = tokenize(node_text)
             node_corpus.append(toks if toks else ["empty"])
 
@@ -70,6 +87,25 @@ class SearchIndex:
             self.bm25_nodes = BM25Okapi(node_corpus)
         else:
             self.bm25_nodes = None
+
+        # Fit TF-IDF vectorizer on node texts (bigrams, sublinear_tf)
+        self._tfidf_vectorizer = None
+        self._tfidf_matrix = None
+        if _SKLEARN_AVAILABLE and node_texts and len(node_texts) >= 1:
+            try:
+                vect = TfidfVectorizer(
+                    ngram_range=(1, 2),
+                    min_df=1,
+                    sublinear_tf=True,
+                    strip_accents="unicode",
+                    analyzer="word",
+                )
+                self._tfidf_matrix = vect.fit_transform(node_texts)
+                self._tfidf_vectorizer = vect
+            except Exception:
+                # Graceful degradation: fall back to BM25-only
+                self._tfidf_vectorizer = None
+                self._tfidf_matrix = None
 
     def add_entry(self, entry_id: str, fact: str, hint: str = "") -> None:
         """Add an entry to in-memory store."""
@@ -145,37 +181,89 @@ class SearchIndex:
         limit: int = 3,
         all_node_paths: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Propose candidate nodes for placing a fact."""
+        """Propose candidate nodes for placing a fact using BM25 + TF-IDF hybrid scoring.
+
+        Scoring formula (per node, excluding exact-hint match):
+          combined = W_TFIDF * tfidf_cos_sim + W_BM25 * normalized_bm25_overlap
+        Results are ranked by combined score descending.
+        """
         candidates: List[Dict[str, Any]] = []
         seen_paths: Set[str] = set()
 
+        # 1. Exact hint match → always surfaces first at score 1.0
         clean_hint = hint.strip().strip("/")
         if clean_hint and all_node_paths and clean_hint in all_node_paths:
-            candidates.append({"path": clean_hint, "score": 1.0})
+            candidates.append({"path": clean_hint, "score": 1.0, "source": "hint"})
             seen_paths.add(clean_hint)
 
-        query_text = f"{fact} {hint}"
+        if not self.node_docs:
+            return candidates[:limit]
+
+        query_text = f"{fact} {hint}".strip()
         toks = tokenize(query_text)
         query_words = set(toks)
 
-        if self.node_docs:
-            ranked_nodes: List[Tuple[Dict[str, Any], float]] = []
-            for n in self.node_docs:
-                p = n["path"]
-                if p in seen_paths:
-                    continue
-                node_text = f"{n.get('name', '')} {' '.join(n.get('aliases', []))} {n.get('summary', '')}".lower()
-                node_toks = set(tokenize(node_text))
-                overlap = query_words.intersection(node_toks)
-                if overlap:
-                    ranked_nodes.append((n, float(len(overlap))))
+        # 2. BM25 overlap scores (word-level, normalised to [0, 1])
+        bm25_scores: List[float] = [0.0] * len(self.node_docs)
+        if self.bm25_nodes is not None and toks:
+            try:
+                raw = self.bm25_nodes.get_scores(toks)
+                max_raw = float(max(raw)) if max(raw) > 0 else 1.0
+                bm25_scores = [float(s) / max_raw for s in raw]
+            except Exception:
+                pass
 
-            ranked_nodes.sort(key=lambda x: x[1], reverse=True)
-            for node, s in ranked_nodes:
-                p = node["path"]
-                candidates.append({"path": p, "score": round(min(1.0, s / 5.0), 3)})
-                seen_paths.add(p)
-                if len(candidates) >= limit:
-                    break
+        # Also compute simple word-overlap count (for corpora where BM25 IDF is flat)
+        overlap_counts: List[float] = []
+        for n in self.node_docs:
+            node_text = (
+                f"{n.get('name', '')} {' '.join(n.get('aliases', []))} {n.get('summary', '')}"
+            ).lower()
+            nt = set(tokenize(node_text))
+            overlap_counts.append(float(len(query_words.intersection(nt))))
+        max_overlap = max(overlap_counts) if max(overlap_counts) > 0 else 1.0
+        norm_overlap = [c / max_overlap for c in overlap_counts]
+
+        # Combine BM25 and word-overlap to form a robust lexical signal
+        lexical: List[float] = [
+            0.5 * bm25_scores[i] + 0.5 * norm_overlap[i]
+            for i in range(len(self.node_docs))
+        ]
+
+        # 3. TF-IDF cosine similarity scores (semantic signal)
+        tfidf_cos: List[float] = [0.0] * len(self.node_docs)
+        if (
+            _SKLEARN_AVAILABLE
+            and self._tfidf_vectorizer is not None
+            and self._tfidf_matrix is not None
+            and query_text
+        ):
+            try:
+                q_vec = self._tfidf_vectorizer.transform([query_text])
+                sims = cosine_similarity(q_vec, self._tfidf_matrix)[0]
+                tfidf_cos = [float(s) for s in sims]
+            except Exception:
+                pass
+
+        # 4. Hybrid combination and ranking
+        ranked: List[Tuple[int, float, str]] = []  # (node_idx, score, source)
+        for i, n in enumerate(self.node_docs):
+            p = n["path"]
+            if p in seen_paths:
+                continue
+            combined = self._W_TFIDF * tfidf_cos[i] + self._W_BM25 * lexical[i]
+            if combined > 0:
+                # Determine dominant signal for transparency
+                src = "tfidf" if tfidf_cos[i] >= lexical[i] else "bm25"
+                ranked.append((i, combined, src))
+
+        ranked.sort(key=lambda x: x[1], reverse=True)
+
+        for i, score, src in ranked:
+            p = self.node_docs[i]["path"]
+            candidates.append({"path": p, "score": round(min(1.0, score), 3), "source": src})
+            seen_paths.add(p)
+            if len(candidates) >= limit:
+                break
 
         return candidates[:limit]

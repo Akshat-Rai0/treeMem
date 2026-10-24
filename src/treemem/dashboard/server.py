@@ -11,10 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from treemem.tokenizer import count_tokens
 from treemem.tree_manager import TreeManager, norm_path
+
+
+# ---------------------------------------------------------------------------
+# Request bodies for write endpoints
+# ---------------------------------------------------------------------------
+
+class CompressRequest(BaseModel):
+    path: str
+
+
+class EditSummaryRequest(BaseModel):
+    path: str
+    text: str
 
 security = HTTPBearer(auto_error=False)
 
@@ -220,6 +234,74 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
             "avg_tokens_per_recall": round(avg_tokens, 1),
             "baseline_flat_dump_tokens": baseline_flat_tokens,
         }
+
+    # ------------------------------------------------------------------
+    # Write endpoints (v2): scoped to compress and summary edit
+    # ------------------------------------------------------------------
+
+    @app.post("/api/node/compress")
+    async def compress_node(
+        body: CompressRequest,
+        authorized: bool = Depends(verify_token),
+    ):
+        """Trigger AutoCompressor on a single node by path."""
+        clean_path = norm_path(body.path)
+        node = tree_manager.store.read_node(clean_path)
+        if not node:
+            raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
+
+        try:
+            from treemem.auto_compress import AutoCompressor
+            import os as _os
+
+            groq_key = _os.environ.get("GROQ_API_KEY_1") or _os.environ.get("GROQ_API_KEY")
+            if not groq_key:
+                raise HTTPException(
+                    status_code=503,
+                    detail="No GROQ_API_KEY_1 or GROQ_API_KEY set. AutoCompressor requires a Groq key.",
+                )
+
+            compressor = AutoCompressor(
+                tree_manager=tree_manager,
+                api_key=groq_key,
+            )
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: compressor.compress_node(clean_path),
+            )
+            return {"ok": True, "path": clean_path, "result": result}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/node/summary")
+    async def edit_summary(
+        body: EditSummaryRequest,
+        authorized: bool = Depends(verify_token),
+    ):
+        """Manually overwrite a node's summary text."""
+        clean_path = norm_path(body.path)
+        node = tree_manager.store.read_node(clean_path)
+        if not node:
+            raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
+
+        text = body.text.strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="Summary text must not be empty.")
+
+        # Hard limit: refuse edits > 4000 chars to protect token budget
+        if len(text) > 4000:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Summary too long ({len(text)} chars). Max 4000 chars.",
+            )
+
+        try:
+            tree_manager.commit_summary(clean_path, text)
+            return {"ok": True, "path": clean_path, "tokens": count_tokens(text)}
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     # Mount static assets
     if static_dir.exists():

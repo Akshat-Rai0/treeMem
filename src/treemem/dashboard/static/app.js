@@ -249,6 +249,17 @@
       document.getElementById("insp-updated").textContent = node.updated ? node.updated.slice(0, 19).replace("T", " ") : "-";
       document.getElementById("insp-facts").textContent = node.fact_count || 0;
 
+      // Inspector action buttons
+      const compressBtn = document.getElementById("insp-btn-compress");
+      const editBtn = document.getElementById("insp-btn-edit");
+      if (compressBtn) {
+        compressBtn.style.display = node.dirty ? "inline-flex" : "none";
+        compressBtn.onclick = () => handleAutoCompress(node.path);
+      }
+      if (editBtn) {
+        editBtn.onclick = () => openEditModal(node.path, node.summary || "");
+      }
+
       const childrenList = document.getElementById("insp-children");
       childrenList.innerHTML = "";
       if (node.children && node.children.length > 0) {
@@ -270,6 +281,101 @@
     }
   }
   window.inspectNode = inspectNode;
+
+  // Auto-Compress handler
+  async function handleAutoCompress(path) {
+    const btn = document.getElementById("insp-btn-compress");
+    const statusEl = document.getElementById("insp-action-status");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Compressing…";
+    }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      const res = await apiFetch("/api/node/compress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      if (res.ok) {
+        if (statusEl) {
+          statusEl.textContent = "✅ Compressed successfully.";
+          statusEl.style.color = "var(--color-success, #10b981)";
+        }
+        await loadTree();
+        await loadHealth();
+        await inspectNode(path);
+      } else {
+        if (statusEl) {
+          statusEl.textContent = `❌ Error: ${res.detail || "Compression failed."}`;
+          statusEl.style.color = "var(--color-dirty, #f59e0b)";
+        }
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = `❌ ${e.message}`;
+        statusEl.style.color = "var(--color-dirty, #f59e0b)";
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "⚡ Auto-Compress";
+      }
+    }
+  }
+
+  // Open Edit Summary Modal
+  function openEditModal(path, currentSummary) {
+    const modal = document.getElementById("edit-modal");
+    const textarea = document.getElementById("edit-modal-textarea");
+    const pathLabel = document.getElementById("edit-modal-path");
+    const errEl = document.getElementById("edit-modal-error");
+    if (!modal || !textarea) return;
+
+    if (pathLabel) pathLabel.textContent = path;
+    textarea.value = currentSummary;
+    if (errEl) errEl.textContent = "";
+    modal.classList.add("open");
+
+    document.getElementById("edit-modal-submit").onclick = async () => {
+      await handleEditSummary(path, textarea.value);
+    };
+  }
+
+  // Edit Summary POST handler
+  async function handleEditSummary(path, text) {
+    const errEl = document.getElementById("edit-modal-error");
+    const submitBtn = document.getElementById("edit-modal-submit");
+    if (errEl) errEl.textContent = "";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+
+    try {
+      const res = await apiFetch("/api/node/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, text }),
+      });
+      if (res.ok) {
+        document.getElementById("edit-modal").classList.remove("open");
+        await loadTree();
+        await loadHealth();
+        await inspectNode(path);
+      } else {
+        if (errEl) {
+          errEl.textContent = res.detail || "Save failed. Check summary length.";
+          errEl.style.color = "var(--color-dirty, #f59e0b)";
+        }
+      }
+    } catch (e) {
+      if (errEl) {
+        errEl.textContent = e.message;
+        errEl.style.color = "var(--color-dirty, #f59e0b)";
+      }
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Save"; }
+    }
+  }
 
   // Load Recalls and Events
   async function loadEvents() {
@@ -581,9 +687,16 @@
     document.getElementById("health-btn").addEventListener("click", () => modal.classList.add("open"));
     document.getElementById("btn-close-modal").addEventListener("click", () => modal.classList.remove("open"));
 
+    // Edit Summary modal
+    const editModal = document.getElementById("edit-modal");
+    const btnCloseEdit = document.getElementById("btn-close-edit-modal");
+    if (btnCloseEdit && editModal) {
+      btnCloseEdit.addEventListener("click", () => editModal.classList.remove("open"));
+    }
+
     // Keyboard Shortcuts
     window.addEventListener("keydown", (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") {
         if (e.key === "Escape") e.target.blur();
         return;
       }
@@ -594,6 +707,7 @@
         if (cy) cy.fit(null, 40);
       } else if (e.key === "Escape") {
         modal.classList.remove("open");
+        if (editModal) editModal.classList.remove("open");
         if (cy) cy.elements().unselect();
       } else if (e.code === "Space") {
         e.preventDefault();

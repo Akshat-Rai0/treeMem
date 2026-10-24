@@ -90,6 +90,16 @@
         <div id="insp-summary" class="summary-content">Select a node to inspect summary.</div>
       </div>
 
+      <div class="inspector-section inspector-actions">
+        <button id="insp-btn-compress" class="btn btn-amber" style="display:none;" title="AI-compress this stale node">
+          ⚡ Auto-Compress
+        </button>
+        <button id="insp-btn-edit" class="btn" title="Manually edit this node's summary">
+          ✏️ Edit Summary
+        </button>
+        <div id="insp-action-status" class="action-status"></div>
+      </div>
+
       <div class="inspector-section">
         <div class="inspector-title">Metadata</div>
         <div class="meta-grid">
@@ -153,6 +163,32 @@
       </div>
       <p id="health-modal-summary" style="margin-bottom: 8px; font-size: 13px;"></p>
       <div id="health-violations" class="violations-list"></div>
+    </div>
+  </div>
+
+  <!-- Edit Summary modal -->
+  <div id="edit-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="edit-modal-title">Edit Summary</h3>
+        <button id="btn-close-edit-modal" class="btn">Close (Esc)</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
+        Path: <code id="edit-modal-path"></code>
+      </p>
+      <textarea
+        id="edit-modal-textarea"
+        class="edit-textarea"
+        rows="10"
+        maxlength="4000"
+        placeholder="Write a new summary for this node…"
+        aria-label="Node summary editor"
+      ></textarea>
+      <div id="edit-modal-error" class="action-status" style="min-height: 18px;"></div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+        <button id="btn-close-edit-modal-cancel" class="btn" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
+        <button id="edit-modal-submit" class="btn btn-primary">Save</button>
+      </div>
     </div>
   </div>
 
