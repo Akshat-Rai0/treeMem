@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Learned Descent Gate (`src/treemem/descent_gate.py`)**:
+  - Predictive Parent-Stop engine scoring `(query, parent_summary, children)` to recommend `stop`, `descend`, or `search_fallback`.
+  - Integrates stopword-filtered query expansion and TF-IDF bigram similarity.
+  - Automatically evaluated during `recall(path, query)` and exposed to agents via MCP tool layer.
+  - 8 unit tests in `tests/test_descent_gate.py` (71/71 passing).
 - **Task A: Hybrid Semantic Placement (`src/treemem/index.py`)**:
   - Combined BM25 lexical overlap (40%) with TF-IDF bigram cosine similarity (60%) via scikit-learn for memory candidate placement.
   - Returns ranking metadata with `source` field ('hint', 'tfidf', 'bm25') for full interpretability.

@@ -13,6 +13,7 @@ from treemem.log_writer import LogWriter
 from treemem.store import NodeData, Store
 from treemem.tokenizer import count_tokens
 from treemem.transclusion import TransclusionManager
+from treemem.descent_gate import DescentGate
 
 
 def norm_path(path: str) -> str:
@@ -57,6 +58,7 @@ class TreeManager:
         self.index = SearchIndex()
         self.health_checker = HealthChecker(self.store, self.log_writer)
         self.transclusion_mgr = TransclusionManager(self.store)
+        self.descent_gate = DescentGate()
         self.init_tree()
         self.rebuild_index()
         self.transclusion_mgr.rebuild_index(self.health_checker.get_all_node_paths())
@@ -289,13 +291,15 @@ class TreeManager:
     def recall(
         self,
         path: str = "/",
+        query: Optional[str] = None,
         query_id: Optional[str] = None,
         session: str = "default",
     ) -> Dict[str, Any]:
         """
-        Tool: recall(path="/")
-        Returns {summary, children:[{label, teaser}], dirty, sensitivity, tokens, stale_note?}.
+        Tool: recall(path="/", query=None)
+        Returns {summary, children:[{label, teaser}], dirty, sensitivity, tokens, stale_note?, gate?}.
         MUST NOT return child bodies.
+        If query is provided, evaluates descent gate for parent sufficiency.
         """
         clean_path = norm_path(path)
         node = self.store.read_node(clean_path)
@@ -328,6 +332,17 @@ class TreeManager:
             "dirty": node.dirty,
             "sensitivity": node.sensitivity,
         }
+
+        # Evaluate predictive descent gate if query is provided
+        if query:
+            gate_eval = self.descent_gate.evaluate(
+                query=query,
+                parent_path=clean_path,
+                parent_summary=resolved_summary,
+                children=child_teasers,
+            )
+            if gate_eval:
+                payload["gate"] = gate_eval
 
         if node.dirty:
             payload["stale_note"] = f"Warning: This node was last summarized at {node.updated}. Its children or facts have changed since. Run compress('{clean_path or '/'}') to refresh."

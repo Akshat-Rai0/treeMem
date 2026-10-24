@@ -58,17 +58,19 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
 
 
 @mcp.tool()
-def recall(path: str = "/"):
+def recall(path: str = "/", query: Optional[str] = None):
     """
     Read a concise parent topic summary and one-line teasers for child topics.
 
     MUST NOT return child bodies. If the parent summary answers the query, stop here (parent-stop).
+    If query is provided, the descent gate evaluates whether parent is sufficient or suggests next action.
 
     Args:
         path: Path of the node to inspect ('/' for root).
+        query: Optional question or query to evaluate parent sufficiency (predictive gate).
     """
     mgr = get_manager()
-    res = mgr.recall(path=path)
+    res = mgr.recall(path=path, query=query)
     return json.dumps(res, indent=2)
 
 

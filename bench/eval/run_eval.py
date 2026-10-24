@@ -255,7 +255,11 @@ def run_treemem_arm(
                         "path": {
                             "type": "string",
                             "description": "The topic path to recall (e.g. '/' for root, 'identity', 'projects').",
-                        }
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "The question or search query being answered, used by the descent gate to evaluate parent sufficiency.",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -303,7 +307,7 @@ def run_treemem_arm(
         "You have tools: recall(path), expand(path, reveal), search(query).\n\n"
         "RULES:\n"
         "1. ALWAYS begin by calling recall('/').\n"
-        "2. PARENT-STOP: If the parent summary answers the question, DO NOT call any more tools! Stop immediately and state your answer.\n"
+        "2. PARENT-STOP: If the parent summary answers the question, or if recall() indicates gate.action == 'stop', DO NOT call any more tools! Stop immediately and state your answer.\n"
         "3. Only recall or expand a child topic if the parent summary indicates more specific detail is required.\n"
         "4. Be concise and accurate in your final answer."
     )
@@ -355,7 +359,8 @@ def run_treemem_arm(
             # Execute tool locally
             if fn_name == "recall":
                 p = fn_args.get("path", "/")
-                res = mgr.recall(p, session="eval")
+                q_text = fn_args.get("query") or question
+                res = mgr.recall(p, query=q_text, session="eval")
             elif fn_name == "expand":
                 p = fn_args.get("path", "")
                 rev = fn_args.get("reveal", False)
