@@ -28,7 +28,7 @@ mcp = MCPServer("treemem")
 
 
 @mcp.tool()
-def remember(fact: str, hint: str = "") -> str:
+def remember(fact: str, hint: str = ""):
     """
     Store a new fact in the append-only ground-truth log and receive placement candidates.
 
@@ -42,7 +42,7 @@ def remember(fact: str, hint: str = "") -> str:
 
 
 @mcp.tool()
-def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool = False) -> str:
+def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool = False):
     """
     Place a logged fact into a specific leaf node topic, dirtying ancestors (unless transcluded).
 
@@ -58,7 +58,7 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
 
 
 @mcp.tool()
-def recall(path: str = "/") -> str:
+def recall(path: str = "/"):
     """
     Read a concise parent topic summary and one-line teasers for child topics.
 
@@ -73,7 +73,7 @@ def recall(path: str = "/") -> str:
 
 
 @mcp.tool()
-def expand(path: str, reveal: bool = False) -> str:
+def expand(path: str, reveal: bool = False):
     """
     Expand a node to inspect all its child summaries or leaf facts.
 
@@ -87,7 +87,7 @@ def expand(path: str, reveal: bool = False) -> str:
 
 
 @mcp.tool()
-def compress(path: str) -> str:
+def compress(path: str):
     """
     Request a compression prompt and input summaries to re-summarize a dirty node.
 
@@ -100,7 +100,7 @@ def compress(path: str) -> str:
 
 
 @mcp.tool()
-def commit_summary(path: str, text: str) -> str:
+def commit_summary(path: str, text: str):
     """
     Submit a rewritten summary for validation and atomic write to clear dirty status.
 
@@ -114,7 +114,7 @@ def commit_summary(path: str, text: str) -> str:
 
 
 @mcp.tool()
-def auto_compress(path: Optional[str] = None) -> str:
+def auto_compress(path: Optional[str] = None):
     """
     Option B Auto-Summarizer: Automatically compress dirty nodes in the vault using server-side LLM.
     Compresses nodes in bottom-up topological order (deepest nodes first).
@@ -133,7 +133,7 @@ def auto_compress(path: Optional[str] = None) -> str:
 
 
 @mcp.tool()
-def search(query: str, limit: int = 10) -> str:
+def search(query: str, limit: int = 10):
     """
     Lexical BM25 search over all log entries and leaf notes (fallback when descent fails).
 
@@ -147,7 +147,7 @@ def search(query: str, limit: int = 10) -> str:
 
 
 @mcp.tool()
-def split(path: str, groups: List[Dict[str, Any]]) -> str:
+def split(path: str, groups: List[Dict[str, Any]]):
     """
     Split an overflowing node into intermediate subtopics.
 
@@ -161,7 +161,7 @@ def split(path: str, groups: List[Dict[str, Any]]) -> str:
 
 
 @mcp.tool()
-def rebuild(path: str = "") -> str:
+def rebuild(path: str = ""):
     """
     Rebuild the tree (or a specific path) from the append-only log.
 
@@ -174,7 +174,7 @@ def rebuild(path: str = "") -> str:
 
 
 @mcp.tool()
-def status() -> str:
+def status():
     """
     Get session-start memory status: count and paths of dirty nodes needing compression, and health.
     """

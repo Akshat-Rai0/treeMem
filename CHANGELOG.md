@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task A: Hybrid Semantic Placement (`src/treemem/index.py`)**:
+  - Combined BM25 lexical overlap (40%) with TF-IDF bigram cosine similarity (60%) via scikit-learn for memory candidate placement.
+  - Returns ranking metadata with `source` field ('hint', 'tfidf', 'bm25') for full interpretability.
+  - 10 unit tests in `tests/test_semantic_placement.py`.
+- **Task C: Dashboard Editing & UI Action Buttons (`src/treemem/dashboard/`)**:
+  - `POST /api/node/compress` endpoint to trigger server-side LLM auto-compression on individual nodes.
+  - `POST /api/node/summary` endpoint to overwrite summaries directly from the dashboard with length constraints (≤4000 chars) and token validation.
+  - Interactive Inspector action buttons: "⚡ Auto-Compress" (shows for stale/dirty nodes) and "✏️ Edit Summary" modal dialog with keyboard shortcuts (`Esc` to dismiss).
+  - 11 unit tests in `tests/test_dashboard_edit.py`.
 - **v2 Option B Background Auto-Summarizer (`src/treemem/auto_compress.py`)**:
   - Server-side LLM auto-compression engine that finds and cleans dirty nodes in strict bottom-up topological order.
   - Validation-retry feedback loop (re-prompts LLM with specific validator error if generated summary fails length or child list checks).
