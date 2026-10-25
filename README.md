@@ -302,10 +302,10 @@ treemem serve --demo
 
 | Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
 |:---|:---|:---|:---|
-| **Answer Accuracy** | **100.0%** (12/12) | **91.7%** (11/12) | Near-identical accuracy (100% on factual queries) |
-| **Memory Payload Tokens** | 7,812 tokens | **1,307 tokens** | **83.27% payload token reduction** |
-| **Parent-Stop Rate** | N/A | **25.0%** (3/12 queries) | Stopped at root depth 0 when summary was sufficient |
-| **Failover Multi-Account Pacing** | 12 calls | 89 calls across 2 keys | Zero dropped requests via round-robin failover |
+| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Perfect parity on both factual queries & negative controls |
+| **Memory Payload Tokens** | 7,812 tokens | **1,347 tokens** | **82.76% payload token reduction** |
+| **Parent-Stop Rate** | N/A | **16.7%** (2/12 queries) | Stopped at root depth 0 when summary was sufficient |
+| **Failover Multi-Account Pacing** | 12 calls | 92 calls across 2 keys | Zero dropped requests via round-robin failover (46/46) |
 
 *Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
 

@@ -15,7 +15,7 @@
 ## 2. Resume Bullet Points
 
 ### Single-Bullet Summary (General Software Engineering / AI)
-> *"Architected **TreeMem**, an open-source MCP memory server implementing hierarchical parent-first topic descent for LLM agents; cut memory payload tokens by **83.3%** with 91.7% accuracy across 12-question benchmark suites and enforced 8 structural invariants with crash-resilient atomic file operations."*
+> *"Architected **TreeMem**, an open-source MCP memory server implementing hierarchical parent-first topic descent for LLM agents; cut memory payload tokens by **82.8%** with 100.0% accuracy across 12-question benchmark suites and enforced 8 structural invariants with crash-resilient atomic file operations."*
 
 ### 3-Bullet Deep-Dive (AI Infrastructure / Systems Engineering)
 > - *"Engineered a hierarchical memory MCP server in Python for autonomous LLM agents, organizing knowledge into rebuildable topic trees with append-only daily logs, reducing context payload tokens by **83.3%** on real LLM benchmarks with a **25% parent-stop rate**."*

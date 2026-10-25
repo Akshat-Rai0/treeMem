@@ -1,23 +1,23 @@
 {
   "model": "qwen/qwen3.8-27b",
-  "timestamp": "2026-10-25T02:51:34Z",
+  "timestamp": "2026-10-25T14:50:42Z",
   "total_questions": 12,
   "flat_accuracy_pct": 100.0,
-  "treemem_accuracy_pct": 91.7,
+  "treemem_accuracy_pct": 100.0,
   "memory_payload_tokens": {
     "flat_total": 7812,
-    "treemem_total": 1401,
-    "reduction_pct": 82.07
+    "treemem_total": 1347,
+    "reduction_pct": 82.76
   },
   "api_tokens_with_tool_overhead": {
     "flat_total": 9858,
-    "treemem_total": 62703
+    "treemem_total": 63695
   },
-  "parent_stop_rate_pct": 8.3,
-  "parent_stops_count": 1,
+  "parent_stop_rate_pct": 16.7,
+  "parent_stops_count": 2,
   "key_usage_counts": {
-    "0": 48,
-    "1": 48
+    "0": 46,
+    "1": 46
   },
   "questions": [
     {
@@ -31,28 +31,28 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 10,
         "api_total_tokens": 810,
-        "latency_sec": 0.411,
+        "latency_sec": 0.524,
         "correct": true
       },
       "treemem": {
         "answer": "The user's full name is **Alex Mercer**.",
         "payload_tokens": 65,
-        "api_prompt_tokens": 1609,
-        "api_completion_tokens": 54,
-        "api_total_tokens": 1663,
+        "api_prompt_tokens": 1669,
+        "api_completion_tokens": 50,
+        "api_total_tokens": 1719,
         "hops": 1,
         "hop_details": [
           {
             "tool": "recall",
             "args": {
               "path": "/",
-              "query": "What is the user's full name?"
+              "query": "user's full name"
             }
           }
         ],
         "depth_reached": 0,
         "is_parent_stop": true,
-        "latency_sec": 2.198,
+        "latency_sec": 2.984,
         "correct": true
       }
     },
@@ -67,16 +67,16 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 14,
         "api_total_tokens": 814,
-        "latency_sec": 0.392,
+        "latency_sec": 0.502,
         "correct": true
       },
       "treemem": {
-        "answer": "The user's primary profession is a **software engineer** (Alex Mercer, 28, based in Metropolis).",
-        "payload_tokens": 97,
-        "api_prompt_tokens": 2826,
-        "api_completion_tokens": 111,
-        "api_total_tokens": 2937,
-        "hops": 2,
+        "answer": "The user's primary profession is **software engineer** (Alex Mercer, 28, based in Metropolis).",
+        "payload_tokens": 65,
+        "api_prompt_tokens": 1673,
+        "api_completion_tokens": 67,
+        "api_total_tokens": 1740,
+        "hops": 1,
         "hop_details": [
           {
             "tool": "recall",
@@ -84,18 +84,11 @@
               "path": "/",
               "query": "What is the user's primary profession?"
             }
-          },
-          {
-            "tool": "recall",
-            "args": {
-              "path": "career",
-              "query": "What is the user's primary profession?"
-            }
           }
         ],
-        "depth_reached": 1,
-        "is_parent_stop": false,
-        "latency_sec": 4.071,
+        "depth_reached": 0,
+        "is_parent_stop": true,
+        "latency_sec": 2.533,
         "correct": true
       }
     },
@@ -110,15 +103,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 9,
         "api_total_tokens": 810,
-        "latency_sec": 0.646,
+        "latency_sec": 0.508,
         "correct": true
       },
       "treemem": {
         "answer": "The user currently resides in **Metropolis**.",
         "payload_tokens": 107,
-        "api_prompt_tokens": 5789,
+        "api_prompt_tokens": 5949,
         "api_completion_tokens": 169,
-        "api_total_tokens": 5958,
+        "api_total_tokens": 6118,
         "hops": 4,
         "hop_details": [
           {
@@ -151,7 +144,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 7.784,
+        "latency_sec": 9.326,
         "correct": true
       }
     },
@@ -166,15 +159,15 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 52,
         "api_total_tokens": 854,
-        "latency_sec": 0.457,
+        "latency_sec": 0.788,
         "correct": true
       },
       "treemem": {
-        "answer": "Alex Mercer's academic and educational background:\n\n- **Degree:** B.S. in Computer Science\n- **University:** Metro State University\n- **Notable Coursework:** Completed courses in Distributed Systems and Compilers",
+        "answer": "Based on the memory notes, the user's academic and educational background is:\n\n- **Degree:** B.S. in Computer Science\n- **University:** Metro State University\n- **Coursework:** Completed courses in Distributed Systems and Compilers",
         "payload_tokens": 127,
-        "api_prompt_tokens": 5829,
-        "api_completion_tokens": 232,
-        "api_total_tokens": 6061,
+        "api_prompt_tokens": 5989,
+        "api_completion_tokens": 237,
+        "api_total_tokens": 6226,
         "hops": 6,
         "hop_details": [
           {
@@ -218,7 +211,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 11.961,
+        "latency_sec": 8.554,
         "correct": true
       }
     },
@@ -233,15 +226,15 @@
         "api_prompt_tokens": 803,
         "api_completion_tokens": 61,
         "api_total_tokens": 864,
-        "latency_sec": 0.478,
+        "latency_sec": 0.586,
         "correct": true
       },
       "treemem": {
-        "answer": "Alex Mercer is a 28-year-old software engineer based in Metropolis. He is currently working as a Software Engineer at Nova Labs. Previously, he worked as an Engineering Intern at TechCorp.",
+        "answer": "Alex Mercer is a 28-year-old software engineer based in Metropolis.\n\n- **Current employer:** Nova Labs, where he works as a Software Engineer.\n- **Past experience:** Previously completed an Engineering Internship at TechCorp.",
         "payload_tokens": 129,
-        "api_prompt_tokens": 5783,
-        "api_completion_tokens": 203,
-        "api_total_tokens": 5986,
+        "api_prompt_tokens": 5943,
+        "api_completion_tokens": 212,
+        "api_total_tokens": 6155,
         "hops": 5,
         "hop_details": [
           {
@@ -279,7 +272,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 45.269,
+        "latency_sec": 28.012,
         "correct": true
       }
     },
@@ -294,15 +287,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 9,
         "api_total_tokens": 810,
-        "latency_sec": 0.366,
+        "latency_sec": 0.424,
         "correct": true
       },
       "treemem": {
         "answer": "The user graduated from **Metro State University**.",
         "payload_tokens": 102,
-        "api_prompt_tokens": 5760,
+        "api_prompt_tokens": 5920,
         "api_completion_tokens": 183,
-        "api_total_tokens": 5943,
+        "api_total_tokens": 6103,
         "hops": 4,
         "hop_details": [
           {
@@ -336,7 +329,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 14.178,
+        "latency_sec": 27.266,
         "correct": true
       }
     },
@@ -351,36 +344,36 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 14,
         "api_total_tokens": 814,
-        "latency_sec": 0.57,
+        "latency_sec": 0.48,
         "correct": true
       },
       "treemem": {
         "answer": "The user's email address is **alex.mercer@example.org**.",
         "payload_tokens": 110,
-        "api_prompt_tokens": 5774,
-        "api_completion_tokens": 183,
-        "api_total_tokens": 5957,
+        "api_prompt_tokens": 5898,
+        "api_completion_tokens": 171,
+        "api_total_tokens": 6069,
         "hops": 4,
         "hop_details": [
           {
             "tool": "recall",
             "args": {
               "path": "/",
-              "query": "What is the user's email address?"
+              "query": "user's email address"
             }
           },
           {
             "tool": "recall",
             "args": {
               "path": "identity",
-              "query": "What is the user's email address?"
+              "query": "user's email address"
             }
           },
           {
             "tool": "recall",
             "args": {
               "path": "identity/contact",
-              "query": "What is the user's email address?"
+              "query": "user's email address"
             }
           },
           {
@@ -393,7 +386,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 26.751,
+        "latency_sec": 26.814,
         "correct": true
       }
     },
@@ -408,15 +401,15 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 10,
         "api_total_tokens": 812,
-        "latency_sec": 0.321,
+        "latency_sec": 0.524,
         "correct": true
       },
       "treemem": {
         "answer": "The user (Alex Mercer) trains at **Apex Fitness**, where they do calisthenics 4 days a week.",
         "payload_tokens": 99,
-        "api_prompt_tokens": 5730,
+        "api_prompt_tokens": 5890,
         "api_completion_tokens": 206,
-        "api_total_tokens": 5936,
+        "api_total_tokens": 6096,
         "hops": 4,
         "hop_details": [
           {
@@ -450,7 +443,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 21.206,
+        "latency_sec": 27.709,
         "correct": true
       }
     },
@@ -465,15 +458,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 14,
         "api_total_tokens": 815,
-        "latency_sec": 6.346,
+        "latency_sec": 0.414,
         "correct": true
       },
       "treemem": {
         "answer": "The user is building **TreeMem**, a hierarchical memory architecture.",
         "payload_tokens": 108,
-        "api_prompt_tokens": 5797,
+        "api_prompt_tokens": 5957,
         "api_completion_tokens": 179,
-        "api_total_tokens": 5976,
+        "api_total_tokens": 6136,
         "hops": 4,
         "hop_details": [
           {
@@ -506,7 +499,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 28.378,
+        "latency_sec": 27.373,
         "correct": true
       }
     },
@@ -521,15 +514,15 @@
         "api_prompt_tokens": 803,
         "api_completion_tokens": 11,
         "api_total_tokens": 814,
-        "latency_sec": 0.33,
+        "latency_sec": 0.38,
         "correct": true
       },
       "treemem": {
         "answer": "The user prefers **Python and Rust** for backend engineering.",
         "payload_tokens": 105,
-        "api_prompt_tokens": 5788,
+        "api_prompt_tokens": 5948,
         "api_completion_tokens": 192,
-        "api_total_tokens": 5980,
+        "api_total_tokens": 6140,
         "hops": 4,
         "hop_details": [
           {
@@ -563,7 +556,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 26.317,
+        "latency_sec": 27.207,
         "correct": true
       }
     },
@@ -578,15 +571,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 19,
         "api_total_tokens": 820,
-        "latency_sec": 0.447,
+        "latency_sec": 0.437,
         "correct": true
       },
       "treemem": {
         "answer": "The user's bank routing number is **987654321**.",
         "payload_tokens": 99,
-        "api_prompt_tokens": 4098,
+        "api_prompt_tokens": 4226,
         "api_completion_tokens": 134,
-        "api_total_tokens": 4232,
+        "api_total_tokens": 4360,
         "hops": 3,
         "hop_details": [
           {
@@ -613,7 +606,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 12.438,
+        "latency_sec": 19.16,
         "correct": true
       }
     },
@@ -628,16 +621,16 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 19,
         "api_total_tokens": 821,
-        "latency_sec": 5.787,
+        "latency_sec": 0.402,
         "correct": true
       },
       "treemem": {
-        "answer": "{\"query\": \"Ferrari Porsche Lamborghini\", \"hits\": [], \"count\": 0, \"tokens\": 7}",
-        "payload_tokens": 253,
-        "api_prompt_tokens": 5853,
-        "api_completion_tokens": 221,
-        "api_total_tokens": 6074,
-        "hops": 7,
+        "answer": "The user's favorite sports car brand is not specified in the memory notes.",
+        "payload_tokens": 231,
+        "api_prompt_tokens": 6663,
+        "api_completion_tokens": 170,
+        "api_total_tokens": 6833,
+        "hops": 5,
         "hop_details": [
           {
             "tool": "recall",
@@ -660,13 +653,6 @@
             }
           },
           {
-            "tool": "recall",
-            "args": {
-              "path": "hobbies",
-              "query": "favorite sports car brand"
-            }
-          },
-          {
             "tool": "search",
             "args": {
               "query": "car"
@@ -677,18 +663,12 @@
             "args": {
               "query": "sports car"
             }
-          },
-          {
-            "tool": "search",
-            "args": {
-              "query": "Ferrari Porsche Lamborghini"
-            }
           }
         ],
         "depth_reached": 1,
         "is_parent_stop": false,
-        "latency_sec": 22.509,
-        "correct": false
+        "latency_sec": 27.43,
+        "correct": true
       }
     }
   ]

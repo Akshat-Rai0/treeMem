@@ -48,6 +48,7 @@ memory/
 .env.*
 *.key
 *.pem
+*.zip
 
 # Large raw benchmark transcripts (> 5MB)
 bench/results/raw_transcripts/*.large

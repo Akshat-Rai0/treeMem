@@ -304,12 +304,13 @@ def run_treemem_arm(
 
     system_prompt = (
         "You are an assistant querying a hierarchical memory tree.\n"
-        "You have tools: recall(path), expand(path, reveal), search(query).\n\n"
+        "You have tools: recall(path, query), expand(path, reveal), search(query).\n\n"
         "RULES:\n"
         "1. ALWAYS begin by calling recall('/').\n"
         "2. PARENT-STOP: If the parent summary answers the question, or if recall() indicates gate.action == 'stop', DO NOT call any more tools! Stop immediately and state your answer.\n"
         "3. Only recall or expand a child topic if the parent summary indicates more specific detail is required.\n"
-        "4. Be concise and accurate in your final answer."
+        "4. If a fact cannot be found after searching relevant topics, stop and state clearly that it is not specified or unknown in the memory notes.\n"
+        "5. Be concise and accurate in your final answer."
     )
 
     messages = [
@@ -383,7 +384,38 @@ def run_treemem_arm(
         time.sleep(1.2)
 
     latency = time.time() - start
-    final_answer = messages[-1].get("content", "")
+
+    # If the conversation ended with a tool call and no assistant text synthesis,
+    # prompt the model one final time to synthesize its answer based on the search/recall outputs.
+    if messages and messages[-1].get("role") == "tool":
+        final_payload = {
+            "model": model,
+            "messages": messages + [
+                {
+                    "role": "user",
+                    "content": "Based strictly on the tool outputs above, answer the original question concisely. If the fact was not found in the memory notes, state clearly that it is not specified or unknown.",
+                }
+            ],
+            "temperature": 0.0,
+            "max_tokens": 150,
+        }
+        try:
+            resp = pool.execute_with_failover("https://api.groq.com/openai/v1/chat/completions", final_payload)
+            usage = resp.get("usage", {})
+            total_prompt_tokens += usage.get("prompt_tokens", 0)
+            total_completion_tokens += usage.get("completion_tokens", 0)
+            final_answer = resp["choices"][0]["message"]["content"].strip()
+        except Exception:
+            final_answer = messages[-1].get("content", "")
+    else:
+        # Extract the last assistant text message
+        final_answer = ""
+        for m in reversed(messages):
+            if m.get("role") == "assistant" and m.get("content"):
+                final_answer = m["content"].strip()
+                break
+        if not final_answer and messages:
+            final_answer = messages[-1].get("content", "")
 
     # Calculate descent depth
     depth = 0
