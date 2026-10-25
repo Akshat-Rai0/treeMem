@@ -1,7 +1,12 @@
-"""Tests for Task A: Hybrid Semantic Placement (BM25 + TF-IDF cosine similarity)."""
+"""Tests for Hybrid Semantic Placement (BM25 + TF-IDF cosine similarity)."""
 
 import pytest
-from treemem.index import SearchIndex
+from treemem.index import SearchIndex, _SKLEARN_AVAILABLE
+
+pytestmark = pytest.mark.skipif(
+    not _SKLEARN_AVAILABLE,
+    reason="scikit-learn is not installed; install treemem[gate] to run hybrid semantic placement tests",
+)
 
 
 # ---------------------------------------------------------------------------

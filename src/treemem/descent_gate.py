@@ -1,12 +1,15 @@
-"""Predictive Descent Gate for TreeMem.
+"""Heuristic Descent Gate for TreeMem.
 
 Evaluates whether a parent topic summary is sufficient to answer a query
 (Parent-Stop), or whether the agent should descend into a specific child topic,
 or fallback to search. Uses TF-IDF cosine similarity and lexical token overlap.
 """
 
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("treemem.gate")
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -14,6 +17,10 @@ try:
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
+    logger.warning(
+        "scikit-learn is not installed; Heuristic Descent Gate falling back to lexical scoring. "
+        "Install with `pip install 'treemem[gate]'` for TF-IDF semantic scoring."
+    )
 
 
 # Common query stopwords that dilute topical similarity
@@ -23,23 +30,26 @@ _STOPWORDS = {
     "her", "his", "where", "which", "who", "when", "how", "s", "currently",
 }
 
-# Semantic expansions for common interrogative query concepts
+# Semantic expansions for common interrogative query concepts (strictly generic)
 _SYNONYM_MAP: Dict[str, List[str]] = {
     "profession": ["engineer", "software", "job", "career", "work", "developer", "title"],
     "job": ["engineer", "profession", "career", "work", "role", "position"],
     "career": ["engineer", "job", "profession", "work"],
-    "name": ["alex", "mercer", "identity", "full"],
-    "who": ["alex", "mercer", "identity", "name"],
-    "city": ["location", "live", "reside", "metropolis", "address"],
-    "location": ["city", "live", "reside", "metropolis", "based"],
-    "reside": ["city", "live", "location", "metropolis"],
-    "exercise": ["gym", "workout", "fitness", "cycling", "training", "apex"],
-    "workout": ["gym", "exercise", "fitness", "cycling", "apex"],
-    "gym": ["exercise", "workout", "fitness", "apex"],
-    "fitness": ["exercise", "gym", "workout", "cycling"],
-    "project": ["projects", "treemem", "repository", "code", "dev"],
-    "college": ["education", "university", "coursework", "degree"],
-    "degree": ["education", "university", "coursework", "degree"],
+    "name": ["identity", "profile", "user"],
+    "who": ["identity", "profile", "user"],
+    "city": ["location", "live", "reside", "address"],
+    "location": ["city", "live", "reside", "based"],
+    "reside": ["city", "live", "location"],
+    "exercise": ["gym", "workout", "fitness", "cycling", "training", "sports"],
+    "workout": ["gym", "exercise", "fitness", "cycling", "training"],
+    "gym": ["exercise", "workout", "fitness", "training"],
+    "fitness": ["exercise", "gym", "workout", "cycling", "health"],
+    "project": ["projects", "repository", "code", "software", "development"],
+    "college": ["education", "university", "coursework", "degree", "school"],
+    "degree": ["education", "university", "coursework", "academic", "diploma"],
+    "university": ["education", "college", "coursework", "academic"],
+    "school": ["education", "university", "college", "coursework"],
+    "education": ["university", "college", "coursework", "degree", "school"],
 }
 
 

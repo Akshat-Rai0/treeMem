@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Learned Descent Gate (`src/treemem/descent_gate.py`)**:
+- **Heuristic Descent Gate (`src/treemem/descent_gate.py`)**:
   - Predictive Parent-Stop engine scoring `(query, parent_summary, children)` to recommend `stop`, `descend`, or `search_fallback`.
   - Integrates stopword-filtered query expansion and TF-IDF bigram similarity.
   - Automatically evaluated during `recall(path, query)` and exposed to agents via MCP tool layer.

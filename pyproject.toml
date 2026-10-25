@@ -17,9 +17,13 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "tiktoken>=0.5.0",
     "mcp>=1.0.0",
+    "httpx>=0.24.0",
 ]
 
 [project.optional-dependencies]
+gate = [
+    "scikit-learn>=1.3.0",
+]
 test = [
     "pytest>=7.0.0",
 ]

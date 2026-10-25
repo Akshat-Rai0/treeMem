@@ -196,13 +196,17 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 | `place` | `entry_id: str, path: str, sensitivity?: str` | Places fact into a leaf node and marks all ancestors `dirty`. |
 | `recall` | `path: str = "/"` | Reads node summary and 1-line child teasers (**never** child bodies). |
 | `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. |
-| `compress` | `path: str` | Returns compression prompt and child text to clean a dirty node. |
-| `auto_compress` | `path?: str` | Automatically compresses dirty nodes bottom-up using server-side LLM (Option B). |
+| `compress` | `path: str` | Returns compression prompt and child text to clean a dirty node (Option A). |
+| `auto_compress` | `path?: str` | (Optional) Compresses dirty nodes bottom-up using an external LLM (Groq); reads API keys from `.env`. |
 | `commit_summary` | `path: str, text: str` | Validates token cap, child list, and privacy before committing atomically. |
 | `search` | `query: str, limit: int = 10` | BM25 lexical search over log entries and leaves (fallback mechanism). |
 | `split` | `path: str, groups: dict` | Splits an overflowing node into subtopics to preserve branching caps. |
 | `rebuild` | `path?: str` | Reconstructs tree structure from append-only log files. |
 | `status` | *None* | Session-start health report with total nodes, facts, and dirty count. |
+
+> **Note on Summarization Modes**:
+> * **Default Mode (Option A)**: TreeMem hosts zero models and requires zero external API keys. The client agent generates the summary text and commits it via `commit_summary`.
+> * **Pluggable Auto-Compressor (`auto_compress` / Option B)**: An optional background engine that uses an external LLM (Groq) to clean dirty nodes bottom-up. Requires `GROQ_API_KEY_1` or `GROQ_API_KEY` set in `.env` (which is git-ignored).
 
 ---
 

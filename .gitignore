@@ -40,6 +40,8 @@ memory/
 .events/
 **/.*events/
 .locks/
+**/.locks/
+examples/**/.locks
 *.lock
 /tmp/treemem*
 

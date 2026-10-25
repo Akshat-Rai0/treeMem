@@ -1,9 +1,12 @@
 """BM25 + TF-IDF hybrid search index over log entries, leaves, and candidate scoring."""
 
+import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from rank_bm25 import BM25Okapi
+
+logger = logging.getLogger("treemem.index")
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -12,6 +15,10 @@ try:
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
+    logger.warning(
+        "scikit-learn is not installed; candidate placement falling back to lexical-only scoring. "
+        "Install with `pip install 'treemem[gate]'` for hybrid TF-IDF scoring."
+    )
 
 
 def tokenize(text: str) -> List[str]:

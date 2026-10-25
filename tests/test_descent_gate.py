@@ -1,14 +1,23 @@
-"""Tests for Learned Descent Gate (Predictive Parent-Stop)."""
+"""Tests for Heuristic Descent Gate (Predictive Parent-Stop)."""
 
 import pytest
 from pathlib import Path
-from treemem.descent_gate import DescentGate
+from treemem.descent_gate import DescentGate, _SKLEARN_AVAILABLE, _SYNONYM_MAP
 from treemem.tree_manager import TreeManager
 
 
 @pytest.fixture
 def gate():
     return DescentGate(parent_stop_threshold=0.25, descend_delta=0.15)
+
+
+def test_synonym_map_contains_no_sample_memory_tokens():
+    """Verify that _SYNONYM_MAP contains no leaked tokens from examples/sample_memory."""
+    banned_tokens = {"alex", "mercer", "apex", "metropolis", "treemem", "techcorp"}
+    for key, synonyms in _SYNONYM_MAP.items():
+        assert key not in banned_tokens, f"Banned key in _SYNONYM_MAP: {key}"
+        for syn in synonyms:
+            assert syn not in banned_tokens, f"Banned synonym '{syn}' under key '{key}' in _SYNONYM_MAP"
 
 
 SAMPLE_CHILDREN = [
@@ -110,7 +119,7 @@ def test_no_children_parent_eval(gate):
 def test_recall_with_query_populates_gate_field(tmp_path):
     mgr = TreeManager(tmp_path)
     # Write a custom root summary
-    mgr.commit_summary("", "User Alex Mercer is an engineer who likes cycling.\n\n## Children\n- [[hobbies]]: Cycling and fitness")
+    mgr.commit_summary("", "Name: Alex Mercer. Software engineer who likes cycling.\n\n## Children\n- [[hobbies]]: Cycling and fitness")
 
     res = mgr.recall("/", query="What is the user's name?")
     assert "gate" in res
