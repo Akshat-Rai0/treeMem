@@ -304,25 +304,30 @@ treemem serve --demo
 ### Real LLM Agent Benchmark (`qwen/qwen3.8-27b` via Groq)
 *Automated evaluation comparing single-prompt flat memory dump against autonomous TreeMem MCP tool descent ($n=12$ queries across identity, career, education, preferences, private finance, and out-of-domain negative controls):*
 
+<!-- BENCHMARK_TABLE_REAL_START -->
 | Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
 |:---|:---|:---|:---|
-| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Perfect parity on both factual queries & negative controls |
+| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Parity across benchmark suite |
 | **Memory Payload Tokens** | 7,812 tokens | **1,347 tokens** | **82.76% payload token reduction** |
-| **Parent-Stop Rate** | N/A | **16.7%** (2/12 queries) | Stopped at root depth 0 when summary was sufficient |
-| **Failover Multi-Account Pacing** | 12 calls | 92 calls across 2 keys | Zero dropped requests via round-robin failover (46/46) |
+| **Total API Wire Tokens** | **9,858 tokens** | 63,695 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
+| **Parent-Stop Rate** | N/A | **16.7%** (2/12) | Evaluated at root depth 0 when summary was sufficient |
+| **Mean / Max Latency** | 0.50s / 0.79s | 19.53s / 28.01s | Multi-hop sequential tool execution latency |
+<!-- BENCHMARK_TABLE_REAL_END -->
 
 *Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
 
-> **The Multi-Turn Overhead Trade-Off:** On small vaults (<30 facts), flat context dumps are faster and cheaper in total API wire tokens (9,858 vs 44,784 tokens) because multi-turn tool calling retransmits the system prompt and tool definitions on every hop. However, TreeMem achieves an **83.27% reduction in memory payload**, proving that hierarchical descent prevents memory context saturation as vaults scale to hundreds and thousands of entries.
+> **The Multi-Turn Overhead Trade-Off:** On small vaults (<30 facts), flat context dumps are faster and cheaper in total API wire tokens (9,858 vs 63,695 tokens) because multi-turn tool calling retransmits the system prompt and tool definitions on every hop. However, TreeMem achieves an **82.76% reduction in memory payload**, proving that hierarchical descent prevents memory context saturation as vaults scale to hundreds and thousands of entries.
 
 ### Synthetic Vault Scaling Study
 *Measuring memory payload token cost between flat note dumps vs. TreeMem hierarchical descent:*
 
+<!-- BENCHMARK_TABLE_SYNTHETIC_START -->
 | Memory Scale | Flat Dump Cost | TreeMem Average Cost | Token Savings |
 |:---|:---|:---|:---|
 | **100 memories** | 2,041 tokens | 110 tokens | **94.61%** |
 | **1,000 memories** | 20,941 tokens | 223 tokens | **98.94%** |
 | **10,000 memories** | 227,941 tokens | 1,465 tokens | **99.36%** |
+<!-- BENCHMARK_TABLE_SYNTHETIC_END -->
 
 *Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](bench/results/flat_vs_tree_tokens.json).*
 
@@ -339,23 +344,12 @@ treemem serve --demo
 The test suite covers unit behavior, concurrent writers, crash simulation, security, and randomized property sequences:
 
 ```bash
-uv run pytest
+PYTHONPATH=src python3 -m pytest tests/ -q
 ```
 
 ```
-tests/test_atomic_write.py ..                                            [  6%]
-tests/test_concurrency.py ..                                             [ 12%]
-tests/test_crash_recovery.py ..                                          [ 18%]
-tests/test_dashboard_api.py ....                                         [ 31%]
-tests/test_dashboard_security.py ....                                    [ 43%]
-tests/test_dirty_propagation.py .                                        [ 46%]
-tests/test_invariants.py ........                                        [ 71%]
-tests/test_mcp_layer.py .                                                [ 75%]
-tests/test_privacy.py ....                                               [ 87%]
-tests/test_property.py .                                                 [ 90%]
-tests/test_tools_and_split.py ...                                        [100%]
-
-============================== 32 passed in 1.48s ==============================
+........................................................................ [100%]
+============================== 72 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.
@@ -363,12 +357,12 @@ tests/test_tools_and_split.py ...                                        [100%]
 
 ---
 
-## 13. Limitations & Trade-offs
+## 13. Limitations & Known Issues
 
-1. **Multi-Turn Descent Overhead**: While TreeMem achieves dramatic payload token reductions, descending deep trees in multi-turn conversations incurs per-turn API latency and system prompt re-transmission.
-2. **Breakeven Threshold**: On small vaults (<30 facts), flat dump memory is simpler and avoids the round-trips of multi-hop descent.
-3. **Lexical Fallback Only**: v1 utilizes BM25 lexical keyword matching over raw logs and summaries; semantic vector search is out of scope for v1.
-4. **Single-Agent Local Focus**: Designed as a local daemon for single-agent sessions; multi-user distributed synchronization is not supported in v1.
+1. **Small Vaults Favor Flat Dump**: On vaults with fewer than ~30 facts, a single flat context dump is faster and consumes fewer total API wire tokens (9,858 vs 63,695 tokens) because multi-turn tool calling re-transmits tool definitions and system prompts on every hop.
+2. **The Agent Over-Descends**: Without single-call guided descent (`follow=True`), autonomous agents frequently take 4–6 tool calls when a parent summary was already sufficient to answer the question.
+3. **Negative-Control Exhaustion**: When queried about facts absent from the vault (e.g., favorite sports car brand), agents tend to exhaust their multi-hop turn budget searching alternative branches before concluding the information is unknown.
+4. **Single-Agent Local Focus**: Designed as a local daemon for single-agent sessions; multi-user distributed synchronization is out of scope.
 
 ---
 
