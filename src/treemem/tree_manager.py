@@ -294,13 +294,25 @@ class TreeManager:
         query: Optional[str] = None,
         query_id: Optional[str] = None,
         session: str = "default",
+        follow: bool = False,
+        max_depth: int = 3,
     ) -> Dict[str, Any]:
         """
-        Tool: recall(path="/", query=None)
+        Tool: recall(path="/", query=None, follow=False, max_depth=3)
         Returns {summary, children:[{label, teaser}], dirty, sensitivity, tokens, stale_note?, gate?}.
         MUST NOT return child bodies.
         If query is provided, evaluates descent gate for parent sufficiency.
+        If follow=True and a query is given, the server follows the gate's
+        suggestions (read-only) and returns the node where the descent stopped.
         """
+        if follow and query:
+            return self._guided_recall(
+                path=path,
+                query=query,
+                max_depth=max_depth,
+                query_id=query_id,
+                session=session,
+            )
         clean_path = norm_path(path)
         node = self.store.read_node(clean_path)
         if not node:
@@ -362,6 +374,154 @@ class TreeManager:
         )
 
         return payload
+
+    def _guided_recall(
+        self,
+        path: str,
+        query: str,
+        max_depth: int = 3,
+        query_id: Optional[str] = None,
+        session: str = "default",
+    ) -> Dict[str, Any]:
+        """
+        Read-only guided descent. Starting at `path`, repeatedly ask the descent gate
+        what to do and follow its suggestion until it says stop, hits a private node,
+        reaches a leaf, runs out of depth, or falls back to search.
+
+        Never writes files, never changes dirty flags, never takes write locks.
+        Never steps into (or exposes) a node whose sensitivity is private.
+        """
+        if max_depth < 0:
+            max_depth = 0
+
+        current_path = norm_path(path)
+        visited = set()
+        traversal: List[Dict[str, Any]] = []
+        stopped_reason = "max_depth"
+        extra: Dict[str, Any] = {}
+        search_result: Optional[Dict[str, Any]] = None
+        steps_taken = 0
+        final_payload: Dict[str, Any] = {}
+
+        while True:
+            visited.add(current_path)
+
+            # recall() without follow reads the node and emits one "recall" event per step.
+            final_payload = self.recall(
+                path=current_path or "/",
+                query=query,
+                query_id=query_id,
+                session=session,
+                follow=False,
+            )
+            gate = final_payload.get("gate") or {}
+            action = gate.get("action", "stop")
+
+            traversal.append({
+                "path": current_path or "/",
+                "action": action,
+                "parent_score": gate.get("parent_score"),
+                "child_score": gate.get("child_score"),
+            })
+
+            # A leaf node has no children to follow; its facts are the answer.
+            if not final_payload.get("children"):
+                stopped_reason = "leaf"
+                break
+
+            if action == "stop":
+                stopped_reason = "stop"
+                break
+
+            if action == "search_fallback":
+                search_result = self.search(query=query, limit=5, session=session)
+                stopped_reason = "search_fallback"
+                break
+
+            # action == "descend"
+            suggested = gate.get("suggested_child")
+            if not suggested:
+                stopped_reason = "stop"
+                break
+
+            if steps_taken >= max_depth:
+                stopped_reason = "max_depth"
+                break
+
+            child_path = f"{current_path}/{suggested}" if current_path else suggested
+            child_node = self.store.read_node(child_path)
+            if child_node is None:
+                stopped_reason = "stop"
+                break
+
+            if child_node.sensitivity == "private":
+                stopped_reason = "private"
+                extra["stopped_at_private"] = True
+                extra["suggested_child"] = suggested
+                extra["message"] = (
+                    f"Suggested topic '{suggested}' has sensitivity: private. "
+                    "Auto-descent halted. Explicit recall or expand with reveal=true is required."
+                )
+                break
+
+            if child_path in visited:
+                stopped_reason = "stop"
+                break
+
+            current_path = child_path
+            steps_taken += 1
+
+        # Leaf facts are returned only for non-private nodes.
+        facts: List[Dict[str, Any]] = []
+        if stopped_reason == "leaf":
+            leaf_node = self.store.read_node(current_path)
+            if leaf_node is not None:
+                if leaf_node.sensitivity == "private":
+                    facts = [{"fact": "[Private details withheld. Pass reveal=true to expand]", "entry_id": ""}]
+                else:
+                    facts = list(leaf_node.facts)
+
+        result: Dict[str, Any] = dict(final_payload)
+        result["final_path"] = current_path or "/"
+        result["traversal"] = traversal
+        result["steps"] = steps_taken
+        result["stopped_reason"] = stopped_reason
+        if facts:
+            result["facts"] = facts
+        if search_result is not None:
+            result["search"] = self._bound_search_result(search_result, max_tokens=400)
+        for key, value in extra.items():
+            result[key] = value
+
+        # Tokens reflect only what is returned to the agent (intermediate nodes are not sent).
+        returned_text = result.get("summary", "") + "\n"
+        for child in result.get("children", []):
+            returned_text += f"{child['label']}: {child['teaser']}\n"
+        for fact in facts:
+            returned_text += fact.get("fact", "") + "\n"
+        if "search" in result:
+            returned_text += str(result["search"].get("hits", ""))
+        result["tokens"] = count_tokens(returned_text)
+        return result
+
+    @staticmethod
+    def _bound_search_result(search_result: Dict[str, Any], max_tokens: int = 400) -> Dict[str, Any]:
+        """Keep search hits only while their combined size stays under max_tokens."""
+        kept_hits: List[Any] = []
+        used_tokens = 0
+        for hit in search_result.get("hits", []):
+            hit_tokens = count_tokens(str(hit))
+            if used_tokens + hit_tokens > max_tokens:
+                break
+            kept_hits.append(hit)
+            used_tokens += hit_tokens
+        return {
+            "query": search_result.get("query", ""),
+            "hits": kept_hits,
+            "count": len(kept_hits),
+            "tokens": used_tokens,
+            "truncated": len(kept_hits) < len(search_result.get("hits", [])),
+        }
 
     def expand(
         self,
@@ -592,24 +752,56 @@ class TreeManager:
 
         return {"ok": True, "path": clean_path or "/", "tokens": submitted_tokens, "dirty": False}
 
-    def search(self, query: str, limit: int = 10, session: str = "default") -> Dict[str, Any]:
+    def _is_private_path(self, hit_path: str) -> bool:
+        """True if the node at hit_path, or any ancestor of it, has sensitivity: private."""
+        clean = norm_path(hit_path or "")
+        if not clean:
+            return False
+        candidate_paths = get_ancestor_paths(clean) + [clean]
+        for candidate in candidate_paths:
+            node = self.store.read_node(candidate)
+            if node is not None and node.sensitivity == "private":
+                return True
+        return False
+
+    def search(
+        self,
+        query: str,
+        limit: int = 10,
+        session: str = "default",
+        reveal: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Tool: search(query, limit=10)
+        Tool: search(query, limit=10, reveal=False)
         Lexical search over log and leaves. Fallback when descent fails.
+        Hits that live under a private node are withheld unless reveal=True.
         """
-        hits = self.index.query(query, limit=limit)
+        raw_hits = self.index.query(query, limit=limit)
+        hits: List[Any] = []
+        withheld = 0
+        for hit in raw_hits:
+            hit_path = hit.get("path", "") if isinstance(hit, dict) else ""
+            if not reveal and self._is_private_path(hit_path):
+                withheld += 1
+                continue
+            hits.append(hit)
+
         tok_count = count_tokens(query + str(hits))
         self.event_bus.emit(
             event_type="search",
             payload={"query": query, "hits": len(hits)},
             session=session,
         )
-        return {
+        result: Dict[str, Any] = {
             "query": query,
             "hits": hits,
             "count": len(hits),
             "tokens": tok_count,
         }
+        if withheld:
+            result["withheld_private"] = withheld
+            result["note"] = "Some matches are under private nodes and were withheld. Pass reveal=true to include them."
+        return result
 
     def split(self, path: str, groups: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Descent gate lexical fallback**: without scikit-learn the combined score now uses 100% lexical weight (previously halved, which made leaf nodes return `search_fallback`). Tests cover both modes.
+- **Benchmark numbers are generated**: `bench/make_readme_tables.py` now fills README and `docs/portfolio.md` tables from `bench/results/*.json` and the measured pytest count. No hand-typed benchmark numbers remain.
+
+### Added
+- **Guided descent**: `recall(path, query, follow=True, max_depth=3)` follows the gate's suggestions server-side in one call. Read-only, never enters private nodes, emits one `recall` event per step, bounded search fallback (400 tokens). Default `follow=False` is unchanged. Tests in `tests/test_guided_descent.py`.
+- `.gitignore` for `.env`, caches, egg-info, runtime lock/event files.
+
+### Security
+- **`search` no longer returns facts stored under private nodes** unless `reveal=true` is passed (previously a private fact could be returned by a plain search, and therefore by search fallback).
+
 ### Added
 - **Heuristic Descent Gate (`src/treemem/descent_gate.py`)**:
   - Predictive Parent-Stop engine scoring `(query, parent_summary, children)` to recommend `stop`, `descend`, or `search_fallback`.
   - Integrates stopword-filtered query expansion and TF-IDF bigram similarity.
   - Automatically evaluated during `recall(path, query)` and exposed to agents via MCP tool layer.
-  - 8 unit tests in `tests/test_descent_gate.py` (71/71 passing).
+  - 8 unit tests in `tests/test_descent_gate.py`.
 - **Task A: Hybrid Semantic Placement (`src/treemem/index.py`)**:
   - Combined BM25 lexical overlap (40%) with TF-IDF bigram cosine similarity (60%) via scikit-learn for memory candidate placement.
   - Returns ranking metadata with `source` field ('hint', 'tfidf', 'bm25') for full interpretability.
@@ -28,14 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Background daemon thread worker (`AutoCompressor.start_background_worker`) with periodic cleanup.
   - New CLI command `treemem compress [path]` and `--auto-compress` daemon flag for `treemem serve`.
   - New MCP tool `auto_compress(path?)` for autonomous agent triggering.
-  - 4 unit tests in `tests/test_auto_compress.py` (42/42 passing).
+  - 4 unit tests in `tests/test_auto_compress.py`.
 - **v1.5 Transclusion Engine (`src/treemem/transclusion.py`)**:
   - Dynamic at-read resolution of `![[path#ref]]` embeds in parent summaries.
   - Keyword and tag-based reference resolution (`latest`, `volatile`, entry ID, or topic keyword).
   - Cap enforcement: max 5 transclusion embeds per summary to protect token bounds.
   - Transclusion backlink index (`backlink_index`): tracks which parent summaries embed each child node.
   - Volatile fact flag (`volatile=True` in `place` tool): updating volatile facts does not dirty ancestors that transclude them.
-  - Comprehensive unit test suite in `tests/test_transclusion.py` (6 tests, 38/38 passing).
+  - Comprehensive unit test suite in `tests/test_transclusion.py`.
 - Portfolio and resume highlight document (`docs/portfolio.md`) with empirical metrics from real Groq LLM benchmarks.
 
 ## [0.1.1] - 2026-10-23

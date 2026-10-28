@@ -74,7 +74,7 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 - [x] Mark facts as volatile (`volatile=True`); parent keeps an embed instead of copied text.
 - [x] Cap embeds per parent to bound token cost (max 5 embeds per summary enforced on commit and recall).
 - [x] Backlink index (`TransclusionManager.backlink_index`); changes to an embedded line do not dirty the parent.
-- [x] Test suite: `tests/test_transclusion.py` (6 new tests, 38/38 passing).
+- [x] Test suite: `tests/test_transclusion.py` (6 tests).
 
 ## v2 Milestones & Features
 

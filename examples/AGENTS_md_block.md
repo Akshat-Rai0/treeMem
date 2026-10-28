@@ -34,3 +34,12 @@ The memory vault is located at `memory/`.
    echo "- <your fact> (log: $(date -u +%Y-%m-%d)#<line>)" >> memory/<topic>/<subtopic>/summary.md
    ```
 3. Update the YAML frontmatter of the leaf node and all parent directories to set `dirty: true`.
+
+## 4. With the MCP Server (Preferred)
+If the TreeMem MCP server is available, do not walk the tree by hand. Call:
+
+```
+recall(path="/", query="<the user's question>", follow=true)
+```
+
+The server follows the descent gate read-only and returns the node where it stopped (`final_path`, `traversal`, `stopped_reason`). Use `expand` only if the result says more detail is needed. If `stopped_reason` is `private`, ask the user before calling `expand(..., reveal=true)`.

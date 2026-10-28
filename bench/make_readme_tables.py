@@ -4,9 +4,13 @@
 Ensures that numbers reported in documentation cannot drift from raw benchmark data.
 """
 
+import argparse
 import json
+import re
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 def load_json(path: Path) -> Dict[str, Any]:
@@ -67,6 +71,82 @@ def format_synthetic_table(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def count_passing_tests(repo_root: Path) -> Optional[int]:
+    """Run pytest and return the number of passed tests (None if it cannot be determined)."""
+    command = [sys.executable, "-m", "pytest", "-q", "tests", "-p", "no:cacheprovider"]
+    env_path = str(repo_root / "src")
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env={**__import__("os").environ, "PYTHONPATH": env_path},
+        )
+    except Exception:
+        return None
+    output = completed.stdout + completed.stderr
+    match = re.search(r"(\d+) passed", output)
+    if not match:
+        return None
+    if re.search(r"\d+ failed", output):
+        return None
+    return int(match.group(1))
+
+
+def format_portfolio_table(
+    real: Dict[str, Any],
+    synth: Dict[str, Any],
+    smoke: Dict[str, Any],
+    test_count: Optional[int],
+) -> str:
+    total_q = real["total_questions"]
+    questions = real.get("questions", [])
+    tree_lats = [q["treemem"]["latency_sec"] for q in questions if "treemem" in q]
+    flat_lats = [q["flat"]["latency_sec"] for q in questions if "flat" in q]
+    mean_tree = sum(tree_lats) / len(tree_lats) if tree_lats else 0.0
+    mean_flat = sum(flat_lats) / len(flat_lats) if flat_lats else 0.0
+
+    savings = [item["token_savings_pct"] for item in synth.get("scales", {}).values()]
+    low = min(savings) if savings else 0.0
+    high = max(savings) if savings else 0.0
+
+    key_counts = real.get("key_usage_counts", {})
+    total_calls = sum(key_counts.values())
+
+    flat_wire = real["api_tokens_with_tool_overhead"]["flat_total"]
+    tree_wire = real["api_tokens_with_tool_overhead"]["treemem_total"]
+    ratio = tree_wire / flat_wire if flat_wire else 0.0
+
+    tests_cell = f"{test_count} passing" if test_count is not None else "not measured"
+
+    lines = [
+        "| Metric | Measured Value | Benchmark Configuration |",
+        "|:---|:---|:---|",
+        f"| **Answer Accuracy** | flat {real['flat_accuracy_pct']:.1f}% / tree {real['treemem_accuracy_pct']:.1f}% | single run, n={total_q}, `{real['model']}` (`bench/results/llm_eval_results.json`) |",
+        f"| **Memory Payload Reduction** | {real['memory_payload_tokens']['reduction_pct']:.2f}% | same run; payload tokens only |",
+        f"| **Total API Wire Tokens** | flat {flat_wire:,} / tree {tree_wire:,} ({ratio:.1f}x) | same run; includes tool schemas re-sent per hop |",
+        f"| **Parent-Stop Rate** | {real['parent_stop_rate_pct']:.1f}% ({real.get('parent_stops_count', 0)}/{total_q}) | same run |",
+        f"| **Mean Latency** | flat {mean_flat:.2f}s / tree {mean_tree:.2f}s | same run |",
+        f"| **Scaling Payload Savings** | {low:.2f}% - {high:.2f}% | synthetic vault, scripted descent (`bench/results/flat_vs_tree_tokens.json`) |",
+        f"| **Descent Plumbing Latency** | p50 = {smoke['latency_p50_ms']} ms, p95 = {smoke['latency_p95_ms']} ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |",
+        f"| **Rate-Limit Failover** | {total_calls} calls across {len(key_counts)} keys | Groq key rotation in the eval harness |",
+        f"| **Test Suite** | {tests_cell} | `pytest tests` (concurrency, property, crash recovery, privacy) |",
+    ]
+    return "\n".join(lines)
+
+
+def update_test_count_mentions(readme: str, test_count: Optional[int]) -> str:
+    """Keep the README badge and the sample pytest output in sync with the measured count."""
+    if test_count is None:
+        return readme
+    readme = re.sub(r"Tests: \d+ Passing", f"Tests: {test_count} Passing", readme)
+    readme = re.sub(r"tests-\d+%20passed", f"tests-{test_count}%20passed", readme)
+    readme = re.sub(r"(=+ )\d+( passed in )", rf"\g<1>{test_count}\g<2>", readme)
+    return readme
+
+
 def replace_table(content: str, start_tag: str, end_tag: str, new_table: str) -> str:
     if start_tag not in content or end_tag not in content:
         raise ValueError(f"Marker tags {start_tag} / {end_tag} not found in target text.")
@@ -76,38 +156,62 @@ def replace_table(content: str, start_tag: str, end_tag: str, new_table: str) ->
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Regenerate benchmark tables from committed JSON.")
+    parser.add_argument("--skip-tests", action="store_true", help="Do not run pytest (test count shown as not measured).")
+    parser.add_argument("--tests", type=int, default=None, help="Use this test count instead of running pytest.")
+    args = parser.parse_args()
+
     repo_root = Path(__file__).resolve().parent.parent
     readme_path = repo_root / "README.md"
-    real_results_path = repo_root / "bench" / "results" / "llm_eval_results.json"
-    synth_results_path = repo_root / "bench" / "results" / "flat_vs_tree_tokens.json"
+    portfolio_path = repo_root / "docs" / "portfolio.md"
+    results_dir = repo_root / "bench" / "results"
 
     if not readme_path.exists():
         print(f"Error: {readme_path} not found.")
         return
 
-    real_data = load_json(real_results_path)
-    synth_data = load_json(synth_results_path)
+    real_data = load_json(results_dir / "llm_eval_results.json")
+    synth_data = load_json(results_dir / "flat_vs_tree_tokens.json")
+    smoke_data = load_json(results_dir / "smoke_test_results.json")
+
+    if args.tests is not None:
+        test_count: Optional[int] = args.tests
+    elif args.skip_tests:
+        test_count = None
+    else:
+        test_count = count_passing_tests(repo_root)
 
     real_table = format_real_llm_table(real_data)
     synth_table = format_synthetic_table(synth_data)
 
-    content = readme_path.read_text(encoding="utf-8")
-
-    content = replace_table(
-        content,
+    readme = readme_path.read_text(encoding="utf-8")
+    readme = replace_table(
+        readme,
         "<!-- BENCHMARK_TABLE_REAL_START -->",
         "<!-- BENCHMARK_TABLE_REAL_END -->",
         real_table,
     )
-    content = replace_table(
-        content,
+    readme = replace_table(
+        readme,
         "<!-- BENCHMARK_TABLE_SYNTHETIC_START -->",
         "<!-- BENCHMARK_TABLE_SYNTHETIC_END -->",
         synth_table,
     )
+    readme = update_test_count_mentions(readme, test_count)
+    readme_path.write_text(readme, encoding="utf-8")
 
-    readme_path.write_text(content, encoding="utf-8")
-    print(f"Successfully regenerated benchmark tables in {readme_path}")
+    if portfolio_path.exists():
+        portfolio = portfolio_path.read_text(encoding="utf-8")
+        portfolio_table = format_portfolio_table(real_data, synth_data, smoke_data, test_count)
+        portfolio = replace_table(
+            portfolio,
+            "<!-- BENCHMARK_TABLE_PORTFOLIO_START -->",
+            "<!-- BENCHMARK_TABLE_PORTFOLIO_END -->",
+            portfolio_table,
+        )
+        portfolio_path.write_text(portfolio, encoding="utf-8")
+
+    print(f"Regenerated benchmark tables (tests: {test_count}).")
 
 
 if __name__ == "__main__":

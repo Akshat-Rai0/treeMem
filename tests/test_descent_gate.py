@@ -131,3 +131,46 @@ def test_recall_without_query_omits_gate_field(tmp_path):
     mgr = TreeManager(tmp_path)
     res = mgr.recall("/")
     assert "gate" not in res
+
+
+def test_leaf_stops_without_sklearn(monkeypatch):
+    """Without scikit-learn the lexical-only score must still let a matching leaf stop."""
+    import treemem.descent_gate as dg
+    monkeypatch.setattr(dg, "_SKLEARN_AVAILABLE", False)
+    local_gate = DescentGate(parent_stop_threshold=0.25, descend_delta=0.15)
+    res = local_gate.evaluate(
+        query="What kind of coffee does the user drink?",
+        parent_path="preferences/coffee",
+        parent_summary="User's favorite coffee is Ethiopian Yirgacheffe pour-over.",
+        children=[],
+    )
+    assert res is not None
+    assert res["action"] == "stop"
+    assert res["parent_sufficient"] is True
+
+
+def test_weights_lexical_only_when_sklearn_missing(monkeypatch):
+    """Lexical-only mode uses 100% lexical weight, so a perfect lexical match scores 1.0."""
+    import treemem.descent_gate as dg
+    monkeypatch.setattr(dg, "_SKLEARN_AVAILABLE", False)
+    local_gate = DescentGate()
+    res = local_gate.evaluate(
+        query="coffee",
+        parent_path="coffee",
+        parent_summary="coffee",
+        children=[],
+    )
+    assert res["parent_score"] >= 0.99
+
+
+@pytest.mark.skipif(not _SKLEARN_AVAILABLE, reason="scikit-learn not installed")
+def test_weights_hybrid_when_sklearn_present():
+    """With scikit-learn the score is a 50/50 blend, so it must not exceed 1.0 and must be positive."""
+    local_gate = DescentGate()
+    res = local_gate.evaluate(
+        query="coffee",
+        parent_path="coffee",
+        parent_summary="coffee",
+        children=[],
+    )
+    assert 0.0 < res["parent_score"] <= 1.0

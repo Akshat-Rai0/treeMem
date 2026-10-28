@@ -164,3 +164,8 @@ Verification of MCP support in each daily harness is roadmap Phase 0.
 - Crash test: kill the process at random points during writes; `check` passes after restart.
 - Concurrency test: N parallel writers on overlapping paths.
 - Golden test: fixed log -> fixed tree skeleton (deterministic parts).
+
+
+## Guided descent wiring
+
+`mcp_layer.recall(path, query, follow, max_depth)` -> `TreeManager.recall` -> (if `follow` and `query`) `TreeManager._guided_recall`, which calls `recall(follow=False)` once per step (one `recall` event per step on the event bus) and `search` once at most. The private-node check reads `store.read_node(child).sensitivity` before stepping in. `TreeManager.search` filters hits whose node or any ancestor is private unless `reveal=true`.

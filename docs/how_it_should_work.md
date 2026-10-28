@@ -60,7 +60,7 @@ All tools return structured JSON plus a `tokens` field (cost of the returned tex
 ### `place(entry_id, path)`
 Writes the fact into the leaf at `path`. Creates intermediate nodes (with placeholder summaries, dirty) if missing. Enforces the branching cap (see 6).
 
-### `recall(path = "/")`
+### `recall(path = "/", query?, follow?, max_depth?)`
 Returns `{summary, children:[{label, teaser}], dirty, sensitivity, tokens, stale_note?}`.
 - MUST NOT return child bodies.
 - If `dirty`, include `stale_note` stating when it was last summarized and that children changed since.
@@ -151,3 +151,15 @@ Contrast: "What's my name?" -> root summary alone answers it, so parent-stop at 
 - Transclusion of volatile facts into parents (v1.5).
 - Server choosing when to stop descending (v2).
 - Editing from the dashboard.
+
+
+## Guided descent (`follow=true`)
+
+`recall(path, query, follow=true, max_depth=3)` collapses the manual root -> branch -> leaf walk into one call:
+
+1. Read the node and ask the descent gate: `stop`, `descend` (with a suggested child), or `search_fallback`.
+2. `stop`: return this node. `descend`: step into the suggested child and repeat. `search_fallback`: run a bounded search (at most 400 tokens) and return it.
+3. Stop early at a leaf (facts are returned), at `max_depth`, on a revisited path, or **before any child with `sensitivity: private`** (the response then carries `stopped_at_private`, `suggested_child` and a message; the private node is never read into the response).
+4. The response carries `final_path`, `traversal` (per-step action and scores), `steps`, `stopped_reason`, and `tokens` (only what is returned to the agent).
+
+It is read-only: no vault file changes, no dirty-flag changes, no write locks. It emits one `recall` event per step so the dashboard shows the whole path. `search` withholds hits under private nodes unless `reveal=true`.

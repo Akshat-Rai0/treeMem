@@ -58,19 +58,25 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
 
 
 @mcp.tool()
-def recall(path: str = "/", query: Optional[str] = None):
+def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, max_depth: int = 3):
     """
     Read a concise parent topic summary and one-line teasers for child topics.
 
     MUST NOT return child bodies. If the parent summary answers the query, stop here (parent-stop).
     If query is provided, the descent gate evaluates whether parent is sufficient or suggests next action.
 
+    PREFERRED: call recall(path="/", query=<the question>, follow=True). The server then follows the
+    gate's suggestions (read-only) and returns the node where descent stopped, in ONE call. It never
+    enters private nodes. Use expand only when the result says more detail is needed.
+
     Args:
         path: Path of the node to inspect ('/' for root).
         query: Optional question or query to evaluate parent sufficiency (predictive gate).
+        follow: If true (and query given), follow the gate's suggestions server-side.
+        max_depth: Maximum number of child steps taken when follow=true.
     """
     mgr = get_manager()
-    res = mgr.recall(path=path, query=query)
+    res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth)
     return json.dumps(res, indent=2)
 
 
@@ -135,16 +141,17 @@ def auto_compress(path: Optional[str] = None):
 
 
 @mcp.tool()
-def search(query: str, limit: int = 10):
+def search(query: str, limit: int = 10, reveal: bool = False):
     """
     Lexical BM25 search over all log entries and leaf notes (fallback when descent fails).
 
     Args:
         query: Search keywords.
         limit: Maximum results to return.
+        reveal: If true, include hits under private nodes (default: withheld).
     """
     mgr = get_manager()
-    res = mgr.search(query=query, limit=limit)
+    res = mgr.search(query=query, limit=limit, reveal=reveal)
     return json.dumps(res, indent=2)
 
 

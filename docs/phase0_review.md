@@ -74,3 +74,13 @@ The primary risk in automatic descent (`follow=True`) is accidentally exposing p
 
 - **Blockers**: None.
 - **Proceed to Phase 1**: Yes.
+
+
+---
+
+## Phase 3 caveats (addendum, found during implementation)
+
+1. **Pre-existing leak, fixed**: `TreeManager.search` returned facts stored under private nodes (for example a routing number) with no filtering. Guided descent's `search_fallback` would have exposed them. `search` now withholds hits under private nodes (node or any ancestor) unless `reveal=true`. Covered by tests.
+2. **"No writes" clarified**: follow mode makes no vault content writes, no dirty-flag changes and takes no write locks. It does append `recall`/`search` events to `.events/` (observability, same as plain `recall`). The read-only test excludes `.events/` and `.locks/`.
+3. **Starting node**: if the starting path is itself private, existing `recall` behavior applies; follow mode never steps into a private child.
+4. **Gate quality bound**: the descent is only as good as the heuristic gate (lexical + TF-IDF over summaries). Queries whose words do not appear in summaries fall to `search_fallback`, which is correct but costs a search.

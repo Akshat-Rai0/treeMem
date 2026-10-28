@@ -84,6 +84,11 @@ class DescentGate:
         self.parent_stop_threshold = parent_stop_threshold
         self.descend_delta = descend_delta
 
+    @staticmethod
+    def _semantic_enabled() -> bool:
+        """True when scikit-learn is importable (read at call time so tests can monkeypatch)."""
+        return _SKLEARN_AVAILABLE
+
     def evaluate(
         self,
         query: str,
@@ -134,7 +139,7 @@ class DescentGate:
 
         # 2. Semantic TF-IDF bigram cosine similarity
         semantic_scores = [0.0] * len(all_texts)
-        if _SKLEARN_AVAILABLE and any(t for t in all_texts):
+        if self._semantic_enabled() and any(t for t in all_texts):
             try:
                 vect = TfidfVectorizer(
                     ngram_range=(1, 2),
@@ -148,11 +153,20 @@ class DescentGate:
             except Exception:
                 pass
 
-        # Combined hybrid scores: 50% semantic + 50% lexical
-        combined_scores = [
-            0.50 * semantic_scores[i] + 0.50 * lexical_scores[i]
-            for i in range(len(all_texts))
-        ]
+        # Combined hybrid scores. With scikit-learn: 50% semantic + 50% lexical.
+        # Without it the semantic score is always 0, so use 100% lexical weight;
+        # otherwise every score is halved and thresholds become miscalibrated.
+        if self._semantic_enabled():
+            semantic_weight = 0.50
+            lexical_weight = 0.50
+        else:
+            semantic_weight = 0.0
+            lexical_weight = 1.0
+
+        combined_scores = []
+        for i in range(len(all_texts)):
+            score = semantic_weight * semantic_scores[i] + lexical_weight * lexical_scores[i]
+            combined_scores.append(score)
 
         parent_score = combined_scores[0]
         child_scores = combined_scores[1:]

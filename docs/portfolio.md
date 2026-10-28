@@ -18,7 +18,7 @@
 > *"Architected **TreeMem**, an open-source MCP memory server implementing hierarchical parent-first topic descent for LLM agents; cut memory payload tokens by **82.8%** with 100.0% accuracy across 12-question benchmark suites and enforced 8 structural invariants with crash-resilient atomic file operations."*
 
 ### 3-Bullet Deep-Dive (AI Infrastructure / Systems Engineering)
-> - *"Engineered a hierarchical memory MCP server in Python for autonomous LLM agents, organizing knowledge into rebuildable topic trees with append-only daily logs, reducing context payload tokens by **83.3%** on real LLM benchmarks with a **25% parent-stop rate**."*
+> - *"Engineered a hierarchical memory MCP server in Python for autonomous LLM agents, organizing knowledge into rebuildable topic trees with append-only daily logs, and measured memory payload against a flat-dump baseline on a real LLM agent benchmark (results and limitations in the generated table above)."*
 > - *"Designed a crash-resilient storage engine utilizing atomic temp-and-rename operations, root-to-leaf hierarchical mutexes, and automated health checks enforcing 8 structural invariants, surviving mid-write `SIGKILL` interruptions with zero data corruption."*
 > - *"Built an X-Ray observability dashboard using FastAPI, SSE, and Cytoscape.js that streams real-time traversal paths, token efficiency meters, and interactive time-travel replays under localhost token authentication."*
 
@@ -26,14 +26,19 @@
 
 ## 3. Verified Benchmark Metrics (Committed in Repo)
 
+<!-- BENCHMARK_TABLE_PORTFOLIO_START -->
 | Metric | Measured Value | Benchmark Configuration |
 |:---|:---|:---|
-| **Memory Payload Reduction** | **83.27%** | Groq `qwen/qwen3.8-27b`, $n=12$ benchmark questions (`bench/results/llm_eval_results.json`) |
-| **Scaling Payload Savings** | **94.61% – 99.36%** | Synthetic scaling study across 100, 1k, and 10k memories (`bench/results/flat_vs_tree_tokens.json`) |
-| **Parent-Stop Rate** | **25.0%** (3/12 queries) | Queries answered completely at depth 0 without expanding child branches |
-| **Retrieval Latency** | **p50 = 1.77 ms, p95 = 1.92 ms** | In-memory tree traversal plumbing benchmark |
-| **System Invariant Compliance** | **100% (32/32 tests passing)** | Concurrency, property, crash recovery, and privacy leak checks |
-| **Rate-Limit Resilience** | **89 calls balanced 50/50** | Multi-account failover pool with automatic backoff |
+| **Answer Accuracy** | flat 100.0% / tree 100.0% | single run, n=12, `qwen/qwen3.8-27b` (`bench/results/llm_eval_results.json`) |
+| **Memory Payload Reduction** | 82.76% | same run; payload tokens only |
+| **Total API Wire Tokens** | flat 9,858 / tree 63,695 (6.5x) | same run; includes tool schemas re-sent per hop |
+| **Parent-Stop Rate** | 16.7% (2/12) | same run |
+| **Mean Latency** | flat 0.50s / tree 19.53s | same run |
+| **Scaling Payload Savings** | 94.61% - 99.36% | synthetic vault, scripted descent (`bench/results/flat_vs_tree_tokens.json`) |
+| **Descent Plumbing Latency** | p50 = 1.77 ms, p95 = 1.92 ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |
+| **Rate-Limit Failover** | 92 calls across 2 keys | Groq key rotation in the eval harness |
+| **Test Suite** | 89 passing | `pytest tests` (concurrency, property, crash recovery, privacy) |
+<!-- BENCHMARK_TABLE_PORTFOLIO_END -->
 
 ---
 
