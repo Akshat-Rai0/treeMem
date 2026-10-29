@@ -11,6 +11,7 @@ try:
 except ImportError:
     from mcp.server.fastmcp import FastMCP as MCPServer
 
+from treemem.reveal_policy import DENIED_NOTE, resolve_reveal
 from treemem.tree_manager import TreeManager
 
 _MANAGER: Optional[TreeManager] = None
@@ -87,10 +88,15 @@ def expand(path: str, reveal: bool = False):
 
     Args:
         path: Path of the node to expand.
-        reveal: If true, reveals facts/summaries of private nodes.
+        reveal: Requests private details. Honored only if the server operator granted it
+            (TREEMEM_ALLOW_REVEAL=1); otherwise private content stays hidden.
     """
     mgr = get_manager()
-    res = mgr.expand(path=path, reveal=reveal)
+    effective_reveal, denied = resolve_reveal(reveal)
+    res = mgr.expand(path=path, reveal=effective_reveal)
+    if denied:
+        res["reveal_denied"] = True
+        res["reveal_note"] = DENIED_NOTE
     return json.dumps(res, indent=2)
 
 
@@ -148,10 +154,15 @@ def search(query: str, limit: int = 10, reveal: bool = False):
     Args:
         query: Search keywords.
         limit: Maximum results to return.
-        reveal: If true, include hits under private nodes (default: withheld).
+        reveal: Requests hits under private nodes. Honored only if the server operator granted it
+            (TREEMEM_ALLOW_REVEAL=1); otherwise those hits are withheld.
     """
     mgr = get_manager()
-    res = mgr.search(query=query, limit=limit, reveal=reveal)
+    effective_reveal, denied = resolve_reveal(reveal)
+    res = mgr.search(query=query, limit=limit, reveal=effective_reveal)
+    if denied:
+        res["reveal_denied"] = True
+        res["reveal_note"] = DENIED_NOTE
     return json.dumps(res, indent=2)
 
 
