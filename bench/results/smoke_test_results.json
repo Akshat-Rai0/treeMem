@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-23T19:09:51Z",
+  "timestamp": "2026-10-29T00:55:47Z",
   "test_type": "smoke_test_scripted_descent",
   "total_questions": 5,
   "accuracy_pct": 100.0,
@@ -8,8 +8,8 @@
   "avg_tokens_tree": 55.4,
   "avg_tokens_flat": 61,
   "token_reduction_pct": 9.2,
-  "latency_p50_ms": 1.77,
-  "latency_p95_ms": 1.92,
+  "latency_p50_ms": 2.29,
+  "latency_p95_ms": 2.87,
   "records": [
     {
       "query_id": "q1",
@@ -18,7 +18,7 @@
       "stopped_at": "/",
       "tokens_tree": 38,
       "tokens_flat": 61,
-      "latency_ms": 1.14
+      "latency_ms": 1.59
     },
     {
       "query_id": "q2",
@@ -27,7 +27,7 @@
       "stopped_at": "education",
       "tokens_tree": 64,
       "tokens_flat": 61,
-      "latency_ms": 1.65
+      "latency_ms": 2.87
     },
     {
       "query_id": "q3",
@@ -36,7 +36,7 @@
       "stopped_at": "identity/age",
       "tokens_tree": 59,
       "tokens_flat": 61,
-      "latency_ms": 1.92
+      "latency_ms": 2.53
     },
     {
       "query_id": "q4",
@@ -45,7 +45,7 @@
       "stopped_at": "projects/treemem",
       "tokens_tree": 63,
       "tokens_flat": 61,
-      "latency_ms": 1.77
+      "latency_ms": 2.29
     },
     {
       "query_id": "q5",
@@ -54,7 +54,7 @@
       "stopped_at": "hobbies/fitness",
       "tokens_tree": 53,
       "tokens_flat": 61,
-      "latency_ms": 1.77
+      "latency_ms": 2.13
     }
   ]
 }

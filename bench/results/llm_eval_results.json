@@ -1,23 +1,23 @@
 {
   "model": "qwen/qwen3.8-27b",
-  "timestamp": "2026-10-25T14:50:42Z",
+  "timestamp": "2026-10-29T01:00:35Z",
   "total_questions": 12,
   "flat_accuracy_pct": 100.0,
   "treemem_accuracy_pct": 100.0,
   "memory_payload_tokens": {
     "flat_total": 7812,
-    "treemem_total": 1347,
-    "reduction_pct": 82.76
+    "treemem_total": 1385,
+    "reduction_pct": 82.27
   },
   "api_tokens_with_tool_overhead": {
     "flat_total": 9858,
-    "treemem_total": 63695
+    "treemem_total": 66362
   },
-  "parent_stop_rate_pct": 16.7,
-  "parent_stops_count": 2,
+  "parent_stop_rate_pct": 8.3,
+  "parent_stops_count": 1,
   "key_usage_counts": {
-    "0": 46,
-    "1": 46
+    "0": 51,
+    "1": 51
   },
   "questions": [
     {
@@ -31,16 +31,16 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 10,
         "api_total_tokens": 810,
-        "latency_sec": 0.524,
+        "latency_sec": 0.451,
         "correct": true
       },
       "treemem": {
         "answer": "The user's full name is **Alex Mercer**.",
-        "payload_tokens": 65,
-        "api_prompt_tokens": 1669,
-        "api_completion_tokens": 50,
-        "api_total_tokens": 1719,
-        "hops": 1,
+        "payload_tokens": 103,
+        "api_prompt_tokens": 4269,
+        "api_completion_tokens": 116,
+        "api_total_tokens": 4385,
+        "hops": 3,
         "hop_details": [
           {
             "tool": "recall",
@@ -48,11 +48,24 @@
               "path": "/",
               "query": "user's full name"
             }
+          },
+          {
+            "tool": "recall",
+            "args": {
+              "path": "identity",
+              "query": "user's full name"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "identity/bio"
+            }
           }
         ],
-        "depth_reached": 0,
-        "is_parent_stop": true,
-        "latency_sec": 2.984,
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "latency_sec": 5.485,
         "correct": true
       }
     },
@@ -67,7 +80,7 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 14,
         "api_total_tokens": 814,
-        "latency_sec": 0.502,
+        "latency_sec": 0.399,
         "correct": true
       },
       "treemem": {
@@ -88,7 +101,7 @@
         ],
         "depth_reached": 0,
         "is_parent_stop": true,
-        "latency_sec": 2.533,
+        "latency_sec": 2.196,
         "correct": true
       }
     },
@@ -103,15 +116,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 9,
         "api_total_tokens": 810,
-        "latency_sec": 0.508,
+        "latency_sec": 0.387,
         "correct": true
       },
       "treemem": {
         "answer": "The user currently resides in **Metropolis**.",
         "payload_tokens": 107,
-        "api_prompt_tokens": 5949,
+        "api_prompt_tokens": 5941,
         "api_completion_tokens": 169,
-        "api_total_tokens": 6118,
+        "api_total_tokens": 6110,
         "hops": 4,
         "hop_details": [
           {
@@ -144,7 +157,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 9.326,
+        "latency_sec": 7.645,
         "correct": true
       }
     },
@@ -159,7 +172,7 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 52,
         "api_total_tokens": 854,
-        "latency_sec": 0.788,
+        "latency_sec": 0.519,
         "correct": true
       },
       "treemem": {
@@ -211,7 +224,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 8.554,
+        "latency_sec": 18.012,
         "correct": true
       }
     },
@@ -226,7 +239,7 @@
         "api_prompt_tokens": 803,
         "api_completion_tokens": 61,
         "api_total_tokens": 864,
-        "latency_sec": 0.586,
+        "latency_sec": 0.583,
         "correct": true
       },
       "treemem": {
@@ -272,7 +285,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 28.012,
+        "latency_sec": 25.463,
         "correct": true
       }
     },
@@ -287,15 +300,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 9,
         "api_total_tokens": 810,
-        "latency_sec": 0.424,
+        "latency_sec": 0.349,
         "correct": true
       },
       "treemem": {
         "answer": "The user graduated from **Metro State University**.",
         "payload_tokens": 102,
-        "api_prompt_tokens": 5920,
+        "api_prompt_tokens": 5923,
         "api_completion_tokens": 183,
-        "api_total_tokens": 6103,
+        "api_total_tokens": 6106,
         "hops": 4,
         "hop_details": [
           {
@@ -329,7 +342,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 27.266,
+        "latency_sec": 27.52,
         "correct": true
       }
     },
@@ -344,7 +357,7 @@
         "api_prompt_tokens": 800,
         "api_completion_tokens": 14,
         "api_total_tokens": 814,
-        "latency_sec": 0.48,
+        "latency_sec": 0.437,
         "correct": true
       },
       "treemem": {
@@ -386,7 +399,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 26.814,
+        "latency_sec": 31.498,
         "correct": true
       }
     },
@@ -401,7 +414,7 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 10,
         "api_total_tokens": 812,
-        "latency_sec": 0.524,
+        "latency_sec": 0.426,
         "correct": true
       },
       "treemem": {
@@ -443,7 +456,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 27.709,
+        "latency_sec": 24.838,
         "correct": true
       }
     },
@@ -458,15 +471,15 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 14,
         "api_total_tokens": 815,
-        "latency_sec": 0.414,
+        "latency_sec": 0.379,
         "correct": true
       },
       "treemem": {
         "answer": "The user is building **TreeMem**, a hierarchical memory architecture.",
         "payload_tokens": 108,
-        "api_prompt_tokens": 5957,
+        "api_prompt_tokens": 5963,
         "api_completion_tokens": 179,
-        "api_total_tokens": 6136,
+        "api_total_tokens": 6142,
         "hops": 4,
         "hop_details": [
           {
@@ -499,7 +512,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 27.373,
+        "latency_sec": 24.54,
         "correct": true
       }
     },
@@ -514,7 +527,7 @@
         "api_prompt_tokens": 803,
         "api_completion_tokens": 11,
         "api_total_tokens": 814,
-        "latency_sec": 0.38,
+        "latency_sec": 0.544,
         "correct": true
       },
       "treemem": {
@@ -556,7 +569,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 27.207,
+        "latency_sec": 33.754,
         "correct": true
       }
     },
@@ -571,7 +584,7 @@
         "api_prompt_tokens": 801,
         "api_completion_tokens": 19,
         "api_total_tokens": 820,
-        "latency_sec": 0.437,
+        "latency_sec": 0.458,
         "correct": true
       },
       "treemem": {
@@ -606,7 +619,7 @@
         ],
         "depth_reached": 2,
         "is_parent_stop": false,
-        "latency_sec": 19.16,
+        "latency_sec": 13.223,
         "correct": true
       }
     },
@@ -621,7 +634,7 @@
         "api_prompt_tokens": 802,
         "api_completion_tokens": 19,
         "api_total_tokens": 821,
-        "latency_sec": 0.402,
+        "latency_sec": 6.252,
         "correct": true
       },
       "treemem": {
@@ -667,7 +680,7 @@
         ],
         "depth_reached": 1,
         "is_parent_stop": false,
-        "latency_sec": 27.43,
+        "latency_sec": 28.963,
         "correct": true
       }
     }

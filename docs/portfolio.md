@@ -30,13 +30,13 @@
 | Metric | Measured Value | Benchmark Configuration |
 |:---|:---|:---|
 | **Answer Accuracy** | flat 100.0% / tree 100.0% | single run, n=12, `qwen/qwen3.8-27b` (`bench/results/llm_eval_results.json`) |
-| **Memory Payload Reduction** | 82.76% | same run; payload tokens only |
-| **Total API Wire Tokens** | flat 9,858 / tree 63,695 (6.5x) | same run; includes tool schemas re-sent per hop |
-| **Parent-Stop Rate** | 16.7% (2/12) | same run |
-| **Mean Latency** | flat 0.50s / tree 19.53s | same run |
+| **Memory Payload Reduction** | 82.27% | same run; payload tokens only |
+| **Total API Wire Tokens** | flat 9,858 / tree 66,362 (6.7x) | same run; includes tool schemas re-sent per hop |
+| **Parent-Stop Rate** | 8.3% (1/12) | same run |
+| **Mean Latency** | flat 0.93s / tree 20.26s | same run |
 | **Scaling Payload Savings** | 94.61% - 99.36% | synthetic vault, scripted descent (`bench/results/flat_vs_tree_tokens.json`) |
-| **Descent Plumbing Latency** | p50 = 1.77 ms, p95 = 1.92 ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |
-| **Rate-Limit Failover** | 92 calls across 2 keys | Groq key rotation in the eval harness |
+| **Descent Plumbing Latency** | p50 = 2.29 ms, p95 = 2.87 ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |
+| **Rate-Limit Failover** | 102 calls across 2 keys | Groq key rotation in the eval harness |
 | **Test Suite** | 89 passing | `pytest tests` (concurrency, property, crash recovery, privacy) |
 <!-- BENCHMARK_TABLE_PORTFOLIO_END -->
 

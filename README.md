@@ -308,10 +308,10 @@ treemem serve --demo
 | Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
 |:---|:---|:---|:---|
 | **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Parity across benchmark suite |
-| **Memory Payload Tokens** | 7,812 tokens | **1,347 tokens** | **82.76% payload token reduction** |
-| **Total API Wire Tokens** | **9,858 tokens** | 63,695 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
-| **Parent-Stop Rate** | N/A | **16.7%** (2/12) | Evaluated at root depth 0 when summary was sufficient |
-| **Mean / Max Latency** | 0.50s / 0.79s | 19.53s / 28.01s | Multi-hop sequential tool execution latency |
+| **Memory Payload Tokens** | 7,812 tokens | **1,385 tokens** | **82.27% payload token reduction** |
+| **Total API Wire Tokens** | **9,858 tokens** | 66,362 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
+| **Parent-Stop Rate** | N/A | **8.3%** (1/12) | Evaluated at root depth 0 when summary was sufficient |
+| **Mean / Max Latency** | 0.93s / 6.25s | 20.26s / 33.75s | Multi-hop sequential tool execution latency |
 <!-- BENCHMARK_TABLE_REAL_END -->
 
 *Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
