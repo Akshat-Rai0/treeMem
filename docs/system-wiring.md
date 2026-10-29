@@ -169,3 +169,8 @@ Verification of MCP support in each daily harness is roadmap Phase 0.
 ## Guided descent wiring
 
 `mcp_layer.recall(path, query, follow, max_depth)` -> `TreeManager.recall` -> (if `follow` and `query`) `TreeManager._guided_recall`, which calls `recall(follow=False)` once per step (one `recall` event per step on the event bus) and `search` once at most. The private-node check reads `store.read_node(child).sensitivity` before stepping in. `TreeManager.search` filters hits whose node or any ancestor is private unless `reveal=true`.
+
+
+## Reveal policy and evaluation wiring
+
+`mcp_layer.expand` / `mcp_layer.search` -> `reveal_policy.resolve_reveal(reveal)` -> `TreeManager.expand/search(reveal=effective)`; on denial the result gets `reveal_denied` and `reveal_note`. `bench/eval/run_eval.py` -> `execute_tool` applies the same `resolve_reveal`, runs `TreeManager.recall(follow=...)` for the guided arm, and `run_evaluation` writes per-run JSON, `llm_eval_aggregate.json` and the legacy `llm_eval_results.json`. `bench/make_readme_tables.py` turns those JSON files into the README and portfolio tables.

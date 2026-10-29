@@ -163,3 +163,12 @@ Contrast: "What's my name?" -> root summary alone answers it, so parent-stop at 
 4. The response carries `final_path`, `traversal` (per-step action and scores), `steps`, `stopped_reason`, and `tokens` (only what is returned to the agent).
 
 It is read-only: no vault file changes, no dirty-flag changes, no write locks. It emits one `recall` event per step so the dashboard shows the whole path. `search` withholds hits under private nodes unless `reveal=true`.
+
+
+## Reveal policy (who may unlock private nodes)
+
+A tool argument is controlled by the model, so `reveal=true` cannot be the permission. `treemem.reveal_policy.resolve_reveal(requested)` returns `(effective, denied)`: reveal is effective only when the operator started the server with `TREEMEM_ALLOW_REVEAL=1`. The MCP `expand` and `search` tools apply it and add `reveal_denied` and a note to the result when it refuses. The evaluation harness applies the same policy, so a private question counts as correct when the agent does **not** leak the secret.
+
+## Evaluation harness
+
+`python bench/eval/run_eval.py [--arms flat,tree,tree_follow] [--runs N] [--limit K] [--no-pacing]` runs three arms on the same questions: flat dump, manual tree descent, and guided descent. It writes one file per run (`bench/results/llm_eval_runs/run_k.json`), an aggregate with mean and standard deviation (`llm_eval_aggregate.json`), and the single-run `llm_eval_results.json` (flat vs tree, last run) that the README generator reads. Accuracy is scored on the non-private questions; the private question is reported as leaks. Latency excludes pacing sleeps. Each run uses a fresh copy of the vault.

@@ -84,3 +84,11 @@ The primary risk in automatic descent (`follow=True`) is accidentally exposing p
 2. **"No writes" clarified**: follow mode makes no vault content writes, no dirty-flag changes and takes no write locks. It does append `recall`/`search` events to `.events/` (observability, same as plain `recall`). The read-only test excludes `.events/` and `.locks/`.
 3. **Starting node**: if the starting path is itself private, existing `recall` behavior applies; follow mode never steps into a private child.
 4. **Gate quality bound**: the descent is only as good as the heuristic gate (lexical + TF-IDF over summaries). Queries whose words do not appear in summaries fall to `search_fallback`, which is correct but costs a search.
+
+
+## Addendum 2: reveal and evaluation
+
+1. **`reveal` was not a permission.** The eval showed the model setting `reveal=true` itself, including on the private banking node. Reveal is now an operator grant (`TREEMEM_ALLOW_REVEAL=1`), enforced in the MCP layer and in the eval harness. `TreeManager` methods keep their `reveal` argument for trusted direct callers.
+2. **Grading fixes.** The private question is now graded as protected when it is not leaked, and accuracy is computed over the non-private questions. The negative control no longer accepts a bare "not" as a correct answer.
+3. **Latency honesty.** The old latency numbers included the harness's pacing sleeps. They are now API time plus local tool time only.
+4. **Not yet measured.** The guided-descent arm has never been run against a real LLM in this repo. The repeated-runs table in the README stays "Not measured yet" until `run_eval.py --runs N` is run with Groq keys.

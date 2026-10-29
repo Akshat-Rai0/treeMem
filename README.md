@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 89 Passing](https://img.shields.io/badge/tests-89%20passed-brightgreen.svg)]()
+[![Tests: 111 Passing](https://img.shields.io/badge/tests-111%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -195,11 +195,14 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 | `remember` | `fact: str, hint?: str` | Appends fact to today's log, returns entry ID and candidate topic paths. |
 | `place` | `entry_id: str, path: str, sensitivity?: str` | Places fact into a leaf node and marks all ancestors `dirty`. |
 | `recall` | `path: str = "/"`, `query?: str`, `follow?: bool`, `max_depth?: int` | Reads node summary and 1-line child teasers (**never** child bodies). With `query` it adds the descent-gate verdict; with `follow=true` the server follows the gate read-only (never into private nodes) and returns where it stopped, in one call. |
-| `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. |
+| `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. `reveal=true` is only honored when the server operator set `TREEMEM_ALLOW_REVEAL=1`; otherwise private content stays hidden and the result carries `reveal_denied`. |
 | `compress` | `path: str` | Returns compression prompt and child text to clean a dirty node (Option A). |
 | `auto_compress` | `path?: str` | (Optional) Compresses dirty nodes bottom-up using an external LLM (Groq); reads API keys from `.env`. |
 | `commit_summary` | `path: str, text: str` | Validates token cap, child list, and privacy before committing atomically. |
-| `search` | `query: str, limit: int = 10, reveal: bool = False` | BM25 lexical search over log entries and leaves (fallback mechanism). Hits under private nodes are withheld unless `reveal=true`. |
+| `search` | `query: str, limit: int = 10, reveal: bool = False` | BM25 lexical search over log entries and leaves (fallback mechanism). Hits under private nodes are withheld unless `reveal=true` **and** the operator granted reveal (`TREEMEM_ALLOW_REVEAL=1`). |
+
+**Reveal policy.** The model must not be able to grant itself access to private data, so `reveal=true` in a tool call is a *request*, not a switch. The MCP server honors it only when a human starts it with `TREEMEM_ALLOW_REVEAL=1`. Without that, `expand` and `search` return `reveal_denied: true` plus a note telling the agent to ask the user. Direct Python callers (tests, CLI, dashboard with its own token) use `TreeManager` directly and are not affected.
+
 | `split` | `path: str, groups: dict` | Splits an overflowing node into subtopics to preserve branching caps. |
 | `rebuild` | `path?: str` | Reconstructs tree structure from append-only log files. |
 | `status` | *None* | Session-start health report with total nodes, facts, and dirty count. |
@@ -307,7 +310,7 @@ treemem serve --demo
 <!-- BENCHMARK_TABLE_REAL_START -->
 | Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
 |:---|:---|:---|:---|
-| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Parity across benchmark suite |
+| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Parity on the scored questions |
 | **Memory Payload Tokens** | 7,812 tokens | **1,385 tokens** | **82.27% payload token reduction** |
 | **Total API Wire Tokens** | **9,858 tokens** | 66,362 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
 | **Parent-Stop Rate** | N/A | **8.3%** (1/12) | Evaluated at root depth 0 when summary was sufficient |
@@ -331,17 +334,24 @@ treemem serve --demo
 
 *Raw data committed in [`bench/results/flat_vs_tree_tokens.json`](bench/results/flat_vs_tree_tokens.json).*
 
+### Repeated runs: flat vs manual descent vs guided descent
+<!-- BENCHMARK_TABLE_AGG_START -->
+_Not measured yet._ Run `python bench/eval/run_eval.py --runs 5` (needs Groq keys in `.env`) and then `python bench/make_readme_tables.py`.
+<!-- BENCHMARK_TABLE_AGG_END -->
+
 ### Known limitations (read before quoting numbers)
 - The real-LLM table is a **single run of 12 questions** on an 8-fact vault. Run-to-run differences (for example 91.7% vs 100% accuracy between two runs) are noise until repeated runs with mean and standard deviation are published.
 - On small vaults a flat dump wins on total API tokens and latency. TreeMem's payload reduction does not turn into a total-token win in these results.
-- Manual descent (the agent calling `recall` and `expand` hop by hop) over-descends: most questions took 4 or more hops. `recall(..., follow=true)` moves that walk server-side; its effect on total tokens has **not** been measured against a real LLM yet.
+- Manual descent (the agent calling `recall` and `expand` hop by hop) over-descends: most questions took 4 or more hops. `recall(..., follow=true)` moves that walk server-side; its effect on total tokens is only known once you have run `python bench/eval/run_eval.py --runs 5` (see the repeated-runs table above; it says "Not measured yet" until then).
 - The descent gate is a lexical + TF-IDF heuristic over summaries. If the question's words are not in the summaries it falls back to search.
 
 ### Plumbing Smoke Test ($n=5$, Scripted Descent)
+<!-- SMOKE_BLOCK_START -->
 - **Token Reduction**: 9.2% on a small 8-fact vault.
 - **Parent-Stop Rate**: 20.0% (depth 0).
-- **Descent Latency**: p50 = 1.77 ms, p95 = 1.92 ms.
+- **Descent Latency**: p50 = 2.29 ms, p95 = 2.87 ms.
 - *Raw data committed in [`bench/results/smoke_test_results.json`](bench/results/smoke_test_results.json).*
+<!-- SMOKE_BLOCK_END -->
 
 ---
 
@@ -355,7 +365,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 89 passed in 3.27s ==============================
+============================== 111 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.

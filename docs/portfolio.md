@@ -37,7 +37,7 @@
 | **Scaling Payload Savings** | 94.61% - 99.36% | synthetic vault, scripted descent (`bench/results/flat_vs_tree_tokens.json`) |
 | **Descent Plumbing Latency** | p50 = 2.29 ms, p95 = 2.87 ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |
 | **Rate-Limit Failover** | 102 calls across 2 keys | Groq key rotation in the eval harness |
-| **Test Suite** | 89 passing | `pytest tests` (concurrency, property, crash recovery, privacy) |
+| **Test Suite** | 111 passing | `pytest tests` (concurrency, property, crash recovery, privacy) |
 <!-- BENCHMARK_TABLE_PORTFOLIO_END -->
 
 ---

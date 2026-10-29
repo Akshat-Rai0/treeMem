@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (evaluation and privacy)
+- **Server-side reveal policy** (`treemem/reveal_policy.py`): `reveal=true` from an agent is only honored when the operator sets `TREEMEM_ALLOW_REVEAL=1`; otherwise `expand` and `search` return `reveal_denied`. Tests in `tests/test_reveal_policy.py`.
+- **Evaluation harness v2**: third arm `tree_follow` (guided descent), `--runs N` with mean and standard deviation (`llm_eval_aggregate.json`), per-run result files, fresh vault copy per run, latency without pacing sleeps. Offline tests with a scripted fake client in `tests/test_eval_harness.py`.
+- README generator now also fills the repeated-runs table and the smoke-test block, and shows "Not measured yet" until an aggregate exists.
+
+### Fixed (evaluation)
+- The private question is graded as protected when not leaked, and accuracy covers the non-private questions only.
+- The negative-control grader no longer accepts any answer containing the word "not".
+
 ### Changed
 - **Descent gate lexical fallback**: without scikit-learn the combined score now uses 100% lexical weight (previously halved, which made leaf nodes return `search_fallback`). Tests cover both modes.
 - **Benchmark numbers are generated**: `bench/make_readme_tables.py` now fills README and `docs/portfolio.md` tables from `bench/results/*.json` and the measured pytest count. No hand-typed benchmark numbers remain.
