@@ -21,7 +21,7 @@ def load_json(path: Path) -> Dict[str, Any]:
 def format_real_llm_table(data: Dict[str, Any]) -> str:
     flat_acc = data["flat_accuracy_pct"]
     tree_acc = data["treemem_accuracy_pct"]
-    total_q = data["total_questions"]
+    total_q = data.get("accuracy_questions", data["total_questions"])
     
     flat_payload = data["memory_payload_tokens"]["flat_total"]
     tree_payload = data["memory_payload_tokens"]["treemem_total"]
@@ -43,15 +43,27 @@ def format_real_llm_table(data: Dict[str, Any]) -> str:
     mean_tree_lat = sum(tree_lats) / len(tree_lats) if tree_lats else 0.0
     max_tree_lat = max(tree_lats) if tree_lats else 0.0
 
+    if abs(flat_acc - tree_acc) < 0.05:
+        accuracy_note = "Parity on the scored questions"
+    elif tree_acc > flat_acc:
+        accuracy_note = "TreeMem higher on this run (single run, noisy)"
+    else:
+        accuracy_note = "Flat higher on this run (single run, noisy)"
+
     lines = [
         "| Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |",
         "|:---|:---|:---|:---|",
-        f"| **Answer Accuracy** | **{flat_acc:.1f}%** ({int(flat_acc * total_q / 100)}/{total_q}) | **{tree_acc:.1f}%** ({int(tree_acc * total_q / 100)}/{total_q}) | Parity across benchmark suite |",
+        f"| **Answer Accuracy** | **{flat_acc:.1f}%** ({round(flat_acc * total_q / 100)}/{total_q}) | **{tree_acc:.1f}%** ({round(tree_acc * total_q / 100)}/{total_q}) | {accuracy_note} |",
         f"| **Memory Payload Tokens** | {flat_payload:,} tokens | **{tree_payload:,} tokens** | **{payload_red:.2f}% payload token reduction** |",
         f"| **Total API Wire Tokens** | **{flat_wire:,} tokens** | {tree_wire:,} tokens | Multi-turn tool calling re-sends schema/prompts per hop |",
         f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{total_q}) | Evaluated at root depth 0 when summary was sufficient |",
         f"| **Mean / Max Latency** | {mean_flat_lat:.2f}s / {max_flat_lat:.2f}s | {mean_tree_lat:.2f}s / {max_tree_lat:.2f}s | Multi-hop sequential tool execution latency |",
     ]
+    leaks = data.get("private_leaks")
+    if leaks is not None:
+        lines.append(
+            f"| **Private Data Leaked** (1 private question) | {leaks.get('flat', 0)} | {leaks.get('treemem', 0)} | Flat has no access control; TreeMem withholds private nodes unless the operator grants reveal |"
+        )
     return "\n".join(lines)
 
 
@@ -69,6 +81,53 @@ def format_synthetic_table(data: Dict[str, Any]) -> str:
         savings = item["token_savings_pct"]
         lines.append(f"| **{num:,} memories** | {flat:,} tokens | {avg_tree:,} tokens | **{savings:.2f}%** |")
     return "\n".join(lines)
+
+
+def format_aggregate_table(aggregate: Optional[Dict[str, Any]]) -> str:
+    """Repeated-run table (mean +/- std) from bench/results/llm_eval_aggregate.json."""
+    if not aggregate:
+        return (
+            "_Not measured yet._ Run `python bench/eval/run_eval.py --runs 5` (needs Groq keys in `.env`) "
+            "and then `python bench/make_readme_tables.py`."
+        )
+
+    arm_labels = {
+        "flat": "Flat dump",
+        "tree": "TreeMem, manual descent",
+        "tree_follow": "TreeMem, guided descent (`follow=true`)",
+    }
+
+    def cell(entry: Dict[str, Any], metric: str, digits: int = 1) -> str:
+        value = entry[metric]
+        return f"{value['mean']:.{digits}f} ± {value['std']:.{digits}f}"
+
+    header = (
+        f"{aggregate['runs']} runs x {aggregate['questions']} questions, `{aggregate['model']}`, mean ± std. "
+        "Accuracy is over the non-private questions; latency excludes pacing sleeps."
+    )
+    lines = [
+        header,
+        "",
+        "| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |",
+        "|:---|:---|:---|:---|:---|:---|:---|",
+    ]
+    for arm, entry in aggregate["arms"].items():
+        label = arm_labels.get(arm, arm)
+        wire_cell = f"{entry['wire_tokens']['mean']:,.0f} ± {entry['wire_tokens']['std']:,.0f}"
+        lines.append(
+            f"| {label} | {cell(entry, 'accuracy_pct')} | {cell(entry, 'private_leaks')} | {wire_cell} | "
+            f"{cell(entry, 'mean_hops', 2)} | {cell(entry, 'single_call_rate_pct')} | {cell(entry, 'mean_latency_sec', 2)} |"
+        )
+    return "\n".join(lines)
+
+
+def format_smoke_block(smoke: Dict[str, Any]) -> str:
+    return "\n".join([
+        f"- **Token Reduction**: {smoke['token_reduction_pct']}% on a small 8-fact vault.",
+        f"- **Parent-Stop Rate**: {smoke['parent_stop_rate'] * 100:.1f}% (depth 0).",
+        f"- **Descent Latency**: p50 = {smoke['latency_p50_ms']} ms, p95 = {smoke['latency_p95_ms']} ms.",
+        "- *Raw data committed in [`bench/results/smoke_test_results.json`](bench/results/smoke_test_results.json).*",
+    ])
 
 
 def count_passing_tests(repo_root: Path) -> Optional[int]:
@@ -181,6 +240,9 @@ def main():
     else:
         test_count = count_passing_tests(repo_root)
 
+    aggregate_path = results_dir / "llm_eval_aggregate.json"
+    aggregate_data = load_json(aggregate_path) if aggregate_path.exists() else None
+
     real_table = format_real_llm_table(real_data)
     synth_table = format_synthetic_table(synth_data)
 
@@ -196,6 +258,18 @@ def main():
         "<!-- BENCHMARK_TABLE_SYNTHETIC_START -->",
         "<!-- BENCHMARK_TABLE_SYNTHETIC_END -->",
         synth_table,
+    )
+    readme = replace_table(
+        readme,
+        "<!-- BENCHMARK_TABLE_AGG_START -->",
+        "<!-- BENCHMARK_TABLE_AGG_END -->",
+        format_aggregate_table(aggregate_data),
+    )
+    readme = replace_table(
+        readme,
+        "<!-- SMOKE_BLOCK_START -->",
+        "<!-- SMOKE_BLOCK_END -->",
+        format_smoke_block(smoke_data),
     )
     readme = update_test_count_mentions(readme, test_count)
     readme_path.write_text(readme, encoding="utf-8")
