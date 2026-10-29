@@ -1,0 +1,132 @@
+{
+  "model": "qwen/qwen3.8-27b",
+  "timestamp": "2026-10-29T16:15:53Z",
+  "runs": 1,
+  "questions": 2,
+  "arms": {
+    "flat": {
+      "runs": 1,
+      "accuracy_pct": {
+        "mean": 100.0,
+        "std": 0.0
+      },
+      "private_leaks": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wire_tokens": {
+        "mean": 1624.0,
+        "std": 0.0
+      },
+      "payload_tokens": {
+        "mean": 1302.0,
+        "std": 0.0
+      },
+      "mean_hops": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "mean_latency_sec": {
+        "mean": 0.607,
+        "std": 0.0
+      },
+      "single_call_rate_pct": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "parent_stop_rate_pct": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "accuracy_questions": 2
+    },
+    "tree": {
+      "runs": 1,
+      "accuracy_pct": {
+        "mean": 100.0,
+        "std": 0.0
+      },
+      "private_leaks": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wire_tokens": {
+        "mean": 6343.0,
+        "std": 0.0
+      },
+      "payload_tokens": {
+        "mean": 168.0,
+        "std": 0.0
+      },
+      "mean_hops": {
+        "mean": 2.0,
+        "std": 0.0
+      },
+      "mean_latency_sec": {
+        "mean": 1.876,
+        "std": 0.0
+      },
+      "single_call_rate_pct": {
+        "mean": 50.0,
+        "std": 0.0
+      },
+      "parent_stop_rate_pct": {
+        "mean": 50.0,
+        "std": 0.0
+      },
+      "accuracy_questions": 2
+    },
+    "tree_follow": {
+      "runs": 1,
+      "accuracy_pct": {
+        "mean": 100.0,
+        "std": 0.0
+      },
+      "private_leaks": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wire_tokens": {
+        "mean": 5141.0,
+        "std": 0.0
+      },
+      "payload_tokens": {
+        "mean": 313.0,
+        "std": 0.0
+      },
+      "mean_hops": {
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "mean_latency_sec": {
+        "mean": 1.585,
+        "std": 0.0
+      },
+      "single_call_rate_pct": {
+        "mean": 50.0,
+        "std": 0.0
+      },
+      "parent_stop_rate_pct": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "accuracy_questions": 2
+    }
+  },
+  "per_question_pass_rate": {
+    "q01_name": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q02_profession": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    }
+  },
+  "key_usage_counts": {
+    "0": 7,
+    "1": 6
+  }
+}
