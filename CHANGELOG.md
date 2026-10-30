@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (grading)
+- The answer grader normalizes Unicode before matching (no-break spaces, curly quotes, dashes) and accepts more phrasings of "not in memory" (for example "don't include any information"). Two correct flat answers from the gpt-oss-120b run were wrongly marked incorrect before this fix.
+- `bench/eval/rebuild_aggregate.py --regrade` re-grades saved run files with the current grader (answers and tokens are never changed). Re-grading the three qwen runs changed 0 grades.
+- README can show a second model's aggregate from `bench/results_*/llm_eval_aggregate.json`.
+
+### Added (interruption safety)
+- `run_eval.py` writes `llm_eval_aggregate.json` and `llm_eval_results.json` after **every** run, and catches rate limits and Ctrl+C, so finished runs are never lost.
+- `bench/eval/rebuild_aggregate.py` rebuilds both summary files from `bench/results/llm_eval_runs/run_*.json` with no API calls.
+- First real three-arm result committed (`bench/results/llm_eval_runs/run_1..3.json`, `llm_eval_aggregate.json`).
+
 ### Added (evaluation and privacy)
 - **Server-side reveal policy** (`treemem/reveal_policy.py`): `reveal=true` from an agent is only honored when the operator sets `TREEMEM_ALLOW_REVEAL=1`; otherwise `expand` and `search` return `reveal_denied`. Tests in `tests/test_reveal_policy.py`.
 - **Evaluation harness v2**: third arm `tree_follow` (guided descent), `--runs N` with mean and standard deviation (`llm_eval_aggregate.json`), per-run result files, fresh vault copy per run, latency without pacing sleeps. Offline tests with a scripted fake client in `tests/test_eval_harness.py`.

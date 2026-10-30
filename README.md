@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 111 Passing](https://img.shields.io/badge/tests-111%20passed-brightgreen.svg)]()
+[![Tests: 120 Passing](https://img.shields.io/badge/tests-120%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -310,11 +310,12 @@ treemem serve --demo
 <!-- BENCHMARK_TABLE_REAL_START -->
 | Metric | Flat Memory Dump | TreeMem Autonomous Descent | Impact |
 |:---|:---|:---|:---|
-| **Answer Accuracy** | **100.0%** (12/12) | **100.0%** (12/12) | Parity on the scored questions |
-| **Memory Payload Tokens** | 7,812 tokens | **1,385 tokens** | **82.27% payload token reduction** |
-| **Total API Wire Tokens** | **9,858 tokens** | 66,362 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
+| **Answer Accuracy** | **100.0%** (11/11) | **100.0%** (11/11) | Parity on the scored questions |
+| **Memory Payload Tokens** | 7,812 tokens | **1,371 tokens** | **82.45% payload token reduction** |
+| **Total API Wire Tokens** | **9,858 tokens** | 66,758 tokens | Multi-turn tool calling re-sends schema/prompts per hop |
 | **Parent-Stop Rate** | N/A | **8.3%** (1/12) | Evaluated at root depth 0 when summary was sufficient |
-| **Mean / Max Latency** | 0.93s / 6.25s | 20.26s / 33.75s | Multi-hop sequential tool execution latency |
+| **Mean / Max Latency** | 0.81s / 2.79s | 19.36s / 30.99s | Multi-hop sequential tool execution latency |
+| **Private Data Leaked** (1 private question) | 1 | 0 | Flat has no access control; TreeMem withholds private nodes unless the operator grants reveal |
 <!-- BENCHMARK_TABLE_REAL_END -->
 
 *Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
@@ -336,14 +337,39 @@ treemem serve --demo
 
 ### Repeated runs: flat vs manual descent vs guided descent
 <!-- BENCHMARK_TABLE_AGG_START -->
-_Not measured yet._ Run `python bench/eval/run_eval.py --runs 5` (needs Groq keys in `.env`) and then `python bench/make_readme_tables.py`.
+3 runs x 12 questions, `qwen/qwen3.8-27b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
+
+| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
+|:---|:---|:---|:---|:---|:---|:---|
+| Flat dump | 100.0 ± 0.0 | 1.0 ± 0.0 | 9,858 ± 0 | 0.00 ± 0.00 | 0.0 ± 0.0 | 0.76 ± 0.15 |
+| TreeMem, manual descent | 100.0 ± 0.0 | 0.0 ± 0.0 | 66,758 ± 0 | 3.83 ± 0.00 | 8.3 ± 0.0 | 18.98 ± 0.87 |
+| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 48,356 ± 0 | 2.67 ± 0.00 | 33.3 ± 0.0 | 14.39 ± 1.12 |
+
+_Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
 <!-- BENCHMARK_TABLE_AGG_END -->
 
+### Second model check
+<!-- BENCHMARK_TABLE_AGG2_START -->
+1 runs x 12 questions, `openai/gpt-oss-120b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
+
+| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
+|:---|:---|:---|:---|:---|:---|:---|
+| Flat dump | 100.0 ± 0.0 | 1.0 ± 0.0 | 10,177 ± 0 | 0.00 ± 0.00 | 0.0 ± 0.0 | 0.88 ± 0.00 |
+| TreeMem, guided descent (`follow=true`) | 90.9 ± 0.0 | 0.0 ± 0.0 | 41,196 ± 0 | 2.42 ± 0.00 | 41.7 ± 0.0 | 4.29 ± 0.00 |
+
+_Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
+<!-- BENCHMARK_TABLE_AGG2_END -->
+
 ### Known limitations (read before quoting numbers)
-- The real-LLM table is a **single run of 12 questions** on an 8-fact vault. Run-to-run differences (for example 91.7% vs 100% accuracy between two runs) are noise until repeated runs with mean and standard deviation are published.
-- On small vaults a flat dump wins on total API tokens and latency. TreeMem's payload reduction does not turn into a total-token win in these results.
-- Manual descent (the agent calling `recall` and `expand` hop by hop) over-descends: most questions took 4 or more hops. `recall(..., follow=true)` moves that walk server-side; its effect on total tokens is only known once you have run `python bench/eval/run_eval.py --runs 5` (see the repeated-runs table above; it says "Not measured yet" until then).
+- **Repeated runs are not independent samples.** The model runs at temperature 0 on a fixed vault with fixed questions, so the committed 3-run result reproduced the same tokens, hops and answers every time (std = 0). That shows the harness is reproducible, not that the numbers are robust. Real variance needs paraphrased questions, a larger question set, or sampling at temperature above 0.
+- **Small sample.** 12 questions (11 scored) on an 8-fact vault. Treat 100% accuracy as "no failures observed on this set", not as a measured accuracy.
+- **A flat dump still wins on this vault.** Every tool call re-sends the system prompt and tool schemas (about 1,100 prompt tokens per call), so even a single guided call costs more than the whole flat dump. Guided descent cut total tokens and hops compared with manual descent in the committed runs, but not below the flat baseline. The memory-payload reduction (the tree returns far less memory text) does not become a total-token win at this size.
+- **Guided descent does not always help.** In the committed runs it answered some questions in one call, but on others (for example the negative control and the private question) it cost as much as or more than manual descent.
+- **Premature stops are the real accuracy risk.** The gate can decide the root summary is sufficient when it only shares words with the question. In one second-model run the agent answered "personal memory vault" for a question whose answer is a named project, because the root summary mentioned memory. A parent-stop that is wrong looks like a confident answer. Measure the wrong-stop rate on a larger question set before relying on it.
+- **Results are model-dependent.** The same tree answered a question in one call with one model and needed several calls with another. Do not generalize from one model.
+- **The grader matters.** An earlier grader marked correct flat answers wrong because of a no-break space and a curly apostrophe. Answers are now normalized before matching, and `python bench/eval/rebuild_aggregate.py --regrade` re-grades saved runs with the current grader without any API calls.
 - The descent gate is a lexical + TF-IDF heuristic over summaries. If the question's words are not in the summaries it falls back to search.
+- Break-even against flat is not measured. A rough extrapolation: the guided arm averaged about 4,000 wire tokens per question, so flat should lose once the log grows to roughly 6x its current size. Verify this with a larger vault before claiming it.
 
 ### Plumbing Smoke Test ($n=5$, Scripted Descent)
 <!-- SMOKE_BLOCK_START -->
@@ -365,7 +391,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 111 passed in 3.27s ==============================
+============================== 120 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.
