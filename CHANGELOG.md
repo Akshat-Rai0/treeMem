@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (large-vault benchmark, offline)
+- `bench/make_midsize_vault.py`: deterministic 309-fact vault (9 topics, 67 nodes, unique invented answers, one private leaf) built with the real `remember`/`place`/`commit_summary` API, plus 47 questions (lookups, overviews, private, unanswerable). `--teasers rich|minimal` models careful vs careless parent summaries.
+- `bench/large_vault_offline.py` (no API): compares flat dump, BM25 top-5 and one guided call, and writes `bench/results_offline/large_vault_offline.json`. Findings: the tree is far smaller than a flat dump; BM25 top-5 matches the tree on single-entity lookups; the tree completes overview questions that top-5 cannot; rich parent teasers remove the premature stops.
+
 ### Changed (descent gate: premature stops)
 - A real run showed the gate stopping at the root for "What hierarchical memory project is the user building?" because the root summary shared the word "memory". The gate now: stems words and drops plain function words; counts a stop as sufficient only when the node summary covers the question's own words (literal match 1.0, synonym match 0.5; `min_stop_coverage=0.5`); prefers a child that matches question words the parent lacks (`specific_term_tiebreak`); and descends when a child scores at least `descend_ratio=0.3` of the parent. `DescentGate.legacy()` restores the old behaviour for comparison.
 - `bench/gate_offline_eval.py` (no API calls) measures premature stops on the 12 dev questions plus 26 new held-out questions (`bench/eval/gate_heldout.py`). Results appear in the README, generated from the code. **Not yet confirmed with a real LLM.**

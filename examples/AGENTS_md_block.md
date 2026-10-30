@@ -45,3 +45,5 @@ recall(path="/", query="<the user's question>", follow=true)
 The server follows the descent gate read-only and returns the node where it stopped (`final_path`, `traversal`, `stopped_reason`). Use `expand` only if the result says more detail is needed. If `stopped_reason` is `private`, ask the user before calling `expand(..., reveal=true)`.
 
 Private nodes: `reveal=true` is only a request. If a result contains `reveal_denied` or `stopped_at_private`, tell the user the information is private and ask them to grant access. Never retry with `reveal=true` and never try to reach the same data through `search`.
+
+When you write or refresh a parent summary, make each child teaser list that child's key terms (names, places, genres, tools), not only its topic. The gate routes on those words.

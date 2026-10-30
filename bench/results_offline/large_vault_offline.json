@@ -1,0 +1,91 @@
+{
+  "seed": 7,
+  "scikit_learn_installed": true,
+  "overheads": {
+    "flat_overhead": 163,
+    "call_overhead": 1862,
+    "flat_samples": 33,
+    "call_samples": 12
+  },
+  "assumptions": {
+    "extra_call_payload_tokens": 100,
+    "note": "Wire estimates are a model: measured per-call overhead plus returned tokens, plus one extra call when the first call does not contain the answer."
+  },
+  "vaults": [
+    {
+      "label": "sample vault",
+      "facts": 20,
+      "questions_normal": 29,
+      "lookup_questions": 29,
+      "overview_questions": 0,
+      "bm25_lookup_answerable": 20,
+      "tree_lookup_answerable": 21,
+      "bm25_overview_complete": 0,
+      "tree_overview_complete": 0,
+      "flat_log_tokens": 651,
+      "flat_wire_estimate": 814,
+      "bm25_answerable": 20,
+      "bm25_mean_tokens": 132.7,
+      "bm25_wire_estimate": 296,
+      "tree_answerable": 21,
+      "tree_premature_stops": [
+        "h06_intern"
+      ],
+      "tree_mean_tokens": 128.1,
+      "tree_mean_steps": 0.76,
+      "tree_wire_estimate": 2531,
+      "private_leaks_tree": 0,
+      "private_leaks_bm25": 0
+    },
+    {
+      "label": "mid-size vault, minimal teasers",
+      "facts": 309,
+      "questions_normal": 39,
+      "lookup_questions": 31,
+      "overview_questions": 8,
+      "bm25_lookup_answerable": 31,
+      "tree_lookup_answerable": 28,
+      "bm25_overview_complete": 3,
+      "tree_overview_complete": 8,
+      "flat_log_tokens": 11624,
+      "flat_wire_estimate": 11787,
+      "bm25_answerable": 34,
+      "bm25_mean_tokens": 232.8,
+      "bm25_wire_estimate": 396,
+      "tree_answerable": 36,
+      "tree_premature_stops": [
+        "m14_book",
+        "m21_tool",
+        "m23_tool"
+      ],
+      "tree_mean_tokens": 235.8,
+      "tree_mean_steps": 0.85,
+      "tree_wire_estimate": 2249,
+      "private_leaks_tree": 0,
+      "private_leaks_bm25": 0
+    },
+    {
+      "label": "mid-size vault, rich teasers",
+      "facts": 309,
+      "questions_normal": 39,
+      "lookup_questions": 31,
+      "overview_questions": 8,
+      "bm25_lookup_answerable": 31,
+      "tree_lookup_answerable": 31,
+      "bm25_overview_complete": 3,
+      "tree_overview_complete": 8,
+      "flat_log_tokens": 11624,
+      "flat_wire_estimate": 11787,
+      "bm25_answerable": 34,
+      "bm25_mean_tokens": 232.8,
+      "bm25_wire_estimate": 396,
+      "tree_answerable": 39,
+      "tree_premature_stops": [],
+      "tree_mean_tokens": 196.3,
+      "tree_mean_steps": 1.1,
+      "tree_wire_estimate": 2058,
+      "private_leaks_tree": 0,
+      "private_leaks_bm25": 0
+    }
+  ]
+}

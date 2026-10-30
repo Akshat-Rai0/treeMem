@@ -183,3 +183,8 @@ For each node the gate scores the question against the node summary and each chi
 2. Even then, **descend** if a child scores clearly higher, or contains a question word the parent lacks and scores about the same, or scores at least 30% of the parent (an extra server-side step is nearly free; a wrong stop costs correctness).
 3. If the node is not sufficient, **descend** into the best child when it scores at least 0.15, otherwise **search_fallback**.
 `python bench/gate_offline_eval.py --set all --compare` shows the effect without any API calls.
+
+
+## Writing parent summaries so the gate can route
+
+The gate can only route on words that appear in a node summary or a child teaser. A teaser such as "Fiction speculative" hides the genres inside; "Fiction speculative: space opera, cyberpunk, dystopian, fantasy" lets a question about cyberpunk reach the right leaf. When committing a summary, list the key entities of each child in its teaser (cities, genres, tools, names), within the 150-token cap. `bench/large_vault_offline.py` shows the difference between minimal and rich teasers without any API calls.

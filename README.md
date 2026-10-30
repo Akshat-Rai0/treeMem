@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 128 Passing](https://img.shields.io/badge/tests-128%20passed-brightgreen.svg)]()
+[![Tests: 137 Passing](https://img.shields.io/badge/tests-137%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -369,6 +369,26 @@ _Measured with scikit-learn installed (hybrid TF-IDF + lexical scoring). Numbers
 
 The current gate counts a stop as sufficient only when the node summary covers the question's own words (a literal match counts more than a synonym), prefers a child that contains words the parent lacks, and descends when a child scores close to the parent, because a wrong stop is costly while an extra server-side step is nearly free. One parameter (`descend_ratio`) was chosen after seeing both sets, so the held-out set is no longer clean; the choice sits on a plateau (0.2 to 0.4 give the same results). Remaining misses are mostly vocabulary mismatches (for example "employs" against "Work history") and one routing error (`h06`: "intern before his current job" went to `current_job`). Those need better synonyms or embeddings, which I did not add to avoid fitting the sample vault.
 
+### Large-vault offline benchmark (no API calls)
+`python bench/large_vault_offline.py` builds a deterministic 309-fact vault (`bench/make_midsize_vault.py`, invented unique values, fixed seed) and compares what each strategy would put in front of the model for 31 lookup questions, 8 overview questions (answers spread over several facts), 2 private and 6 unanswerable questions.
+
+<!-- LARGE_VAULT_TABLE_START -->
+| Vault | Facts | Flat log (tokens) | BM25 top-5: lookups / overviews complete | Tree, one guided call: lookups / overviews complete | Tree premature stops | Est. wire tokens: flat / BM25 / tree |
+|:---|:---|:---|:---|:---|:---|:---|
+| sample vault | 20 | 651 | 20/29 / 0/0 | 21/29 / 0/0 | h06_intern | 814 / 296 / 2,531 |
+| mid-size vault, minimal teasers | 309 | 11,624 | 31/31 / 3/8 | 28/31 / 8/8 | m14_book, m21_tool, m23_tool | 11,787 / 396 / 2,249 |
+| mid-size vault, rich teasers | 309 | 11,624 | 31/31 / 3/8 | 31/31 / 8/8 | none | 11,787 / 396 / 2,058 |
+
+_Gate measured with scikit-learn installed, seed 7. Retrieval only: no language model answered anything. "Answerable" means the returned text contains the expected answer; "overview complete" means it contains every item of a multi-fact answer. Wire tokens are a model: a per-call overhead of 1,862 tokens for tool calls and 163 for a plain prompt, taken from the committed real-LLM runs, plus the returned tokens, plus one extra call whenever the first call lacks the answer. BM25 is modelled as one-shot retrieval before a single prompt (no tool schemas)._
+<!-- LARGE_VAULT_TABLE_END -->
+
+What this does and does not show:
+- **Against a flat dump the tree is far smaller**, and the flat log at this size no longer fits free-tier per-minute limits.
+- **For single-entity lookups a plain BM25 top-5 is as good as the tree and returns about the same number of tokens**, because the question names the entity (a city, a genre) that appears in the fact. The tree's value is not beating keyword search on these.
+- **For overview questions the tree completes what top-5 keyword retrieval cannot**, because following one node returns all its facts.
+- **Summary quality decides routing.** With minimal parent teasers the gate misroutes a few questions; when each teaser lists the key terms of its children (what a careful agent writes), premature stops disappear. Instruct your agent to do this.
+- The questions are generated from templates by the same script that makes the facts, so they share more vocabulary with the facts than real questions would. This is retrieval, not answer quality, and not a real-LLM result.
+
 ### Known limitations (read before quoting numbers)
 - **Repeated runs are not independent samples.** The model runs at temperature 0 on a fixed vault with fixed questions, so the committed 3-run result reproduced the same tokens, hops and answers every time (std = 0). That shows the harness is reproducible, not that the numbers are robust. Real variance needs paraphrased questions, a larger question set, or sampling at temperature above 0.
 - **Small sample.** 12 questions (11 scored) on an 8-fact vault. Treat 100% accuracy as "no failures observed on this set", not as a measured accuracy.
@@ -400,7 +420,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 128 passed in 3.27s ==============================
+============================== 137 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.
