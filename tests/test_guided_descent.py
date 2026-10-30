@@ -30,7 +30,7 @@ def _scripted_gate(actions):
     """Build a fake gate.evaluate that returns the given gate dicts in order."""
     calls = {"i": 0}
 
-    def fake_evaluate(query, parent_path, parent_summary, children=None):
+    def fake_evaluate(query, parent_path, parent_summary, children=None, eager_descent=False):
         idx = min(calls["i"], len(actions) - 1)
         calls["i"] += 1
         return dict(actions[idx])
