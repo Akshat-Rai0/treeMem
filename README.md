@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 120 Passing](https://img.shields.io/badge/tests-120%20passed-brightgreen.svg)]()
+[![Tests: 128 Passing](https://img.shields.io/badge/tests-128%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -350,22 +350,31 @@ _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and ques
 
 ### Second model check
 <!-- BENCHMARK_TABLE_AGG2_START -->
-1 runs x 12 questions, `openai/gpt-oss-120b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
-
-| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
-|:---|:---|:---|:---|:---|:---|:---|
-| Flat dump | 100.0 ± 0.0 | 1.0 ± 0.0 | 10,177 ± 0 | 0.00 ± 0.00 | 0.0 ± 0.0 | 0.88 ± 0.00 |
-| TreeMem, guided descent (`follow=true`) | 90.9 ± 0.0 | 0.0 ± 0.0 | 41,196 ± 0 | 2.42 ± 0.00 | 41.7 ± 0.0 | 4.29 ± 0.00 |
-
-_Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
+_Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-dir bench/results_<name> --arms flat,tree_follow --runs 1`, then `python bench/eval/rebuild_aggregate.py --results-dir bench/results_<name> --regrade`, then `python bench/make_readme_tables.py`.
 <!-- BENCHMARK_TABLE_AGG2_END -->
+
+### Descent gate, offline check (no API calls)
+`python bench/gate_offline_eval.py --set all --compare` asks, for each question: does the text returned by ONE `recall(follow=true)` call contain the answer? A "stop" where it does not is a **premature stop**. The held-out questions were written before the gate was changed and use different wording from the dev questions.
+
+<!-- GATE_TABLE_START -->
+| Question set | Gate | Answerable from first call | Premature stops | Mean steps | Private leaks |
+|:---|:---|:---|:---|:---|:---|
+| 12 dev questions | legacy | 5/10 | q02_profession, q05_career_overview, q06_college_name, q09_project (4) | 0.417 | 0 |
+| 12 dev questions | current | 9/10 | none (0) | 0.833 | 0 |
+| 26 held-out questions | legacy | 10/19 | h06_intern, h08_degree, h10_classes (3) | 0.346 | 0 |
+| 26 held-out questions | current | 12/19 | h06_intern (1) | 0.462 | 0 |
+
+_Measured with scikit-learn installed (hybrid TF-IDF + lexical scoring). Numbers differ slightly between the two modes._
+<!-- GATE_TABLE_END -->
+
+The current gate counts a stop as sufficient only when the node summary covers the question's own words (a literal match counts more than a synonym), prefers a child that contains words the parent lacks, and descends when a child scores close to the parent, because a wrong stop is costly while an extra server-side step is nearly free. One parameter (`descend_ratio`) was chosen after seeing both sets, so the held-out set is no longer clean; the choice sits on a plateau (0.2 to 0.4 give the same results). Remaining misses are mostly vocabulary mismatches (for example "employs" against "Work history") and one routing error (`h06`: "intern before his current job" went to `current_job`). Those need better synonyms or embeddings, which I did not add to avoid fitting the sample vault.
 
 ### Known limitations (read before quoting numbers)
 - **Repeated runs are not independent samples.** The model runs at temperature 0 on a fixed vault with fixed questions, so the committed 3-run result reproduced the same tokens, hops and answers every time (std = 0). That shows the harness is reproducible, not that the numbers are robust. Real variance needs paraphrased questions, a larger question set, or sampling at temperature above 0.
 - **Small sample.** 12 questions (11 scored) on an 8-fact vault. Treat 100% accuracy as "no failures observed on this set", not as a measured accuracy.
 - **A flat dump still wins on this vault.** Every tool call re-sends the system prompt and tool schemas (about 1,100 prompt tokens per call), so even a single guided call costs more than the whole flat dump. Guided descent cut total tokens and hops compared with manual descent in the committed runs, but not below the flat baseline. The memory-payload reduction (the tree returns far less memory text) does not become a total-token win at this size.
 - **Guided descent does not always help.** In the committed runs it answered some questions in one call, but on others (for example the negative control and the private question) it cost as much as or more than manual descent.
-- **Premature stops are the real accuracy risk.** The gate can decide the root summary is sufficient when it only shares words with the question. In one second-model run the agent answered "personal memory vault" for a question whose answer is a named project, because the root summary mentioned memory. A parent-stop that is wrong looks like a confident answer. Measure the wrong-stop rate on a larger question set before relying on it.
+- **Premature stops are the real accuracy risk.** The gate used to decide the root summary was sufficient when it only shared words with the question; with gpt-oss-120b the agent then answered "personal memory vault" for a question whose answer is a named project. The gate is changed (see the offline table above) but the fix is **not yet confirmed with a real LLM**; re-run `run_eval.py` on both models. A wrong stop looks like a confident answer, so keep measuring it on a larger question set.
 - **Results are model-dependent.** The same tree answered a question in one call with one model and needed several calls with another. Do not generalize from one model.
 - **The grader matters.** An earlier grader marked correct flat answers wrong because of a no-break space and a curly apostrophe. Answers are now normalized before matching, and `python bench/eval/rebuild_aggregate.py --regrade` re-grades saved runs with the current grader without any API calls.
 - The descent gate is a lexical + TF-IDF heuristic over summaries. If the question's words are not in the summaries it falls back to search.
@@ -391,7 +400,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 120 passed in 3.27s ==============================
+============================== 128 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.

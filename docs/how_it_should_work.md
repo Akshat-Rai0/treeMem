@@ -174,3 +174,12 @@ A tool argument is controlled by the model, so `reveal=true` cannot be the permi
 `python bench/eval/run_eval.py [--arms flat,tree,tree_follow] [--runs N] [--limit K] [--no-pacing]` runs three arms on the same questions: flat dump, manual tree descent, and guided descent. It writes one file per run (`bench/results/llm_eval_runs/run_k.json`), an aggregate with mean and standard deviation (`llm_eval_aggregate.json`), and the single-run `llm_eval_results.json` (flat vs tree, last run) that the README generator reads. Accuracy is scored on the non-private questions; the private question is reported as leaks. Latency excludes pacing sleeps. Each run uses a fresh copy of the vault.
 
 If a run is cut short (rate limit, Ctrl+C), the finished runs are already saved and the aggregate is current up to the last finished run. `python bench/eval/rebuild_aggregate.py` rebuilds the summary files from the saved run files with no API calls. Because the model runs at temperature 0 on fixed questions, repeated runs reproduce the same tokens and answers; extra runs mainly measure latency noise, so prefer more or paraphrased questions over more repeats.
+
+
+## Descent gate rules (after the premature-stop fix)
+
+For each node the gate scores the question against the node summary and each child teaser, then:
+1. **Stop** only if the node scores at least 0.25 AND its text covers at least half of the question's own words (a literal match counts 1.0, a synonym match 0.5).
+2. Even then, **descend** if a child scores clearly higher, or contains a question word the parent lacks and scores about the same, or scores at least 30% of the parent (an extra server-side step is nearly free; a wrong stop costs correctness).
+3. If the node is not sufficient, **descend** into the best child when it scores at least 0.15, otherwise **search_fallback**.
+`python bench/gate_offline_eval.py --set all --compare` shows the effect without any API calls.
