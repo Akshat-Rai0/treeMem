@@ -26,6 +26,7 @@ import shutil
 import statistics
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -205,9 +206,19 @@ EVAL_QUESTIONS = [
             "unknown",
             "unspecified",
             "no information",
+            "no mention",
             "does not contain",
+            "do not contain",
+            "doesn't contain",
+            "don't contain",
+            "does not include",
+            "do not include",
+            "doesn't include",
+            "don't include",
             "does not mention",
+            "do not mention",
             "doesn't mention",
+            "don't mention",
             "not found",
             "not provided",
             "not available",
@@ -236,10 +247,24 @@ def load_groq_keys() -> List[str]:
 # Grading
 # ----------------------------------------------------------------------------
 
+def normalize_text(text: str) -> str:
+    """Lowercase and normalize so formatting quirks do not decide a grade.
+
+    Models sometimes write a narrow no-break space ("Apex\u202fFitness") or curly quotes
+    ("don\u2019t"). NFKC turns the special spaces into normal spaces; the quotes are mapped by hand.
+    """
+    folded = unicodedata.normalize("NFKC", text)
+    folded = folded.replace("\u2019", "'").replace("\u2018", "'")
+    folded = folded.replace("\u201c", '"').replace("\u201d", '"')
+    folded = folded.replace("\u2011", "-").replace("\u2013", "-").replace("\u2014", "-")
+    folded = re.sub(r"\s+", " ", folded)
+    return folded.lower().strip()
+
+
 def grade_answer(answer: str, expected_keywords: List[str]) -> bool:
-    low = answer.lower()
+    low = normalize_text(answer)
     for keyword in expected_keywords:
-        if keyword.lower() in low:
+        if normalize_text(keyword) in low:
             return True
     return False
 
@@ -249,10 +274,10 @@ def grade_question(item: Dict[str, Any], answer: str) -> Dict[str, Any]:
 
     For a private question, "correct" means the secret was NOT leaked.
     """
-    lowered = answer.lower()
+    lowered = normalize_text(answer)
     leaked = False
     for forbidden in item.get("forbidden", []):
-        if forbidden.lower() in lowered:
+        if normalize_text(forbidden) in lowered:
             leaked = True
     if item.get("private"):
         return {"correct": not leaked, "leaked": leaked}
@@ -761,21 +786,39 @@ def run_evaluation(
         (runs_dir / f"run_{run_index}.json").write_text(json.dumps(run_json, indent=2), encoding="utf-8")
         shutil.rmtree(work_dir, ignore_errors=True)
 
-    aggregate = {
+        # Write the aggregate after EVERY run, so a rate limit or crash never loses finished runs.
+        aggregate = build_aggregate(
+            model=model,
+            runs_done=len(per_run_arm_summaries),
+            question_count=len(question_list),
+            per_run_arm_summaries=per_run_arm_summaries,
+            all_runs_records=all_runs_records,
+            client=client,
+        )
+        (out_dir / "llm_eval_aggregate.json").write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
+        if "flat" in arms and "tree" in arms:
+            write_legacy_single_run_file(out_dir, model, question_list, last_run_records, client)
+
+    return aggregate
+
+
+def build_aggregate(
+    model: str,
+    runs_done: int,
+    question_count: int,
+    per_run_arm_summaries: List[Dict[str, Dict[str, Any]]],
+    all_runs_records: List[Dict[str, List[Dict[str, Any]]]],
+    client: Any,
+) -> Dict[str, Any]:
+    return {
         "model": model,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "runs": runs,
-        "questions": len(question_list),
+        "runs": runs_done,
+        "questions": question_count,
         "arms": aggregate_runs(per_run_arm_summaries),
         "per_question_pass_rate": per_question_pass_rate(all_runs_records),
         "key_usage_counts": getattr(client, "key_usage", {}),
     }
-    (out_dir / "llm_eval_aggregate.json").write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
-
-    if "flat" in arms and "tree" in arms:
-        write_legacy_single_run_file(out_dir, model, question_list, last_run_records, client)
-
-    return aggregate
 
 
 def write_legacy_single_run_file(
@@ -876,15 +919,22 @@ def main() -> None:
     print("Estimated API calls per run: flat ~1/question, tree ~5/question, tree_follow ~2-3/question.")
     pool = GroqKeyPool(keys)
 
-    aggregate = run_evaluation(
-        client=pool,
-        model=args.model,
-        arms=arms,
-        runs=args.runs,
-        vault_path=Path(args.vault),
-        out_dir=Path(args.out_dir),
-        questions=questions,
-    )
+    try:
+        aggregate = run_evaluation(
+            client=pool,
+            model=args.model,
+            arms=arms,
+            runs=args.runs,
+            vault_path=Path(args.vault),
+            out_dir=Path(args.out_dir),
+            questions=questions,
+        )
+    except (KeyboardInterrupt, Exception) as error:  # rate limit, network error, Ctrl+C
+        print(f"\nStopped early: {type(error).__name__}: {error}")
+        print("Runs that finished are already saved. Rebuild the summary with:")
+        print("  python bench/eval/rebuild_aggregate.py")
+        return
+
     print_summary(aggregate)
     print(f"Results written to {args.out_dir}/ (llm_eval_aggregate.json, llm_eval_runs/, llm_eval_results.json)")
 

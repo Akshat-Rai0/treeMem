@@ -56,7 +56,7 @@ def format_real_llm_table(data: Dict[str, Any]) -> str:
         f"| **Answer Accuracy** | **{flat_acc:.1f}%** ({round(flat_acc * total_q / 100)}/{total_q}) | **{tree_acc:.1f}%** ({round(tree_acc * total_q / 100)}/{total_q}) | {accuracy_note} |",
         f"| **Memory Payload Tokens** | {flat_payload:,} tokens | **{tree_payload:,} tokens** | **{payload_red:.2f}% payload token reduction** |",
         f"| **Total API Wire Tokens** | **{flat_wire:,} tokens** | {tree_wire:,} tokens | Multi-turn tool calling re-sends schema/prompts per hop |",
-        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{total_q}) | Evaluated at root depth 0 when summary was sufficient |",
+        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{data["total_questions"]}) | Evaluated at root depth 0 when summary was sufficient |",
         f"| **Mean / Max Latency** | {mean_flat_lat:.2f}s / {max_flat_lat:.2f}s | {mean_tree_lat:.2f}s / {max_tree_lat:.2f}s | Multi-hop sequential tool execution latency |",
     ]
     leaks = data.get("private_leaks")
@@ -83,8 +83,10 @@ def format_synthetic_table(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_aggregate_table(aggregate: Optional[Dict[str, Any]]) -> str:
+def format_aggregate_table(aggregate: Optional[Dict[str, Any]], placeholder: Optional[str] = None) -> str:
     """Repeated-run table (mean +/- std) from bench/results/llm_eval_aggregate.json."""
+    if not aggregate and placeholder:
+        return placeholder
     if not aggregate:
         return (
             "_Not measured yet._ Run `python bench/eval/run_eval.py --runs 5` (needs Groq keys in `.env`) "
@@ -118,7 +120,61 @@ def format_aggregate_table(aggregate: Optional[Dict[str, Any]]) -> str:
             f"| {label} | {cell(entry, 'accuracy_pct')} | {cell(entry, 'private_leaks')} | {wire_cell} | "
             f"{cell(entry, 'mean_hops', 2)} | {cell(entry, 'single_call_rate_pct')} | {cell(entry, 'mean_latency_sec', 2)} |"
         )
+    all_deterministic = True
+    for entry in aggregate["arms"].values():
+        for metric in ("accuracy_pct", "wire_tokens", "mean_hops"):
+            if entry[metric]["std"] != 0:
+                all_deterministic = False
+    if all_deterministic:
+        lines.append("")
+        lines.append(
+            "_Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, "
+            "so repeated runs reproduce the same output. This shows reproducibility, not robustness._"
+        )
     return "\n".join(lines)
+
+
+def format_gate_table(repo_root: Path) -> str:
+    """Offline descent-gate check (no API): legacy gate vs current gate on the dev and held-out questions."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("gate_offline_eval_for_tables", repo_root / "bench" / "gate_offline_eval.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    vault = repo_root / "examples" / "sample_memory"
+    lines = [
+        "| Question set | Gate | Answerable from first call | Premature stops | Mean steps | Private leaks |",
+        "|:---|:---|:---|:---|:---|:---|",
+    ]
+    for set_name, label in (("dev", "12 dev questions"), ("heldout", "26 held-out questions")):
+        questions, grade_answer = module.load_questions(set_name)
+        for gate_label, gate in (("legacy", module.DescentGate.legacy()), ("current", module.DescentGate())):
+            report = module.evaluate_gate(gate, questions, grade_answer, vault)
+            summary = report["summary"]
+            premature = ", ".join(summary["premature_stops"]) if summary["premature_stops"] else "none"
+            lines.append(
+                f"| {label} | {gate_label} | {summary['answerable_from_first_call']}/{summary['scored_questions']} | "
+                f"{premature} ({len(summary['premature_stops'])}) | {summary['mean_steps']} | {summary['private_leaks']} |"
+            )
+    sklearn_note = (
+        "scikit-learn installed (hybrid TF-IDF + lexical scoring)"
+        if module.DescentGate._semantic_enabled()
+        else "scikit-learn NOT installed (lexical scoring only)"
+    )
+    lines.append("")
+    lines.append(f"_Measured with {sklearn_note}. Numbers differ slightly between the two modes._")
+    return "\n".join(lines)
+
+
+def find_extra_aggregate(results_dir: Path) -> Optional[Path]:
+    """Look for a second model's aggregate in a sibling folder such as bench/results_gptoss/."""
+    parent = results_dir.parent
+    for candidate in sorted(parent.glob("results_*")):
+        aggregate_path = candidate / "llm_eval_aggregate.json"
+        if aggregate_path.exists():
+            return aggregate_path
+    return None
 
 
 def format_smoke_block(smoke: Dict[str, Any]) -> str:
@@ -264,6 +320,27 @@ def main():
         "<!-- BENCHMARK_TABLE_AGG_START -->",
         "<!-- BENCHMARK_TABLE_AGG_END -->",
         format_aggregate_table(aggregate_data),
+    )
+    readme = replace_table(
+        readme,
+        "<!-- GATE_TABLE_START -->",
+        "<!-- GATE_TABLE_END -->",
+        format_gate_table(repo_root),
+    )
+    extra_path = find_extra_aggregate(results_dir)
+    extra_data = load_json(extra_path) if extra_path else None
+    readme = replace_table(
+        readme,
+        "<!-- BENCHMARK_TABLE_AGG2_START -->",
+        "<!-- BENCHMARK_TABLE_AGG2_END -->",
+        format_aggregate_table(
+            extra_data,
+            placeholder=(
+                "_Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-dir bench/results_<name> "
+                "--arms flat,tree_follow --runs 1`, then `python bench/eval/rebuild_aggregate.py --results-dir "
+                "bench/results_<name> --regrade`, then `python bench/make_readme_tables.py`."
+            ),
+        ),
     )
     readme = replace_table(
         readme,

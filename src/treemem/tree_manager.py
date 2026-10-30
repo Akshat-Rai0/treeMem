@@ -296,9 +296,11 @@ class TreeManager:
         session: str = "default",
         follow: bool = False,
         max_depth: int = 3,
+        eager_descent: bool = False,
     ) -> Dict[str, Any]:
         """
         Tool: recall(path="/", query=None, follow=False, max_depth=3)
+        (eager_descent is internal: guided descent sets it so the gate prefers close children.)
         Returns {summary, children:[{label, teaser}], dirty, sensitivity, tokens, stale_note?, gate?}.
         MUST NOT return child bodies.
         If query is provided, evaluates descent gate for parent sufficiency.
@@ -352,6 +354,7 @@ class TreeManager:
                 parent_path=clean_path,
                 parent_summary=resolved_summary,
                 children=child_teasers,
+                eager_descent=eager_descent,
             )
             if gate_eval:
                 payload["gate"] = gate_eval
@@ -413,6 +416,7 @@ class TreeManager:
                 query_id=query_id,
                 session=session,
                 follow=False,
+                eager_descent=True,
             )
             gate = final_payload.get("gate") or {}
             action = gate.get("action", "stop")
