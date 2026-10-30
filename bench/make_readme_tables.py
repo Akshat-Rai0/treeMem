@@ -56,7 +56,7 @@ def format_real_llm_table(data: Dict[str, Any]) -> str:
         f"| **Answer Accuracy** | **{flat_acc:.1f}%** ({round(flat_acc * total_q / 100)}/{total_q}) | **{tree_acc:.1f}%** ({round(tree_acc * total_q / 100)}/{total_q}) | {accuracy_note} |",
         f"| **Memory Payload Tokens** | {flat_payload:,} tokens | **{tree_payload:,} tokens** | **{payload_red:.2f}% payload token reduction** |",
         f"| **Total API Wire Tokens** | **{flat_wire:,} tokens** | {tree_wire:,} tokens | Multi-turn tool calling re-sends schema/prompts per hop |",
-        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{data["total_questions"]}) | Evaluated at root depth 0 when summary was sufficient |",
+        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{data['total_questions']}) | Evaluated at root depth 0 when summary was sufficient |",
         f"| **Mean / Max Latency** | {mean_flat_lat:.2f}s / {max_flat_lat:.2f}s | {mean_tree_lat:.2f}s / {max_tree_lat:.2f}s | Multi-hop sequential tool execution latency |",
     ]
     leaks = data.get("private_leaks")
