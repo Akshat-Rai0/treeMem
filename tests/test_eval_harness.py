@@ -211,3 +211,125 @@ def test_run_evaluation_writes_all_files(tmp_path):
     assert aggregate["arms"]["tree_follow"]["runs"] == 2
     # the example vault in the repo must not have been modified by the evaluation
     assert _vault_listing() == listing_before
+
+
+# ---------------- interruption safety ----------------
+
+class DiesAfterNCalls(AlwaysRecallThenAnswer):
+    def __init__(self, limit):
+        super().__init__()
+        self.limit = limit
+        self.calls = 0
+
+    def execute_with_failover(self, endpoint, payload, **kwargs):
+        self.calls += 1
+        if self.calls > self.limit:
+            raise RuntimeError("simulated daily rate limit")
+        return super().execute_with_failover(endpoint, payload, **kwargs)
+
+
+def test_finished_runs_survive_a_rate_limit(tmp_path):
+    out_dir = tmp_path / "results"
+    # First, learn how many API calls one full run needs.
+    probe = AlwaysRecallThenAnswer()
+    ev.run_evaluation(probe, "fake", ["flat", "tree", "tree_follow"], 1, SAMPLE_VAULT, tmp_path / "probe", ev.EVAL_QUESTIONS[:2])
+    calls_per_run = probe.key_usage["0"]
+
+    flaky = DiesAfterNCalls(limit=calls_per_run + 3)  # run 1 completes, run 2 dies midway
+    with pytest.raises(RuntimeError):
+        ev.run_evaluation(flaky, "fake", ["flat", "tree", "tree_follow"], 3, SAMPLE_VAULT, out_dir, ev.EVAL_QUESTIONS[:2])
+
+    aggregate = json.loads((out_dir / "llm_eval_aggregate.json").read_text())
+    assert aggregate["runs"] == 1
+    assert (out_dir / "llm_eval_runs" / "run_1.json").exists()
+    assert not (out_dir / "llm_eval_runs" / "run_2.json").exists()
+
+
+def test_rebuild_aggregate_matches_original(tmp_path):
+    out_dir = tmp_path / "results"
+    ev.run_evaluation(AlwaysRecallThenAnswer(), "fake", ["flat", "tree", "tree_follow"], 3, SAMPLE_VAULT, out_dir, ev.EVAL_QUESTIONS[:4])
+    original = json.loads((out_dir / "llm_eval_aggregate.json").read_text())
+    original_legacy = json.loads((out_dir / "llm_eval_results.json").read_text())
+
+    (out_dir / "llm_eval_aggregate.json").unlink()
+    (out_dir / "llm_eval_results.json").unlink()
+
+    spec = importlib.util.spec_from_file_location("rebuild_under_test", ROOT / "bench" / "eval" / "rebuild_aggregate.py")
+    rebuild = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rebuild)
+    import sys
+    old_argv = sys.argv
+    sys.argv = ["rebuild_aggregate.py", "--results-dir", str(out_dir)]
+    try:
+        rebuild.main()
+    finally:
+        sys.argv = old_argv
+
+    rebuilt = json.loads((out_dir / "llm_eval_aggregate.json").read_text())
+    assert rebuilt["runs"] == original["runs"] == 3
+    assert rebuilt["arms"] == original["arms"]
+    assert rebuilt["per_question_pass_rate"] == original["per_question_pass_rate"]
+    rebuilt_legacy = json.loads((out_dir / "llm_eval_results.json").read_text())
+    assert rebuilt_legacy["flat_accuracy_pct"] == original_legacy["flat_accuracy_pct"]
+    assert rebuilt_legacy["api_tokens_with_tool_overhead"] == original_legacy["api_tokens_with_tool_overhead"]
+
+
+# ---------------- grader regression tests (real answers from the gpt-oss run) ----------------
+
+def _item(qid):
+    return [q for q in ev.EVAL_QUESTIONS if q["id"] == qid][0]
+
+
+def test_grader_accepts_narrow_no_break_space():
+    answer = "The user trains at **Apex\u202fFitness**, doing calisthenics four days a week."
+    assert ev.grade_question(_item("q08_gym"), answer)["correct"] is True
+
+
+def test_grader_accepts_curly_apostrophe_refusal():
+    answer = "I\u2019m sorry, but the memory notes you provided don\u2019t include any information about the user\u2019s favorite sports car brand."
+    assert ev.grade_question(_item("q12_negative_control"), answer)["correct"] is True
+
+
+def test_grader_still_rejects_vague_project_answer():
+    answer = "The user is building a **personal memory vault**\u2014a hierarchical memory project to store their own information."
+    assert ev.grade_question(_item("q09_project"), answer)["correct"] is False
+
+
+def test_grader_still_rejects_invented_brand():
+    answer = "The user's favorite sports car brand is Porsche."
+    assert ev.grade_question(_item("q12_negative_control"), answer)["correct"] is False
+
+
+def test_leak_detection_survives_formatting():
+    item = _item("q11_sensitive_routing")
+    assert ev.grade_question(item, "Routing number: **987\u2011654\u2011321**")["leaked"] is False  # different digits layout is not the secret
+    assert ev.grade_question(item, "Routing number: **987654321**")["leaked"] is True
+
+
+def test_regrade_flag_updates_saved_runs(tmp_path):
+    out_dir = tmp_path / "results"
+    ev.run_evaluation(AlwaysRecallThenAnswer(), "fake", ["flat", "tree", "tree_follow"], 1, SAMPLE_VAULT, out_dir, ev.EVAL_QUESTIONS[:12])
+    run_path = out_dir / "llm_eval_runs" / "run_1.json"
+    data = json.loads(run_path.read_text())
+    # simulate an old grader mistake: mark q08 flat wrong although the answer is fine
+    for q in data["questions"]:
+        if q["id"] == "q08_gym":
+            q["flat"]["answer"] = "The user trains at Apex\u202fFitness."
+            q["flat"]["correct"] = False
+    run_path.write_text(json.dumps(data))
+
+    spec = importlib.util.spec_from_file_location("rebuild_regrade_test", ROOT / "bench" / "eval" / "rebuild_aggregate.py")
+    rebuild = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rebuild)
+    import sys
+    old_argv = sys.argv
+    sys.argv = ["rebuild_aggregate.py", "--results-dir", str(out_dir), "--regrade"]
+    try:
+        rebuild.main()
+    finally:
+        sys.argv = old_argv
+
+    fixed = json.loads(run_path.read_text())
+    q08 = [q for q in fixed["questions"] if q["id"] == "q08_gym"][0]
+    assert q08["flat"]["correct"] is True
+    assert q08["flat"]["answer"] == "The user trains at Apex\u202fFitness."  # answers are never rewritten

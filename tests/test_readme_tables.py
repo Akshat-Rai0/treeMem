@@ -52,3 +52,13 @@ def test_smoke_block_formats_from_json():
     smoke = {"token_reduction_pct": 9.2, "parent_stop_rate": 0.2, "latency_p50_ms": 2.29, "latency_p95_ms": 2.87}
     text = gen.format_smoke_block(smoke)
     assert "9.2%" in text and "20.0%" in text and "2.29 ms" in text and "2.87 ms" in text
+
+
+def test_find_extra_aggregate(tmp_path):
+    results = tmp_path / "results"
+    results.mkdir()
+    assert gen.find_extra_aggregate(results) is None
+    second = tmp_path / "results_gptoss"
+    second.mkdir()
+    (second / "llm_eval_aggregate.json").write_text("{}")
+    assert gen.find_extra_aggregate(results) == second / "llm_eval_aggregate.json"
