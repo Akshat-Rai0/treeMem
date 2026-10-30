@@ -172,3 +172,5 @@ A tool argument is controlled by the model, so `reveal=true` cannot be the permi
 ## Evaluation harness
 
 `python bench/eval/run_eval.py [--arms flat,tree,tree_follow] [--runs N] [--limit K] [--no-pacing]` runs three arms on the same questions: flat dump, manual tree descent, and guided descent. It writes one file per run (`bench/results/llm_eval_runs/run_k.json`), an aggregate with mean and standard deviation (`llm_eval_aggregate.json`), and the single-run `llm_eval_results.json` (flat vs tree, last run) that the README generator reads. Accuracy is scored on the non-private questions; the private question is reported as leaks. Latency excludes pacing sleeps. Each run uses a fresh copy of the vault.
+
+If a run is cut short (rate limit, Ctrl+C), the finished runs are already saved and the aggregate is current up to the last finished run. `python bench/eval/rebuild_aggregate.py` rebuilds the summary files from the saved run files with no API calls. Because the model runs at temperature 0 on fixed questions, repeated runs reproduce the same tokens and answers; extra runs mainly measure latency noise, so prefer more or paraphrased questions over more repeats.
