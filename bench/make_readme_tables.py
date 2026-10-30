@@ -56,7 +56,7 @@ def format_real_llm_table(data: Dict[str, Any]) -> str:
         f"| **Answer Accuracy** | **{flat_acc:.1f}%** ({round(flat_acc * total_q / 100)}/{total_q}) | **{tree_acc:.1f}%** ({round(tree_acc * total_q / 100)}/{total_q}) | {accuracy_note} |",
         f"| **Memory Payload Tokens** | {flat_payload:,} tokens | **{tree_payload:,} tokens** | **{payload_red:.2f}% payload token reduction** |",
         f"| **Total API Wire Tokens** | **{flat_wire:,} tokens** | {tree_wire:,} tokens | Multi-turn tool calling re-sends schema/prompts per hop |",
-        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{data["total_questions"]}) | Evaluated at root depth 0 when summary was sufficient |",
+        f"| **Parent-Stop Rate** | N/A | **{ps_rate:.1f}%** ({ps_count}/{data['total_questions']}) | Evaluated at root depth 0 when summary was sufficient |",
         f"| **Mean / Max Latency** | {mean_flat_lat:.2f}s / {max_flat_lat:.2f}s | {mean_tree_lat:.2f}s / {max_tree_lat:.2f}s | Multi-hop sequential tool execution latency |",
     ]
     leaks = data.get("private_leaks")
@@ -164,34 +164,6 @@ def format_gate_table(repo_root: Path) -> str:
     )
     lines.append("")
     lines.append(f"_Measured with {sklearn_note}. Numbers differ slightly between the two modes._")
-    return "\n".join(lines)
-
-
-def format_large_vault_table(data: Optional[Dict[str, Any]]) -> str:
-    """Offline large-vault benchmark (bench/results_offline/large_vault_offline.json)."""
-    if not data:
-        return "_Not generated yet._ Run `python bench/large_vault_offline.py`."
-    overheads = data["overheads"]
-    lines = [
-        "| Vault | Facts | Flat log (tokens) | BM25 top-5: lookups / overviews complete | Tree, one guided call: lookups / overviews complete | Tree premature stops | Est. wire tokens: flat / BM25 / tree |",
-        "|:---|:---|:---|:---|:---|:---|:---|",
-    ]
-    for v in data["vaults"]:
-        premature = ", ".join(v["tree_premature_stops"]) if v["tree_premature_stops"] else "none"
-        lines.append(
-            f"| {v['label']} | {v['facts']} | {v['flat_log_tokens']:,} | "
-            f"{v['bm25_lookup_answerable']}/{v['lookup_questions']} / {v['bm25_overview_complete']}/{v['overview_questions']} | "
-            f"{v['tree_lookup_answerable']}/{v['lookup_questions']} / {v['tree_overview_complete']}/{v['overview_questions']} | "
-            f"{premature} | {v['flat_wire_estimate']:,} / {v['bm25_wire_estimate']:,} / {v['tree_wire_estimate']:,} |"
-        )
-    lines.append("")
-    sklearn_text = "with scikit-learn installed" if data.get("scikit_learn_installed") else "without scikit-learn (lexical gate only)"
-    lines.append(
-        f"_Gate measured {sklearn_text}, seed {data.get('seed', 7)}. Retrieval only: no language model answered anything. \"Answerable\" means the returned text contains the expected answer; "
-        f"\"overview complete\" means it contains every item of a multi-fact answer. Wire tokens are a model: a per-call overhead of "
-        f"{overheads['call_overhead']:,} tokens for tool calls and {overheads['flat_overhead']} for a plain prompt, taken from the committed real-LLM runs, "
-        f"plus the returned tokens, plus one extra call whenever the first call lacks the answer. BM25 is modelled as one-shot retrieval before a single prompt (no tool schemas)._"
-    )
     return "\n".join(lines)
 
 
@@ -354,14 +326,6 @@ def main():
         "<!-- GATE_TABLE_START -->",
         "<!-- GATE_TABLE_END -->",
         format_gate_table(repo_root),
-    )
-    large_path = repo_root / "bench" / "results_offline" / "large_vault_offline.json"
-    large_data = load_json(large_path) if large_path.exists() else None
-    readme = replace_table(
-        readme,
-        "<!-- LARGE_VAULT_TABLE_START -->",
-        "<!-- LARGE_VAULT_TABLE_END -->",
-        format_large_vault_table(large_data),
     )
     extra_path = find_extra_aggregate(results_dir)
     extra_data = load_json(extra_path) if extra_path else None
