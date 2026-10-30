@@ -1,25 +1,25 @@
 {
   "model": "qwen/qwen3.8-27b",
-  "timestamp": "2026-10-29T16:15:53Z",
-  "runs": 1,
-  "questions": 2,
+  "timestamp": "2026-10-30T06:21:27Z",
+  "runs": 3,
+  "questions": 12,
   "arms": {
     "flat": {
-      "runs": 1,
+      "runs": 3,
       "accuracy_pct": {
         "mean": 100.0,
         "std": 0.0
       },
       "private_leaks": {
-        "mean": 0.0,
+        "mean": 1.0,
         "std": 0.0
       },
       "wire_tokens": {
-        "mean": 1624.0,
+        "mean": 9858.0,
         "std": 0.0
       },
       "payload_tokens": {
-        "mean": 1302.0,
+        "mean": 7812.0,
         "std": 0.0
       },
       "mean_hops": {
@@ -27,8 +27,8 @@
         "std": 0.0
       },
       "mean_latency_sec": {
-        "mean": 0.607,
-        "std": 0.0
+        "mean": 0.758,
+        "std": 0.149
       },
       "single_call_rate_pct": {
         "mean": 0.0,
@@ -38,10 +38,10 @@
         "mean": 0.0,
         "std": 0.0
       },
-      "accuracy_questions": 2
+      "accuracy_questions": 11
     },
     "tree": {
-      "runs": 1,
+      "runs": 3,
       "accuracy_pct": {
         "mean": 100.0,
         "std": 0.0
@@ -51,33 +51,33 @@
         "std": 0.0
       },
       "wire_tokens": {
-        "mean": 6343.0,
+        "mean": 66758.0,
         "std": 0.0
       },
       "payload_tokens": {
-        "mean": 168.0,
+        "mean": 1371.0,
         "std": 0.0
       },
       "mean_hops": {
-        "mean": 2.0,
+        "mean": 3.833,
         "std": 0.0
       },
       "mean_latency_sec": {
-        "mean": 1.876,
-        "std": 0.0
+        "mean": 18.983,
+        "std": 0.873
       },
       "single_call_rate_pct": {
-        "mean": 50.0,
+        "mean": 8.33,
         "std": 0.0
       },
       "parent_stop_rate_pct": {
-        "mean": 50.0,
+        "mean": 8.33,
         "std": 0.0
       },
-      "accuracy_questions": 2
+      "accuracy_questions": 11
     },
     "tree_follow": {
-      "runs": 1,
+      "runs": 3,
       "accuracy_pct": {
         "mean": 100.0,
         "std": 0.0
@@ -87,30 +87,30 @@
         "std": 0.0
       },
       "wire_tokens": {
-        "mean": 5141.0,
+        "mean": 48356.0,
         "std": 0.0
       },
       "payload_tokens": {
-        "mean": 313.0,
+        "mean": 2363.0,
         "std": 0.0
       },
       "mean_hops": {
-        "mean": 1.5,
+        "mean": 2.667,
         "std": 0.0
       },
       "mean_latency_sec": {
-        "mean": 1.585,
-        "std": 0.0
+        "mean": 14.391,
+        "std": 1.117
       },
       "single_call_rate_pct": {
-        "mean": 50.0,
+        "mean": 33.33,
         "std": 0.0
       },
       "parent_stop_rate_pct": {
         "mean": 0.0,
         "std": 0.0
       },
-      "accuracy_questions": 2
+      "accuracy_questions": 11
     }
   },
   "per_question_pass_rate": {
@@ -123,10 +123,57 @@
       "flat": 1.0,
       "tree": 1.0,
       "tree_follow": 1.0
+    },
+    "q03_location": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q04_education_overview": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q05_career_overview": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q06_college_name": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q07_email": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q08_gym": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q09_project": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q10_coding_preferences": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q11_sensitive_routing": {
+      "flat": 0.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
+    },
+    "q12_negative_control": {
+      "flat": 1.0,
+      "tree": 1.0,
+      "tree_follow": 1.0
     }
   },
-  "key_usage_counts": {
-    "0": 7,
-    "1": 6
-  }
+  "key_usage_counts": {}
 }
