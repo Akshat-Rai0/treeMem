@@ -57,8 +57,25 @@ One process owns all writes. No other component writes to disk.
 
 ### compress -> commit_summary
 1. `compress` builds prompt from child summaries/facts. Pure read.
-2. Agent writes text; `commit_summary` runs validators in order: length, children list equals actual children, private-content check, frontmatter sanity.
-3. On pass: atomic write, `dirty=false`, emit `summary` event. On fail: structured error, no write.
+2. Agent writes text; `commit_summary` acquires the lock **first**, then re-reads
+   the node fresh from disk inside the lock. This is the single authority for:
+   - **Optimistic conflict detection**: if `expected_updated` is supplied and does not match
+     the fresh `node.updated`, `commit_summary` returns `{ok: false, conflict: true,
+     current_updated, current_summary}` without writing.
+   - **Validation on fresh state**: length, children list equals actual disk directories,
+     private-content check — all performed on the fresh node.
+   - **Selective write**: only `summary`, `children`, `dirty`, `updated`, `tokens` are
+     written back; `facts`, `sensitivity`, `aliases`, `name` and `children_cap` are
+     preserved from the fresh read.
+3. `rebuild_index()`, transclusion indexing and the event bus run **outside** the lock.
+4. The dashboard's `POST /api/node/summary` route delegates conflict detection entirely to
+   `commit_summary`; it maps `result["conflict"]` → HTTP 409 and `force=true` → `expected_updated=None`.
+5. On pass: atomic write, `dirty=false`, emit `summary` event. On fail: structured error, no write.
+
+**Remaining limitation**: a `commit_summary` call without `expected_updated` (force mode) can
+publish a summary that does not mention a fact added moments earlier by a concurrent `place`.
+The node is then marked clean with a possibly stale summary. This is inherent to force-mode
+and is documented rather than silently accepted.
 
 ### search
 `index.query` -> map hits to leaf paths via placement table (derived from leaf bullets that reference entry ids).

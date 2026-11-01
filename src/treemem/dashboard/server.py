@@ -282,24 +282,18 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
         body: EditSummaryRequest,
         authorized: bool = Depends(verify_token),
     ):
-        """Manually overwrite a node's summary text with optimistic conflict detection."""
+        """Manually overwrite a node's summary text with optimistic conflict detection.
+
+        commit_summary is the single authority for conflict detection: it takes the lock,
+        re-reads fresh, checks expected_updated, validates, and writes only summary fields.
+        The fast pre-flight checks below (existence, empty text, length) are kept as cheap
+        early-returns to avoid the lock round-trip for obviously invalid requests, but they
+        are NOT conflict authorities — commit_summary is.
+        """
         clean_path = norm_path(body.path)
         node = tree_manager.store.read_node(clean_path)
         if not node:
             raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
-
-        # Optimistic concurrency conflict check
-        if not body.force and body.expected_updated and node.updated != body.expected_updated:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": f"Conflict: Node '{clean_path or '/'}' was modified since you loaded it.",
-                    "current_updated": node.updated,
-                    "current_summary": node.summary,
-                    "expected_updated": body.expected_updated,
-                    "conflict": True,
-                },
-            )
 
         text = body.text.strip()
         if not text:
@@ -312,6 +306,9 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
                 detail=f"Summary too long ({len(text)} chars). Max 4000 chars.",
             )
 
+        # Delegate to commit_summary as the single conflict authority.
+        # Pass expected_updated=None when force=True so commit_summary skips the
+        # conflict check (any concurrent version is acceptable when forcing).
         try:
             expected = None if body.force else body.expected_updated
             res = tree_manager.commit_summary(clean_path, text, expected_updated=expected)

@@ -72,11 +72,30 @@ Returns child summaries (or raw facts if `path` is a leaf). Private children ret
 ### `compress(path)`
 Returns `{prompt, inputs:[child summaries or facts], length_cap, required_sections}` for the agent to write a new summary. Does not modify anything.
 
-### `commit_summary(path, text)`
-Validates then writes atomically:
-- length <= cap
-- contains a `## Children` list matching actual children (no missing, no invented)
-- no content from `sensitivity: private` children
+### `commit_summary(path, text, expected_updated?)`
+Validates then writes atomically inside a **single lock** (lock → re-read → check → validate → write):
+- **Lock acquired first**: The node is re-read fresh from disk inside the lock. Any concurrent
+  write that completed between the caller's read and the lock acquisition is visible in this
+  fresh read, not in a stale copy.
+- **Conflict check on fresh node**: If `expected_updated` is supplied and does not match the
+  fresh `node.updated`, returns `{ok: false, conflict: true, current_updated, current_summary}`.
+  The node is not written.
+- **Validations on fresh state**: length ≤ cap, `## Children` list equals actual disk directories,
+  no content from `sensitivity: private` children — all validated against the fresh node.
+- **Selective field write**: Only `summary`, `children`, `dirty`, `updated`, `tokens` are
+  updated on the fresh node. `facts`, `sensitivity`, `aliases`, `name`, `children_cap` and
+  all other fields are preserved from the fresh read — never from a stale copy.
+- `rebuild_index()`, transclusion indexing and the event bus are called **outside** the lock.
+- `commit_summary` is the **single authority** for conflict detection. The dashboard route
+  passes `expected_updated` through to `commit_summary` and maps `result["conflict"]` to
+  HTTP 409. It does not perform its own definitive conflict check.
+
+**Remaining limitation**: An agent that calls `commit_summary` without supplying
+`expected_updated` can write a summary that does not reflect a fact added moments earlier
+by a concurrent `place`. The node is then marked clean, and the stale summary persists
+until the next dirty-cycle. This is the inherent trade-off of an unconditional (force-mode)
+write; it is documented rather than silently accepted.
+
 On success: `dirty=false`, `updated=now`. On failure: returns the exact violation so the agent can retry.
 
 ### `search(query, limit=10)`

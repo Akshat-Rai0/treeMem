@@ -659,37 +659,24 @@ class TreeManager:
     ) -> Dict[str, Any]:
         """
         Tool: commit_summary(path, text)
-        Validates then writes atomically:
-        - optimistic concurrency conflict check if expected_updated is given
+        Validates then writes atomically inside a single lock:
+        - re-reads the node fresh from disk inside the lock
+        - optimistic concurrency conflict check against the FRESH node
         - length <= cap (150 tokens)
         - contains ## Children list matching actual children on disk (no missing, no invented)
         - no content from sensitivity: private children
+        Writes back ONLY summary, children, dirty, updated, tokens onto the fresh node.
+        Never overwrites facts, sensitivity, aliases or any other field from a stale copy.
+        Does NOT call rebuild_index(), transclusion indexing or the event bus while holding the lock.
         """
         clean_path = norm_path(path)
-        node = self.store.read_node(clean_path)
-        if not node:
+
+        # Fast existence check before taking the lock (no lock needed for exists()).
+        if not self.store.exists(clean_path):
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
-        # Concurrency / conflict check
-        if expected_updated is not None and node.updated != expected_updated:
-            err = (
-                f"Conflict: Node '{clean_path or '/'}' was modified since version {expected_updated} "
-                f"(current: {node.updated})."
-            )
-            self.event_bus.emit(
-                "summary",
-                {"path": clean_path or "/", "tokens": 0, "ok": False, "error": err, "conflict": True},
-                session,
-            )
-            return {
-                "ok": False,
-                "conflict": True,
-                "error": err,
-                "current_updated": node.updated,
-                "current_summary": node.summary,
-            }
-
-        # Parse submitted text
+        # Parse and validate the submitted text BEFORE taking the lock
+        # (pure CPU work; no disk writes; safe to do unlocked).
         fm, summary, children_parsed, facts_parsed = self.store.parse_summary_md(text)
         submitted_tokens = count_tokens(summary)
 
@@ -706,67 +693,98 @@ class TreeManager:
             self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
             return {"ok": False, "error": err}
 
-        # Validation 2: Children matching actual children
-        actual_children = set(self.store.list_child_dirs(clean_path))
-        submitted_children = {c["label"] for c in children_parsed}
-        if actual_children != submitted_children:
-            missing = list(actual_children - submitted_children)
-            extra = list(submitted_children - actual_children)
-            err_parts = []
-            if missing:
-                err_parts.append(f"missing child labels: {missing}")
-            if extra:
-                err_parts.append(f"invented child labels not on disk: {extra}")
-            err = f"Summary children do not match disk directories: {'; '.join(err_parts)}"
-            self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-            return {"ok": False, "error": err}
+        # --- Single lock block: re-read, conflict check, children validation, write ---
+        with self.store.lock_paths([clean_path], timeout=5.0):
+            # Re-read the node fresh from disk inside the lock.
+            fresh_node = self.store.read_node(clean_path)
+            if not fresh_node:
+                raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
-        # Validation 3: Privacy check - no content from private descendants
-        all_node_paths = self.health_checker.get_all_node_paths()
-        prefix = (clean_path + "/") if clean_path else ""
-        descendant_paths = [p for p in all_node_paths if p.startswith(prefix) and p != clean_path]
-        for ch_path in descendant_paths:
-            ch_node = self.store.read_node(ch_path)
-            if ch_node and ch_node.sensitivity == "private":
-                # Check summary substring
-                if ch_node.summary and len(ch_node.summary) > 10 and ch_node.summary.lower() in summary.lower():
-                    err = f"Summary leaks exact content from private child '{ch_path}'"
-                    self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                    return {"ok": False, "error": err}
+            # Concurrency / conflict check against the FRESH node.
+            if expected_updated is not None and fresh_node.updated != expected_updated:
+                err = (
+                    f"Conflict: Node '{clean_path or '/'}' was modified since version {expected_updated} "
+                    f"(current: {fresh_node.updated})."
+                )
+                self.event_bus.emit(
+                    "summary",
+                    {"path": clean_path or "/", "tokens": 0, "ok": False, "error": err, "conflict": True},
+                    session,
+                )
+                return {
+                    "ok": False,
+                    "conflict": True,
+                    "error": err,
+                    "current_updated": fresh_node.updated,
+                    "current_summary": fresh_node.summary,
+                }
 
-                # Check fact text substrings and token overlap
-                for f in ch_node.facts:
-                    f_text = f.get("fact", "").strip().lower()
-                    if len(f_text) > 5 and f_text in summary.lower():
-                        err = f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
+            # Validation 2: Children matching actual children on disk (inside lock so
+            # directory listing is consistent with the lock-protected state).
+            actual_children = set(self.store.list_child_dirs(clean_path))
+            submitted_children = {c["label"] for c in children_parsed}
+            if actual_children != submitted_children:
+                missing = list(actual_children - submitted_children)
+                extra = list(submitted_children - actual_children)
+                err_parts = []
+                if missing:
+                    err_parts.append(f"missing child labels: {missing}")
+                if extra:
+                    err_parts.append(f"invented child labels not on disk: {extra}")
+                err = f"Summary children do not match disk directories: {'; '.join(err_parts)}"
+                self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+                return {"ok": False, "error": err}
+
+            # Validation 3: Privacy check — no content from private descendants.
+            # Read descendant nodes inside the lock for a consistent view.
+            all_node_paths = self.health_checker.get_all_node_paths()
+            prefix = (clean_path + "/") if clean_path else ""
+            descendant_paths = [p for p in all_node_paths if p.startswith(prefix) and p != clean_path]
+            for ch_path in descendant_paths:
+                ch_node = self.store.read_node(ch_path)
+                if ch_node and ch_node.sensitivity == "private":
+                    # Check summary substring
+                    if ch_node.summary and len(ch_node.summary) > 10 and ch_node.summary.lower() in summary.lower():
+                        err = f"Summary leaks exact content from private child '{ch_path}'"
                         self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                         return {"ok": False, "error": err}
-                    for token in re.findall(r"\b\w+\b", f_text):
-                        if (len(token) >= 5 or token.isdigit()) and token in summary.lower():
-                            if token not in {"user", "details", "private", "information", "about", "their"}:
-                                err = f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
-                                self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                                return {"ok": False, "error": err}
 
-                # Check word overlap
-                priv_words = set(re.findall(r"\b\w{4,}\b", (ch_node.summary + " " + " ".join(f["fact"] for f in ch_node.facts)).lower()))
-                sum_words = set(re.findall(r"\b\w{4,}\b", summary.lower()))
-                overlap = priv_words.intersection(sum_words) - {"child", "details", "private", "expand", "view"}
-                if len(overlap) >= 3:
-                    err = f"Summary leaks private details from child '{ch_path}' (overlapping terms: {list(overlap)[:3]})"
-                    self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                    return {"ok": False, "error": err}
+                    # Check fact text substrings and token overlap
+                    for f in ch_node.facts:
+                        f_text = f.get("fact", "").strip().lower()
+                        if len(f_text) > 5 and f_text in summary.lower():
+                            err = f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
+                            self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+                            return {"ok": False, "error": err}
+                        for token in re.findall(r"\b\w+\b", f_text):
+                            if (len(token) >= 5 or token.isdigit()) and token in summary.lower():
+                                if token not in {"user", "details", "private", "information", "about", "their"}:
+                                    err = f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
+                                    self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+                                    return {"ok": False, "error": err}
 
-        # Passed validations: write node atomically
-        node.summary = summary
-        node.children = children_parsed
-        node.dirty = False
-        node.updated = datetime.now(timezone.utc).isoformat()
-        node.tokens = submitted_tokens
+                    # Check word overlap
+                    priv_words = set(re.findall(r"\b\w{4,}\b", (ch_node.summary + " " + " ".join(f["fact"] for f in ch_node.facts)).lower()))
+                    sum_words = set(re.findall(r"\b\w{4,}\b", summary.lower()))
+                    overlap = priv_words.intersection(sum_words) - {"child", "details", "private", "expand", "view"}
+                    if len(overlap) >= 3:
+                        err = f"Summary leaks private details from child '{ch_path}' (overlapping terms: {list(overlap)[:3]})"
+                        self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+                        return {"ok": False, "error": err}
 
-        with self.store.lock_paths([clean_path], timeout=5.0):
-            self.store.write_node_atomic(clean_path, node)
+            # Passed all validations: apply ONLY the summary-owned fields onto the
+            # fresh node.  facts, sensitivity, aliases, children_cap, name etc. are
+            # preserved from the fresh read — never from a stale copy.
+            fresh_node.summary = summary
+            fresh_node.children = children_parsed
+            fresh_node.dirty = False
+            fresh_node.updated = datetime.now(timezone.utc).isoformat()
+            fresh_node.tokens = submitted_tokens
 
+            self.store.write_node_atomic(clean_path, fresh_node)
+        # --- Lock released ---
+
+        # Heavy work happens outside the lock.
         self.transclusion_mgr.index_node(clean_path)
         self.rebuild_index()
 
@@ -836,14 +854,18 @@ class TreeManager:
         Moves existing child folders under new intermediate group directories.
         """
         clean_path = norm_path(path)
-        node = self.store.read_node(clean_path)
-        if not node:
+        if not self.store.exists(clean_path):
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
         ndir = self.store.node_dir(clean_path)
         new_children = []
 
         with self.store.lock_paths([clean_path], timeout=5.0):
+            # Re-read fresh inside the lock so we never overwrite concurrent changes.
+            fresh_node = self.store.read_node(clean_path)
+            if not fresh_node:
+                raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
+
             for grp in groups:
                 grp_name = grp["name"].strip()
                 grp_dir = ndir / grp_name
@@ -869,9 +891,9 @@ class TreeManager:
                 self.store.write_node_atomic(grp_path, grp_node)
                 new_children.append({"label": grp_name, "teaser": f"Group {grp_name}"})
 
-            node.children = new_children
-            node.dirty = True
-            self.store.write_node_atomic(clean_path, node)
+            fresh_node.children = new_children
+            fresh_node.dirty = True
+            self.store.write_node_atomic(clean_path, fresh_node)
 
         self.rebuild_index()
         return {"ok": True, "path": clean_path or "/", "new_groups": [g["name"] for g in groups]}
