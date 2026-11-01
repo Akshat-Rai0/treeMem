@@ -34,7 +34,7 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 - Embedding or vector search (lexical fallback only).
 - Editing nodes from the dashboard.
 - Server-side LLM calls.
-- Obsidian plugin (v2) and transclusion (v1.5).
+- Transclusion (v1.5).
 - Canvas, Dataview-style queries.
 
 ## 5. Users and use

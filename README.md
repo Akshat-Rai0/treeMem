@@ -459,7 +459,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 - [x] **Phase 5**: Concurrency locking, crash recovery tests, and security hardening.
 - [x] **Phase 4**: Automated LongMemEval benchmark harness with real LLM inference.
 - [x] **v1.5**: Transclusion for volatile scalar facts (`![[node#line]]` markdown embeds).
-- [ ] **v2**: Dense vector embeddings, real LLM large vault evaluation, dashboard conflict handling, and native Obsidian plugin.
+- [x] **v2**: Dense vector embeddings, real LLM large vault evaluation, and dashboard conflict handling.
 
 ---
 
