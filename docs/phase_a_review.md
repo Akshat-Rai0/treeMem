@@ -173,3 +173,41 @@ matches the Phase B spec.
 ---
 
 *Generated: Phase A review — no behaviour changes in this commit.*
+
+---
+
+## Phase A2 — Architecture Re-Check: Remote Embeddings Safety, Hints, and Harness Failure Reporting
+
+Reviewed files: `src/treemem/embeddings.py`, `src/treemem/index.py`, `src/treemem/tree_manager.py`, `src/treemem/log_writer.py`, `bench/eval/run_eval.py`, `bench/eval/rebuild_aggregate.py`.
+
+### 1. How a hint is stored for an entry
+- **Daily log file (disk ground truth)**: Stored in `<vault>/log/YYYY-MM-DD.md` on the entry line as a pipe-delimited field: `| hint: <hint>`. Formatted by `LogWriter.append` and parsed by `LogWriter._parse_line` into dict key `entry["hint"]`.
+- **Search index (memory)**: Stored in `SearchIndex.entry_docs` as `doc_obj["hint"]` (`{"entry_id": eid, "text": fact_text, "hint": hint_text, "path": ...}`). Also concatenated into `full_text = f"{fact_text} {hint_text}"` used for BM25 token corpus and embedding representations.
+
+### 2. Every place text is sent to an embedding provider
+1. **`SearchIndex._cached_embed_batch(texts)`**:
+   - `SearchIndex.build()` at line 239: calls `_cached_embed_batch` on `public_node_texts` (node summaries of public nodes).
+   - `SearchIndex.build()` at line 264: calls `_cached_embed_batch` on `public_entry_texts` (entry texts of entries whose placement path is public).
+   - `SearchIndex.add_entry()` at line 298: calls `_cached_embed_batch([f"{fact} {hint}".strip()])` when a new entry is added via `remember()`.
+2. **`SearchIndex.query(query_str, limit)`**:
+   - Line 345: calls `self.embedding_provider.embed_text(query_str)` to embed the incoming search query.
+3. **`SearchIndex.candidate_nodes(fact, hint, ...)`**:
+   - Line 457: calls `self.embedding_provider.embed_text(query_text)` where `query_text = f"{fact} {hint}".strip()` to embed the fact + hint for dense placement ranking against node embeddings.
+*(Note: Internal provider methods `DeterministicEmbeddingProvider.embed_batch` and `OpenAICompatibleEmbeddingProvider.embed_text` invoke each other internally).*
+
+### 3. How GroqKeyPool reports an HTTP 413
+- In `GroqKeyPool.execute_with_failover()`:
+  When an HTTP status code 413 ("Request Entity Too Large") is returned by Groq, it falls into the catch-all `else:` branch:
+  ```python
+  last_error = f"HTTP {response.status_code}: {response.text[:120]}"
+  time.sleep(1.5)
+  ```
+  It then sleeps and retries across the other keys in the pool up to `max_retries` (8 attempts). Since request length limits are identical across keys, all 8 retries fail. Finally, it raises:
+  `RuntimeError(f"Groq request failed after {max_retries} retries across keys. Last error: HTTP 413: ...")`.
+  It does not distinguish 413 from other fatal API errors, does not stop retrying immediately, and does not record the failure as an evaluation result.
+
+### 4. Blockers
+- **No blockers found.**
+- `bench/results_gptoss` is missing; copy it back if you still have it.
+- All Phase B, C, D, and E tasks can proceed cleanly without architectural conflicts or breaking changes to existing invariant suites.
+
