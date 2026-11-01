@@ -1,0 +1,432 @@
+{
+  "run": 1,
+  "model": "qwen/qwen3.8-27b",
+  "timestamp": "2026-10-31T03:45:12Z",
+  "arms": {
+    "tree_follow": {
+      "accuracy_pct": 100.0,
+      "accuracy_questions": 15,
+      "private_leaks": 0,
+      "private_questions": 0,
+      "wire_tokens": 34807,
+      "payload_tokens": 3002,
+      "mean_hops": 1.067,
+      "mean_latency_sec": 6.3,
+      "single_call_rate_pct": 93.33,
+      "parent_stop_rate_pct": 0.0
+    }
+  },
+  "questions": [
+    {
+      "id": "m01_hotel",
+      "question": "Which hotel did he stay at in Reykjavik?",
+      "tree_follow": {
+        "answer": "He stayed at the **Northern Window Hotel** in Reykjavik.",
+        "payload_tokens": 164,
+        "api_prompt_tokens": 2243,
+        "api_completion_tokens": 63,
+        "api_total_tokens": 2306,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Which hotel did he stay at in Reykjavik?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 0.968,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m02_hotel",
+      "question": "Where did he sleep during his Bangkok trip?",
+      "tree_follow": {
+        "answer": "During his Bangkok trip, he stayed at the **Misty Window Hotel**.",
+        "payload_tokens": 168,
+        "api_prompt_tokens": 2240,
+        "api_completion_tokens": 60,
+        "api_total_tokens": 2300,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he sleep during his Bangkok trip?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 0.869,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m03_hotel",
+      "question": "Which hotel did he stay at in Valencia?",
+      "tree_follow": {
+        "answer": "He stayed at the **Copper Ember Hotel** in Valencia.",
+        "payload_tokens": 161,
+        "api_prompt_tokens": 2231,
+        "api_completion_tokens": 58,
+        "api_total_tokens": 2289,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Which hotel did he stay at in Valencia?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 1.019,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m04_hotel",
+      "question": "Where did he sleep during his Madrid trip?",
+      "tree_follow": {
+        "answer": "During his Madrid trip, he stayed at the **Wild Garden Hotel**.",
+        "payload_tokens": 160,
+        "api_prompt_tokens": 2228,
+        "api_completion_tokens": 59,
+        "api_total_tokens": 2287,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he sleep during his Madrid trip?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 10.268,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m05_restaurant",
+      "question": "Where did he eat the best meal in Buenos Aires?",
+      "tree_follow": {
+        "answer": "He ate the best meal in Buenos Aires at **Gentle Bridge Kitchen** \u2014 it was charred tofu.",
+        "payload_tokens": 169,
+        "api_prompt_tokens": 2242,
+        "api_completion_tokens": 70,
+        "api_total_tokens": 2312,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he eat the best meal in Buenos Aires?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 1.05,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m06_restaurant",
+      "question": "Which restaurant impressed him in Krakow?",
+      "tree_follow": {
+        "answer": "The restaurant that impressed him in Krakow was **Silver Window Kitchen**, where he had his best meal \u2014 roasted duck.",
+        "payload_tokens": 319,
+        "api_prompt_tokens": 2142,
+        "api_completion_tokens": 68,
+        "api_total_tokens": 2210,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Which restaurant impressed him in Krakow?"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 9.229,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m07_restaurant",
+      "question": "Where did he eat the best meal in Paris?",
+      "tree_follow": {
+        "answer": "He ate the best meal in Paris at **Gilded Orchard Kitchen**, where he had steamed pike.",
+        "payload_tokens": 160,
+        "api_prompt_tokens": 2231,
+        "api_completion_tokens": 68,
+        "api_total_tokens": 2299,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he eat the best meal in Paris?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 10.274,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m08_album",
+      "question": "What is his favorite punk album?",
+      "tree_follow": {
+        "answer": "His favorite punk album is **Hollow Lantern**.",
+        "payload_tokens": 91,
+        "api_prompt_tokens": 2067,
+        "api_completion_tokens": 53,
+        "api_total_tokens": 2120,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "What is his favorite punk album?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 6.16,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m09_album",
+      "question": "Which baroque record does he love most?",
+      "tree_follow": {
+        "answer": "His favorite baroque record is **Quiet Canyon**.",
+        "payload_tokens": 230,
+        "api_prompt_tokens": 2030,
+        "api_completion_tokens": 55,
+        "api_total_tokens": 2085,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Which baroque record does he love most?"
+            }
+          }
+        ],
+        "depth_reached": 1,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 7.212,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m10_album",
+      "question": "What is his favorite celtic album?",
+      "tree_follow": {
+        "answer": "His favorite celtic album is **Crimson Mirror**.",
+        "payload_tokens": 93,
+        "api_prompt_tokens": 2079,
+        "api_completion_tokens": 58,
+        "api_total_tokens": 2137,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "What is his favorite celtic album?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 7.131,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m11_concert",
+      "question": "Where did he see The Crimson Lynxs perform?",
+      "tree_follow": {
+        "answer": "He saw The Crimson Lynxs perform live at **Misty Theatre**.",
+        "payload_tokens": 301,
+        "api_prompt_tokens": 2145,
+        "api_completion_tokens": 60,
+        "api_total_tokens": 2205,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he see The Crimson Lynxs perform?"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 9.498,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m12_concert",
+      "question": "At which venue did The Amber Foxs play when he went to the show?",
+      "tree_follow": {
+        "answer": "The Amber Foxs played at **Misty Arena**.",
+        "payload_tokens": 312,
+        "api_prompt_tokens": 2174,
+        "api_completion_tokens": 63,
+        "api_total_tokens": 2237,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "At which venue did The Amber Foxs play when he went to the show?"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 7.476,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m13_concert",
+      "question": "Where did he see The Velvet Lynxs perform?",
+      "tree_follow": {
+        "answer": "He saw The Velvet Lynxs perform live at **Misty Hall**.",
+        "payload_tokens": 301,
+        "api_prompt_tokens": 2143,
+        "api_completion_tokens": 60,
+        "api_total_tokens": 2203,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Where did he see The Velvet Lynxs perform?"
+            }
+          }
+        ],
+        "depth_reached": 0,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 8.359,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m14_book",
+      "question": "What is his favorite cyberpunk book?",
+      "tree_follow": {
+        "answer": "His favorite cyberpunk book is **The Forest of Fading**.",
+        "payload_tokens": 50,
+        "api_prompt_tokens": 1922,
+        "api_completion_tokens": 57,
+        "api_total_tokens": 1979,
+        "hops": 1,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "What is his favorite cyberpunk book?"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": true,
+        "latency_sec": 6.194,
+        "correct": true,
+        "leaked": false
+      }
+    },
+    {
+      "id": "m15_book",
+      "question": "Which astronomy title would he recommend first?",
+      "tree_follow": {
+        "answer": "He would recommend **The Garden of Misty** first \u2014 it's his favorite astronomy book.",
+        "payload_tokens": 323,
+        "api_prompt_tokens": 3746,
+        "api_completion_tokens": 92,
+        "api_total_tokens": 3838,
+        "hops": 2,
+        "hop_details": [
+          {
+            "tool": "recall",
+            "args": {
+              "path": "/",
+              "query": "Which astronomy title would he recommend first?"
+            }
+          },
+          {
+            "tool": "expand",
+            "args": {
+              "path": "reading/nonfiction_science"
+            }
+          }
+        ],
+        "depth_reached": 2,
+        "is_parent_stop": false,
+        "single_call": false,
+        "latency_sec": 8.786,
+        "correct": true,
+        "leaked": false
+      }
+    }
+  ]
+}

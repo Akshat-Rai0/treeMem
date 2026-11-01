@@ -30,7 +30,6 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 
 ## 4. Non-goals (v1)
 
-- Learned descent gate (v2 research item).
 - Multi-user, auth beyond a local token, cloud sync.
 - Embedding or vector search (lexical fallback only).
 - Editing nodes from the dashboard.

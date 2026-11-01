@@ -350,7 +350,13 @@ _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and ques
 
 ### Second model check
 <!-- BENCHMARK_TABLE_AGG2_START -->
-_Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-dir bench/results_<name> --arms flat,tree_follow --runs 1`, then `python bench/eval/rebuild_aggregate.py --results-dir bench/results_<name> --regrade`, then `python bench/make_readme_tables.py`.
+1 runs x 15 questions, `qwen/qwen3.8-27b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
+
+| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
+|:---|:---|:---|:---|:---|:---|:---|
+| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 34,807 ± 0 | 1.07 ± 0.00 | 93.3 ± 0.0 | 6.30 ± 0.00 |
+
+_Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
 <!-- BENCHMARK_TABLE_AGG2_END -->
 
 ### Descent gate, offline check (no API calls)
@@ -359,12 +365,12 @@ _Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-
 <!-- GATE_TABLE_START -->
 | Question set | Gate | Answerable from first call | Premature stops | Mean steps | Private leaks |
 |:---|:---|:---|:---|:---|:---|
-| 12 dev questions | legacy | 5/10 | q02_profession, q05_career_overview, q06_college_name, q09_project (4) | 0.417 | 0 |
-| 12 dev questions | current | 9/10 | none (0) | 0.833 | 0 |
-| 26 held-out questions | legacy | 10/19 | h06_intern, h08_degree, h10_classes (3) | 0.346 | 0 |
-| 26 held-out questions | current | 12/19 | h06_intern (1) | 0.462 | 0 |
+| 12 dev questions | legacy | 5/10 | q05_career_overview, q06_college_name, q09_project, q10_coding_preferences (4) | 0.25 | 0 |
+| 12 dev questions | current | 8/10 | none (0) | 0.75 | 0 |
+| 26 held-out questions | legacy | 9/19 | h08_degree, h10_classes, h17_runtime, h19_memory_project (4) | 0.154 | 0 |
+| 26 held-out questions | current | 13/19 | none (0) | 0.385 | 0 |
 
-_Measured with scikit-learn installed (hybrid TF-IDF + lexical scoring). Numbers differ slightly between the two modes._
+_Measured with scikit-learn NOT installed (lexical scoring only). Numbers differ slightly between the two modes._
 <!-- GATE_TABLE_END -->
 
 The current gate counts a stop as sufficient only when the node summary covers the question's own words (a literal match counts more than a synonym), prefers a child that contains words the parent lacks, and descends when a child scores close to the parent, because a wrong stop is costly while an extra server-side step is nearly free. One parameter (`descend_ratio`) was chosen after seeing both sets, so the held-out set is no longer clean; the choice sits on a plateau (0.2 to 0.4 give the same results). Remaining misses are mostly vocabulary mismatches (for example "employs" against "Work history") and one routing error (`h06`: "intern before his current job" went to `current_job`). Those need better synonyms or embeddings, which I did not add to avoid fitting the sample vault.
@@ -444,9 +450,9 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 - [x] **Phase 2**: MCP server with 10 tools, BM25 indexing, and Option A agent summarization.
 - [x] **Phase 3**: Event bus, SSE streaming, and Cytoscape.js X-Ray dashboard.
 - [x] **Phase 5**: Concurrency locking, crash recovery tests, and security hardening.
-- [ ] **Phase 4**: Automated LongMemEval benchmark harness with real LLM inference.
-- [ ] **v1.5**: Transclusion for volatile scalar facts (`![[node#line]]` markdown embeds).
-- [ ] **v2**: Learned descent classifier gating, native Obsidian plugin, and hybrid vector index.
+- [x] **Phase 4**: Automated LongMemEval benchmark harness with real LLM inference.
+- [x] **v1.5**: Transclusion for volatile scalar facts (`![[node#line]]` markdown embeds).
+- [ ] **v2**: Dense vector embeddings, real LLM large vault evaluation, dashboard conflict handling, and native Obsidian plugin.
 
 ---
 

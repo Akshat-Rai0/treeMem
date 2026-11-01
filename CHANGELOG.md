@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Dashboard Conflict Handling)
+- **Optimistic Concurrency Control for Summary Edits** (`src/treemem/dashboard/server.py`, `src/treemem/tree_manager.py`):
+  - `commit_summary` and `POST /api/node/summary` accept `expected_updated` timestamp and `force` boolean flags.
+  - Returns `409 Conflict` if the node was modified concurrently (e.g. by an agent or background auto-compressor) while an operator was editing.
+  - Returns current summary, current updated timestamp, and conflict details in response payload.
+  - Web Dashboard UI (`app.js`, `index.html`) shows interactive conflict panel with "Load Latest" and "Overwrite Anyway (Force)" buttons.
+  - 4 new unit tests in `tests/test_dashboard_edit.py` covering matching timestamps, 409 conflict detection, and force overwrite (156 total tests passing).
+
+### Added (Real LLM Large Vault Evaluation)
+- Real LLM evaluation (`qwen/qwen3.8-27b` via Groq) across the 309-fact mid-size vault (`bench/vaults/midsize_vault`, `bench/results_large_vault/`):
+  - **100.0% Answer Accuracy** with 0 private leaks and a **93.3% single-call resolution rate** via guided descent (`tree_follow`).
+  - Required only **200.1 payload tokens per question** (3,002 tokens total across 15 questions) vs **11,624 tokens per question** for flat memory log dump (**98.28% payload token reduction**).
+  - Empirically demonstrated scalability boundary: flat memory dumps exceeded provider per-request / per-minute rate limits (HTTP 413 token limit exceeded), whereas TreeMem hierarchical descent operated reliably with zero failure.
+
+### Added (Dense Vector Embeddings)
+- **Pluggable Dense Vector Embedding Providers** (`src/treemem/embeddings.py`):
+  - Abstract `EmbeddingProvider` protocol with unit L2 normalization and cosine similarity computation.
+  - `DeterministicEmbeddingProvider`: deterministic random-projection provider based on token and bigram hashing, enabling instant, reproducible offline testing with zero external dependencies or downloads.
+  - `OpenAICompatibleEmbeddingProvider`: connects to any OpenAI-compatible `/v1/embeddings` API endpoint (OpenAI, Voyage, Ollama, Together, vLLM) via `httpx`.
+  - `SentenceTransformersProvider`: local HuggingFace embedding engine (`all-MiniLM-L6-v2` or configurable model).
+  - Dynamic factory `get_embedding_provider(...)` with environment variable detection (`TREEMEM_EMBEDDING_PROVIDER`, `TREEMEM_EMBEDDING_API_KEY`, `OPENAI_API_KEY`).
+- **Tri-Hybrid Candidate Placement & Search Indexing** (`src/treemem/index.py`):
+  - Dynamic hybrid scoring blending dense embeddings (`50%`), TF-IDF bigrams (`30%`), and BM25 lexical overlap (`20%`). Gracefully degrades if TF-IDF or dense embeddings are not configured.
+  - Transparent attribution reporting dominant score source (`'dense'`, `'tfidf'`, `'bm25'`, or `'hint'`).
+  - Dense hybrid retrieval in `SearchIndex.query()` boosting semantically related log entries.
+  - Comprehensive unit test suite in `tests/test_dense_embeddings.py` (15 tests, bringing total test suite to 152 passing tests).
+
+### Changed (Roadmap)
+- Removed speculative learned descent classifier gate from roadmap and specifications in favor of the working Heuristic Descent Gate (with stemming, query expansion, and coverage scoring). Set immediate milestones to Dense Vector Embeddings $\to$ Real LLM Large Vault Evaluation $\to$ Dashboard Conflict Handling.
+
 ### Added (large-vault benchmark, offline)
 - `bench/make_midsize_vault.py`: deterministic 309-fact vault (9 topics, 67 nodes, unique invented answers, one private leaf) built with the real `remember`/`place`/`commit_summary` API, plus 47 questions (lookups, overviews, private, unanswerable). `--teasers rich|minimal` models careful vs careless parent summaries.
 - `bench/large_vault_offline.py` (no API): compares flat dump, BM25 top-5 and one guided call, and writes `bench/results_offline/large_vault_offline.json`. Findings: the tree is far smaller than a flat dump; BM25 top-5 matches the tree on single-entity lookups; the tree completes overview questions that top-5 cannot; rich parent teasers remove the premature stops.

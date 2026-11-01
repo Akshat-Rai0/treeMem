@@ -79,10 +79,11 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 ## v2 Milestones & Features
 
 - [x] Pluggable server-side Auto-Summarizer (Option B): bottom-up topological compression, validation-retry loop, and daemon worker (`src/treemem/auto_compress.py`, `tests/test_auto_compress.py`).
-- [ ] Learned descent gate: small classifier predicting "parent is enough", evaluated on accuracy vs tokens.
+- [x] Heuristic Descent Gate & Guided Descent (`src/treemem/descent_gate.py`, `tests/test_descent_gate.py`): stemming, word coverage, and single-call guided traversal (`follow=True`).
+- [x] Dense Vector Embeddings: pluggable dense embedding providers (local/API) with hybrid candidate scoring and search (`src/treemem/embeddings.py`, `tests/test_dense_embeddings.py`).
+- [x] Real LLM Large Vault Evaluation: measured on 309-fact mid-size vault with `qwen/qwen3.8-27b` achieving 100% accuracy, 98.3% payload token savings, while flat dump exceeded provider token limits (`bench/results_large_vault/`).
+- [x] Dashboard Conflict Handling: optimistic locking, 409 Conflict detection, and force overwrite for concurrent summary edits and auto-compression (`src/treemem/dashboard/`, `tests/test_dashboard_edit.py`).
 - [ ] Obsidian plugin: dirty nodes and token cost per node inside the vault.
-- [ ] Editing from the dashboard with conflict handling.
-- [ ] Embedding-based candidate scoring for placement.
 
 ## Cross-cutting rules
 

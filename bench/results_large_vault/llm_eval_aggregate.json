@@ -1,0 +1,95 @@
+{
+  "model": "qwen/qwen3.8-27b",
+  "timestamp": "2026-10-31T03:45:12Z",
+  "runs": 1,
+  "questions": 15,
+  "arms": {
+    "tree_follow": {
+      "runs": 1,
+      "accuracy_pct": {
+        "mean": 100.0,
+        "std": 0.0
+      },
+      "private_leaks": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wire_tokens": {
+        "mean": 34807.0,
+        "std": 0.0
+      },
+      "payload_tokens": {
+        "mean": 3002.0,
+        "std": 0.0
+      },
+      "mean_hops": {
+        "mean": 1.067,
+        "std": 0.0
+      },
+      "mean_latency_sec": {
+        "mean": 6.3,
+        "std": 0.0
+      },
+      "single_call_rate_pct": {
+        "mean": 93.33,
+        "std": 0.0
+      },
+      "parent_stop_rate_pct": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "accuracy_questions": 15
+    }
+  },
+  "per_question_pass_rate": {
+    "m01_hotel": {
+      "tree_follow": 1.0
+    },
+    "m02_hotel": {
+      "tree_follow": 1.0
+    },
+    "m03_hotel": {
+      "tree_follow": 1.0
+    },
+    "m04_hotel": {
+      "tree_follow": 1.0
+    },
+    "m05_restaurant": {
+      "tree_follow": 1.0
+    },
+    "m06_restaurant": {
+      "tree_follow": 1.0
+    },
+    "m07_restaurant": {
+      "tree_follow": 1.0
+    },
+    "m08_album": {
+      "tree_follow": 1.0
+    },
+    "m09_album": {
+      "tree_follow": 1.0
+    },
+    "m10_album": {
+      "tree_follow": 1.0
+    },
+    "m11_concert": {
+      "tree_follow": 1.0
+    },
+    "m12_concert": {
+      "tree_follow": 1.0
+    },
+    "m13_concert": {
+      "tree_follow": 1.0
+    },
+    "m14_book": {
+      "tree_follow": 1.0
+    },
+    "m15_book": {
+      "tree_follow": 1.0
+    }
+  },
+  "key_usage_counts": {
+    "0": 21,
+    "1": 21
+  }
+}

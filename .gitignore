@@ -55,3 +55,5 @@ examples/**/.locks
 # Large raw benchmark transcripts (> 5MB)
 bench/results/raw_transcripts/*.large
 bench/results/raw/*.large
+
+summary.md

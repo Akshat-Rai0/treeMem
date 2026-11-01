@@ -257,7 +257,7 @@
         compressBtn.onclick = () => handleAutoCompress(node.path);
       }
       if (editBtn) {
-        editBtn.onclick = () => openEditModal(node.path, node.summary || "");
+        editBtn.onclick = () => openEditModal(node.path, node.summary || "", node.updated || "");
       }
 
       const childrenList = document.getElementById("insp-children");
@@ -325,42 +325,101 @@
     }
   }
 
+  // State for Edit Summary Modal and conflict handling
+  let editModalState = {
+    path: "",
+    lastUpdated: "",
+    currentLatestSummary: "",
+  };
+
   // Open Edit Summary Modal
-  function openEditModal(path, currentSummary) {
+  function openEditModal(path, currentSummary, updated = "") {
     const modal = document.getElementById("edit-modal");
     const textarea = document.getElementById("edit-modal-textarea");
     const pathLabel = document.getElementById("edit-modal-path");
     const errEl = document.getElementById("edit-modal-error");
+    const conflictBox = document.getElementById("edit-modal-conflict");
     if (!modal || !textarea) return;
+
+    editModalState = {
+      path,
+      lastUpdated: updated,
+      currentLatestSummary: currentSummary,
+    };
 
     if (pathLabel) pathLabel.textContent = path;
     textarea.value = currentSummary;
     if (errEl) errEl.textContent = "";
+    if (conflictBox) conflictBox.style.display = "none";
     modal.classList.add("open");
 
     document.getElementById("edit-modal-submit").onclick = async () => {
-      await handleEditSummary(path, textarea.value);
+      await handleEditSummary(path, textarea.value, false);
     };
+
+    const reloadBtn = document.getElementById("edit-modal-btn-reload");
+    if (reloadBtn) {
+      reloadBtn.onclick = () => {
+        textarea.value = editModalState.currentLatestSummary;
+        if (conflictBox) conflictBox.style.display = "none";
+        if (errEl) errEl.textContent = "Loaded latest summary into editor.";
+      };
+    }
+
+    const forceBtn = document.getElementById("edit-modal-btn-force");
+    if (forceBtn) {
+      forceBtn.onclick = async () => {
+        await handleEditSummary(path, textarea.value, true);
+      };
+    }
   }
 
-  // Edit Summary POST handler
-  async function handleEditSummary(path, text) {
+  // Edit Summary POST handler with conflict handling
+  async function handleEditSummary(path, text, force = false) {
     const errEl = document.getElementById("edit-modal-error");
+    const conflictBox = document.getElementById("edit-modal-conflict");
+    const conflictMsg = document.getElementById("edit-modal-conflict-msg");
     const submitBtn = document.getElementById("edit-modal-submit");
     if (errEl) errEl.textContent = "";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
 
     try {
+      const payload = {
+        path,
+        text,
+        expected_updated: force ? null : (editModalState.lastUpdated || null),
+        force: force,
+      };
+
       const res = await apiFetch("/api/node/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path, text }),
+        body: JSON.stringify(payload),
       });
+
       if (res.ok) {
         document.getElementById("edit-modal").classList.remove("open");
+        if (conflictBox) conflictBox.style.display = "none";
         await loadTree();
         await loadHealth();
         await inspectNode(path);
+      } else if (res.status === 409 || (res.detail && res.detail.conflict)) {
+        // Conflict detected!
+        const detail = res.detail || {};
+        if (detail.current_summary) {
+          editModalState.currentLatestSummary = detail.current_summary;
+        }
+        if (detail.current_updated) {
+          editModalState.lastUpdated = detail.current_updated;
+        }
+        if (conflictBox) conflictBox.style.display = "block";
+        if (conflictMsg) {
+          conflictMsg.textContent = "⚠️ Conflict: This node was modified by another process while you were editing.";
+        }
+        if (errEl) {
+          errEl.textContent = typeof detail === "string" ? detail : (detail.message || "Conflict detected.");
+          errEl.style.color = "var(--color-dirty, #f59e0b)";
+        }
       } else {
         if (errEl) {
           errEl.textContent = res.detail || "Save failed. Check summary length.";

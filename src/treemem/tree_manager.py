@@ -50,12 +50,13 @@ def get_ancestor_paths(path: str) -> List[str]:
 class TreeManager:
     """Orchestrates tree operations, dirty propagation, validations, and tool execution."""
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, embedding_provider: Optional[Any] = None):
         self.root_dir = Path(root_dir).resolve()
         self.store = Store(self.root_dir)
         self.log_writer = LogWriter(self.root_dir)
         self.event_bus = EventBus(self.root_dir)
-        self.index = SearchIndex()
+        self.embedding_provider = embedding_provider
+        self.index = SearchIndex(embedding_provider=self.embedding_provider)
         self.health_checker = HealthChecker(self.store, self.log_writer)
         self.transclusion_mgr = TransclusionManager(self.store)
         self.descent_gate = DescentGate()
@@ -654,10 +655,12 @@ class TreeManager:
         path: str,
         text: str,
         session: str = "default",
+        expected_updated: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Tool: commit_summary(path, text)
         Validates then writes atomically:
+        - optimistic concurrency conflict check if expected_updated is given
         - length <= cap (150 tokens)
         - contains ## Children list matching actual children on disk (no missing, no invented)
         - no content from sensitivity: private children
@@ -666,6 +669,25 @@ class TreeManager:
         node = self.store.read_node(clean_path)
         if not node:
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
+
+        # Concurrency / conflict check
+        if expected_updated is not None and node.updated != expected_updated:
+            err = (
+                f"Conflict: Node '{clean_path or '/'}' was modified since version {expected_updated} "
+                f"(current: {node.updated})."
+            )
+            self.event_bus.emit(
+                "summary",
+                {"path": clean_path or "/", "tokens": 0, "ok": False, "error": err, "conflict": True},
+                session,
+            )
+            return {
+                "ok": False,
+                "conflict": True,
+                "error": err,
+                "current_updated": node.updated,
+                "current_summary": node.summary,
+            }
 
         # Parse submitted text
         fm, summary, children_parsed, facts_parsed = self.store.parse_summary_md(text)

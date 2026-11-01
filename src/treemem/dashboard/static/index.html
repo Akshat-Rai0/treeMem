@@ -176,6 +176,15 @@
       <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
         Path: <code id="edit-modal-path"></code>
       </p>
+      <div id="edit-modal-conflict" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid var(--color-dirty, #f59e0b); border-radius: 4px; padding: 8px; margin-bottom: 8px;">
+        <p id="edit-modal-conflict-msg" style="font-size: 12px; margin: 0 0 6px 0; color: var(--color-dirty, #f59e0b); font-weight: 600;">
+          ⚠️ Edit Conflict: This node was modified by another process while you were editing.
+        </p>
+        <div style="display: flex; gap: 8px;">
+          <button id="edit-modal-btn-reload" class="btn" type="button" style="font-size: 11px;">🔄 Load Latest</button>
+          <button id="edit-modal-btn-force" class="btn btn-primary" type="button" style="font-size: 11px; background: var(--color-dirty, #f59e0b);">⚡ Overwrite Anyway</button>
+        </div>
+      </div>
       <textarea
         id="edit-modal-textarea"
         class="edit-textarea"

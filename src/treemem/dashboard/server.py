@@ -29,6 +29,8 @@ class CompressRequest(BaseModel):
 class EditSummaryRequest(BaseModel):
     path: str
     text: str
+    expected_updated: Optional[str] = None
+    force: bool = False
 
 security = HTTPBearer(auto_error=False)
 
@@ -280,11 +282,24 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
         body: EditSummaryRequest,
         authorized: bool = Depends(verify_token),
     ):
-        """Manually overwrite a node's summary text."""
+        """Manually overwrite a node's summary text with optimistic conflict detection."""
         clean_path = norm_path(body.path)
         node = tree_manager.store.read_node(clean_path)
         if not node:
             raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
+
+        # Optimistic concurrency conflict check
+        if not body.force and body.expected_updated and node.updated != body.expected_updated:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": f"Conflict: Node '{clean_path or '/'}' was modified since you loaded it.",
+                    "current_updated": node.updated,
+                    "current_summary": node.summary,
+                    "expected_updated": body.expected_updated,
+                    "conflict": True,
+                },
+            )
 
         text = body.text.strip()
         if not text:
@@ -298,8 +313,30 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
             )
 
         try:
-            tree_manager.commit_summary(clean_path, text)
-            return {"ok": True, "path": clean_path, "tokens": count_tokens(text)}
+            expected = None if body.force else body.expected_updated
+            res = tree_manager.commit_summary(clean_path, text, expected_updated=expected)
+            if not res.get("ok"):
+                if res.get("conflict"):
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "message": res.get("error"),
+                            "current_updated": res.get("current_updated"),
+                            "current_summary": res.get("current_summary"),
+                            "conflict": True,
+                        },
+                    )
+                raise HTTPException(status_code=422, detail=res.get("error"))
+
+            updated_node = tree_manager.store.read_node(clean_path)
+            return {
+                "ok": True,
+                "path": clean_path,
+                "tokens": count_tokens(text),
+                "updated": updated_node.updated if updated_node else None,
+            }
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

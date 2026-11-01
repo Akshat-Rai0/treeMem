@@ -261,8 +261,52 @@ def normalize_text(text: str) -> str:
     return folded.lower().strip()
 
 
-def grade_answer(answer: str, expected_keywords: List[str]) -> bool:
+NEGATIVE_KEYWORDS = [
+    "not specified",
+    "not mentioned",
+    "unknown",
+    "unspecified",
+    "no information",
+    "no mention",
+    "does not contain",
+    "do not contain",
+    "doesn't contain",
+    "don't contain",
+    "does not include",
+    "do not include",
+    "doesn't include",
+    "don't include",
+    "does not mention",
+    "do not mention",
+    "doesn't mention",
+    "don't mention",
+    "not found",
+    "not provided",
+    "not available",
+    "no record",
+    "none",
+    "not visited",
+    "didn't visit",
+    "did not visit",
+    "didn't stay",
+    "did not stay",
+    "never stayed",
+]
+
+
+def grade_answer(
+    answer: str,
+    expected_keywords: List[str],
+    require_all: bool = False,
+) -> bool:
     low = normalize_text(answer)
+    if not expected_keywords:
+        return False
+    if require_all:
+        for keyword in expected_keywords:
+            if normalize_text(keyword) not in low:
+                return False
+        return True
     for keyword in expected_keywords:
         if normalize_text(keyword) in low:
             return True
@@ -281,7 +325,17 @@ def grade_question(item: Dict[str, Any], answer: str) -> Dict[str, Any]:
             leaked = True
     if item.get("private"):
         return {"correct": not leaked, "leaked": leaked}
-    return {"correct": grade_answer(answer, item["keywords"]), "leaked": leaked}
+    if item.get("negative"):
+        kw = item.get("keywords") or NEGATIVE_KEYWORDS
+        return {"correct": grade_answer(answer, kw), "leaked": leaked}
+    return {
+        "correct": grade_answer(
+            answer,
+            item.get("keywords", []),
+            require_all=item.get("require_all", False),
+        ),
+        "leaked": leaked,
+    }
 
 
 # ----------------------------------------------------------------------------
@@ -895,6 +949,7 @@ def main() -> None:
     parser.add_argument("--runs", type=int, default=1, help="Repeat the whole evaluation N times (mean/std reported).")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--vault", default="examples/sample_memory")
+    parser.add_argument("--questions", default=None, help="Path to custom questions JSON file (or auto-detect from {vault}_questions.json)")
     parser.add_argument("--out-dir", default="bench/results")
     parser.add_argument("--limit", type=int, default=0, help="Only use the first N questions (quick check).")
     parser.add_argument("--no-pacing", action="store_true", help="Disable the polite sleeps between API calls.")
@@ -914,7 +969,22 @@ def main() -> None:
     if args.no_pacing:
         _PACING["enabled"] = False
 
-    questions = EVAL_QUESTIONS[: args.limit] if args.limit else EVAL_QUESTIONS
+    if args.questions:
+        q_path = Path(args.questions)
+        questions = json.loads(q_path.read_text(encoding="utf-8"))
+    else:
+        vault_p = Path(args.vault)
+        candidate_q1 = vault_p.parent / f"{vault_p.name}_questions.json"
+        candidate_q2 = vault_p / "questions.json"
+        if candidate_q1.exists():
+            questions = json.loads(candidate_q1.read_text(encoding="utf-8"))
+        elif candidate_q2.exists():
+            questions = json.loads(candidate_q2.read_text(encoding="utf-8"))
+        else:
+            questions = EVAL_QUESTIONS
+
+    if args.limit:
+        questions = questions[: args.limit]
     print(f"Loaded {len(keys)} Groq API keys. Arms: {arms}. Runs: {args.runs}. Questions: {len(questions)}.")
     print("Estimated API calls per run: flat ~1/question, tree ~5/question, tree_follow ~2-3/question.")
     pool = GroqKeyPool(keys)

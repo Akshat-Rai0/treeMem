@@ -1,4 +1,4 @@
-"""BM25 + TF-IDF hybrid search index over log entries, leaves, and candidate scoring."""
+"""BM25 + TF-IDF + Dense Vector hybrid search index over log entries, leaves, and candidate scoring."""
 
 import logging
 import re
@@ -9,9 +9,14 @@ from rank_bm25 import BM25Okapi
 logger = logging.getLogger("treemem.index")
 
 try:
+    import numpy as np
+    _NUMPY_AVAILABLE = True
+except ImportError:
+    _NUMPY_AVAILABLE = False
+
+try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
@@ -20,6 +25,15 @@ except ImportError:
         "Install with `pip install 'treemem[gate]'` for hybrid TF-IDF scoring."
     )
 
+from treemem.embeddings import (
+    EmbeddingProvider,
+    get_embedding_provider,
+    cosine_similarity_matrix,
+)
+
+
+_DEFAULT_PROVIDER = object()
+
 
 def tokenize(text: str) -> List[str]:
     """Simple lowercase alphanumeric word tokenizer."""
@@ -27,13 +41,13 @@ def tokenize(text: str) -> List[str]:
 
 
 class SearchIndex:
-    """Maintains BM25 + TF-IDF hybrid index over log entries and leaf nodes."""
+    """Maintains BM25 + TF-IDF + Dense Vector hybrid index over log entries and leaf nodes."""
 
-    # Weights for hybrid scoring in candidate_nodes()
+    # Default weights when dense vectors are not active
     _W_TFIDF = 0.60
     _W_BM25 = 0.40
 
-    def __init__(self):
+    def __init__(self, embedding_provider: Any = _DEFAULT_PROVIDER):
         self.entry_docs: List[Dict[str, Any]] = []
         self.placement_table: Dict[str, str] = {}  # entry_id -> leaf_path
         self.node_docs: List[Dict[str, Any]] = []  # path, name, aliases, summary
@@ -42,6 +56,13 @@ class SearchIndex:
         # TF-IDF semantic layer
         self._tfidf_vectorizer: Optional[Any] = None  # TfidfVectorizer
         self._tfidf_matrix: Optional[Any] = None      # fitted sparse matrix
+        # Dense vector embedding layer
+        if embedding_provider is _DEFAULT_PROVIDER:
+            self.embedding_provider: Optional[EmbeddingProvider] = get_embedding_provider()
+        else:
+            self.embedding_provider = embedding_provider
+        self._node_embeddings: Optional[Any] = None   # np.ndarray [M, D]
+        self._entry_embeddings: Optional[Any] = None  # np.ndarray [N, D]
 
     def build(
         self,
@@ -114,6 +135,25 @@ class SearchIndex:
                 self._tfidf_vectorizer = None
                 self._tfidf_matrix = None
 
+        # Compute dense embeddings if provider is available
+        self._node_embeddings = None
+        self._entry_embeddings = None
+        if self.embedding_provider is not None and _NUMPY_AVAILABLE:
+            try:
+                if node_texts:
+                    self._node_embeddings = self.embedding_provider.embed_batch(node_texts)
+            except Exception as e:
+                logger.warning("Failed to compute node dense embeddings: %s", e)
+                self._node_embeddings = None
+
+            try:
+                entry_texts = [f"{d['text']} {d.get('hint', '')}".strip() for d in self.entry_docs]
+                if entry_texts:
+                    self._entry_embeddings = self.embedding_provider.embed_batch(entry_texts)
+            except Exception as e:
+                logger.debug("Failed to compute entry dense embeddings: %s", e)
+                self._entry_embeddings = None
+
     def add_entry(self, entry_id: str, fact: str, hint: str = "") -> None:
         """Add an entry to in-memory store."""
         doc_obj = {
@@ -123,6 +163,16 @@ class SearchIndex:
             "path": self.placement_table.get(entry_id, "unplaced"),
         }
         self.entry_docs.append(doc_obj)
+        if (
+            self.embedding_provider is not None
+            and self._entry_embeddings is not None
+            and _NUMPY_AVAILABLE
+        ):
+            try:
+                entry_vec = self.embedding_provider.embed_text(f"{fact} {hint}".strip())
+                self._entry_embeddings = np.vstack([self._entry_embeddings, entry_vec])
+            except Exception:
+                pass
 
     def record_placement(self, entry_id: str, path: str) -> None:
         """Record where an entry is placed in the tree."""
@@ -149,6 +199,19 @@ class SearchIndex:
             except Exception:
                 bm25_scores = None
 
+        dense_entry_sims = None
+        if (
+            self.embedding_provider is not None
+            and self._entry_embeddings is not None
+            and len(self._entry_embeddings) == len(self.entry_docs)
+            and _NUMPY_AVAILABLE
+        ):
+            try:
+                q_vec = self.embedding_provider.embed_text(query_str)
+                dense_entry_sims = cosine_similarity_matrix(q_vec, self._entry_embeddings)
+            except Exception:
+                dense_entry_sims = None
+
         for idx, doc in enumerate(self.entry_docs):
             full_text = f"{doc['text']} {doc.get('hint', '')}".lower()
             doc_toks = set(tokenize(full_text))
@@ -164,6 +227,11 @@ class SearchIndex:
 
             if q_lower in full_text:
                 score += 3.0
+
+            if dense_entry_sims is not None and len(dense_entry_sims) > idx:
+                d_sim = float(dense_entry_sims[idx])
+                if d_sim > 0:
+                    score += d_sim * 2.5
 
             if score > 0:
                 scored_docs.append((idx, score))
@@ -188,10 +256,13 @@ class SearchIndex:
         limit: int = 3,
         all_node_paths: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Propose candidate nodes for placing a fact using BM25 + TF-IDF hybrid scoring.
+        """Propose candidate nodes for placing a fact using BM25 + TF-IDF + Dense Vector hybrid scoring.
 
-        Scoring formula (per node, excluding exact-hint match):
-          combined = W_TFIDF * tfidf_cos_sim + W_BM25 * normalized_bm25_overlap
+        Scoring formula:
+          - If dense and tfidf active: 0.50 * dense + 0.30 * tfidf + 0.20 * bm25/lexical
+          - If dense only: 0.70 * dense + 0.30 * bm25/lexical
+          - If tfidf only: 0.60 * tfidf + 0.40 * bm25/lexical
+          - If lexical only: 1.00 * lexical
         Results are ranked by combined score descending.
         """
         candidates: List[Dict[str, Any]] = []
@@ -237,8 +308,27 @@ class SearchIndex:
             for i in range(len(self.node_docs))
         ]
 
-        # 3. TF-IDF cosine similarity scores (semantic signal)
+        # 3. Dense vector cosine similarity scores
+        dense_cos: List[float] = [0.0] * len(self.node_docs)
+        has_dense = False
+        if (
+            self.embedding_provider is not None
+            and self._node_embeddings is not None
+            and len(self._node_embeddings) == len(self.node_docs)
+            and query_text
+            and _NUMPY_AVAILABLE
+        ):
+            try:
+                q_vec = self.embedding_provider.embed_text(query_text)
+                sims = cosine_similarity_matrix(q_vec, self._node_embeddings)
+                dense_cos = [max(0.0, float(s)) for s in sims]
+                has_dense = any(s > 0 for s in dense_cos)
+            except Exception as e:
+                logger.debug("Failed to compute dense candidate similarities: %s", e)
+
+        # 4. TF-IDF cosine similarity scores (semantic signal)
         tfidf_cos: List[float] = [0.0] * len(self.node_docs)
+        has_tfidf = False
         if (
             _SKLEARN_AVAILABLE
             and self._tfidf_vectorizer is not None
@@ -248,20 +338,36 @@ class SearchIndex:
             try:
                 q_vec = self._tfidf_vectorizer.transform([query_text])
                 sims = cosine_similarity(q_vec, self._tfidf_matrix)[0]
-                tfidf_cos = [float(s) for s in sims]
+                tfidf_cos = [max(0.0, float(s)) for s in sims]
+                has_tfidf = any(s > 0 for s in tfidf_cos)
             except Exception:
                 pass
 
-        # 4. Hybrid combination and ranking
+        # 5. Hybrid combination and ranking
+        if has_dense and has_tfidf:
+            w_dense, w_tfidf, w_bm25 = 0.50, 0.30, 0.20
+        elif has_dense:
+            w_dense, w_tfidf, w_bm25 = 0.70, 0.0, 0.30
+        elif has_tfidf:
+            w_dense, w_tfidf, w_bm25 = 0.0, self._W_TFIDF, self._W_BM25
+        else:
+            w_dense, w_tfidf, w_bm25 = 0.0, 0.0, 1.0
+
         ranked: List[Tuple[int, float, str]] = []  # (node_idx, score, source)
         for i, n in enumerate(self.node_docs):
             p = n["path"]
             if p in seen_paths:
                 continue
-            combined = self._W_TFIDF * tfidf_cos[i] + self._W_BM25 * lexical[i]
+            combined = w_dense * dense_cos[i] + w_tfidf * tfidf_cos[i] + w_bm25 * lexical[i]
             if combined > 0:
                 # Determine dominant signal for transparency
-                src = "tfidf" if tfidf_cos[i] >= lexical[i] else "bm25"
+                contribs = [
+                    (w_dense * dense_cos[i], "dense"),
+                    (w_tfidf * tfidf_cos[i], "tfidf"),
+                    (w_bm25 * lexical[i], "bm25"),
+                ]
+                contribs.sort(key=lambda x: x[0], reverse=True)
+                src = contribs[0][1]
                 ranked.append((i, combined, src))
 
         ranked.sort(key=lambda x: x[1], reverse=True)
