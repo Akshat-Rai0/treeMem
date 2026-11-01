@@ -60,6 +60,7 @@ class SearchIndex:
         self,
         embedding_provider: Optional[EmbeddingProvider] = None,
         private_paths: Optional[Set[str]] = None,
+        is_private_path_fn: Optional[Callable[[str], bool]] = None,
     ):
         self.entry_docs: List[Dict[str, Any]] = []
         self.placement_table: Dict[str, str] = {}  # entry_id -> leaf_path
@@ -75,6 +76,7 @@ class SearchIndex:
         self._entry_embeddings: Optional[Any] = None  # np.ndarray [N, D]
         # Set of node paths (and their ancestors) that are private — never embedded.
         self._private_paths: Set[str] = private_paths if private_paths is not None else set()
+        self._is_private_path_fn: Optional[Callable[[str], bool]] = is_private_path_fn
         # LRU embedding cache: text -> np.ndarray (1-D unit vector)
         # Prevents re-embedding the same text across rebuilds.
         self._embed_cache: "OrderedDict[str, Any]" = OrderedDict()
@@ -83,15 +85,65 @@ class SearchIndex:
         """Return True when path is private or is a descendant of a private node."""
         if not path:
             return False
-        if path in self._private_paths:
+        if self._is_private_path_fn is not None:
+            try:
+                return self._is_private_path_fn(path)
+            except Exception:
+                pass
+        clean = path.strip("/")
+        if clean in self._private_paths:
             return True
         # Check every prefix segment
-        parts = path.strip("/").split("/")
+        parts = clean.split("/")
         for i in range(len(parts)):
             prefix = "/".join(parts[: i + 1])
             if prefix in self._private_paths:
                 return True
         return False
+
+    def _may_embed_entry(self, entry: Dict[str, Any]) -> bool:
+        """Decide whether an entry may be passed to the embedding provider.
+
+        Rules:
+        - If the entry is placed and its node or any ancestor is private:
+          never embed (for ANY provider).
+        - If the provider is remote (provider.is_remote is True):
+          refuse when the entry is not yet placed (no path or path == 'unplaced'),
+          or when its hint resolves to a private node or descendant of a private node.
+          Unknown sensitivity counts as private for remote providers.
+        - If the provider is local (provider.is_remote is False):
+          unplaced entries are embedded so local search keeps working.
+        """
+        if self.embedding_provider is None:
+            return False
+
+        is_remote = bool(getattr(self.embedding_provider, "is_remote", False))
+
+        eid = entry.get("entry_id", "")
+        raw_path = self.placement_table.get(eid, entry.get("path", ""))
+        clean_path = raw_path.strip().strip("/") if raw_path else ""
+        is_placed = bool(clean_path and clean_path != "unplaced")
+
+        # Placed entry: if its node or any ancestor is private, never embed (for ANY provider)
+        if is_placed and self._is_private_path(clean_path):
+            return False
+
+        if is_remote:
+            # Remote provider: unplaced entries have unknown sensitivity -> refuse
+            if not is_placed:
+                return False
+            # Check hint: if hint resolves to a private path -> refuse
+            hint = entry.get("hint", "").strip().strip("/")
+            if hint and self._is_private_path(hint):
+                return False
+            # Unknown sensitivity counts as private: node must exist in known node_docs
+            known_paths = {n.get("path", "") for n in self.node_docs}
+            if clean_path not in known_paths:
+                return False
+            return True
+        else:
+            # Local provider: unplaced entries and placed non-private entries may be embedded
+            return True
 
     def _cached_embed_batch(self, texts: List[str]) -> "Optional[Any]":
         """Embed texts using the cache.
@@ -245,21 +297,20 @@ class SearchIndex:
                 logger.warning("Failed to compute node dense embeddings: %s", e)
                 self._node_embeddings = None
 
-            # Entry embeddings: skip entries whose placement path is private.
+            # Entry embeddings: skip entries that may not be embedded.
             entry_texts_all: List[str] = []
-            entry_private_mask: List[bool] = []
+            entry_allowed_mask: List[bool] = []
             for d in self.entry_docs:
-                entry_path = self.placement_table.get(d["entry_id"], "")
-                is_priv = self._is_private_path(entry_path)
-                entry_private_mask.append(is_priv)
-                entry_texts_all.append("" if is_priv else f"{d['text']} {d.get('hint', '')}".strip())
+                allowed = self._may_embed_entry(d)
+                entry_allowed_mask.append(allowed)
+                entry_texts_all.append(f"{d['text']} {d.get('hint', '')}".strip() if allowed else "")
 
-            public_entry_texts = [t for t, priv in zip(entry_texts_all, entry_private_mask) if not priv]
+            public_entry_texts = [t for t, allowed in zip(entry_texts_all, entry_allowed_mask) if allowed]
             try:
                 if entry_texts_all:
                     dim = self.embedding_provider.dimension
                     result_entries = np.zeros((len(entry_texts_all), dim), dtype=np.float32)
-                    pub_idx = [i for i, priv in enumerate(entry_private_mask) if not priv]
+                    pub_idx = [i for i, allowed in enumerate(entry_allowed_mask) if allowed]
                     if public_entry_texts:
                         pub_mat = self._cached_embed_batch(public_entry_texts)
                         if pub_mat is not None:
@@ -273,7 +324,8 @@ class SearchIndex:
     def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "") -> None:
         """Add an entry to in-memory store.
 
-        If the entry's path is private, the text is NOT passed to the embedding provider.
+        If the entry may not be embedded (e.g. private, or unplaced/hint-private for
+        remote providers), the text is NOT passed to the embedding provider.
         """
         doc_obj = {
             "entry_id": entry_id,
@@ -283,12 +335,8 @@ class SearchIndex:
         }
         self.entry_docs.append(doc_obj)
 
-        # Determine privacy of this entry
-        entry_path = self.placement_table.get(entry_id, path or "")
-        is_private = self._is_private_path(entry_path)
-
         if (
-            not is_private
+            self._may_embed_entry(doc_obj)
             and self.embedding_provider is not None
             and self._entry_embeddings is not None
             and _NUMPY_AVAILABLE
@@ -301,7 +349,7 @@ class SearchIndex:
             except Exception:
                 pass
         elif self._entry_embeddings is not None and _NUMPY_AVAILABLE:
-            # Keep row alignment: append a zero vector for the private entry
+            # Keep row alignment: append a zero vector for skipped entry
             try:
                 dim = self.embedding_provider.dimension if self.embedding_provider else self._entry_embeddings.shape[1]
                 zero = np.zeros((1, dim), dtype=np.float32)
@@ -443,11 +491,13 @@ class SearchIndex:
             for i in range(len(self.node_docs))
         ]
 
-        # 3. Dense vector cosine similarity scores
+        # 3. Dense vector cosine similarity scores (local providers only — remote providers never see unplaced text)
         dense_cos: List[float] = [0.0] * len(self.node_docs)
         has_dense = False
+        is_remote = bool(getattr(self.embedding_provider, "is_remote", False))
         if (
             self.embedding_provider is not None
+            and not is_remote
             and self._node_embeddings is not None
             and len(self._node_embeddings) == len(self.node_docs)
             and query_text

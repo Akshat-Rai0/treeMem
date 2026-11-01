@@ -133,6 +133,8 @@ agent needs info about X
 - `sensitivity: private` is set per node (by the agent at `place` time via flag, or by the user editing frontmatter).
 - A parent's summary MUST NOT contain text derived from private children. `commit_summary` rejects violations by checking against private children's fact text (substring and token-overlap check).
 - Private nodes appear in child lists as `label - private details, expand to view`.
+- **Remote embedding privacy**: Remote embedding providers (`is_remote=True`, such as OpenAI-compatible endpoints) never receive text from nodes marked private, unplaced facts with unknown sensitivity, or facts whose hint resolves to a private node or under a private ancestor. Placed non-private facts are only embedded after placement confirms their non-private sensitivity.
+- **Inherent limit of remote embeddings**: When `search(query)` runs with a remote embedding provider configured, the incoming search `query` text is sent to the remote embedding API to compute cosine similarity against stored non-private entry embeddings. Stored private facts are never sent, but the raw search query itself is transmitted.
 
 ## 8. Worked example: "What is my age?"
 

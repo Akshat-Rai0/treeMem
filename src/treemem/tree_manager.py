@@ -56,7 +56,10 @@ class TreeManager:
         self.log_writer = LogWriter(self.root_dir)
         self.event_bus = EventBus(self.root_dir)
         self.embedding_provider = embedding_provider
-        self.index = SearchIndex(embedding_provider=self.embedding_provider)
+        self.index = SearchIndex(
+            embedding_provider=self.embedding_provider,
+            is_private_path_fn=self._is_private_path,
+        )
         self.health_checker = HealthChecker(self.store, self.log_writer)
         self.transclusion_mgr = TransclusionManager(self.store)
         self.descent_gate = DescentGate()

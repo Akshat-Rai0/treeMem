@@ -223,3 +223,130 @@ def test_treemem_default_no_provider_search_still_works(vault):
     result = mgr.search("fitness running")
     assert isinstance(result, dict)
     assert "hits" in result
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — Remote embeddings safety: unplaced and hint-private text never sent
+# ---------------------------------------------------------------------------
+
+
+class RemoteSpyProvider(DeterministicEmbeddingProvider):
+    """Spy provider simulating a remote embedding provider (is_remote=True)."""
+
+    is_remote: bool = True
+
+    def __init__(self):
+        super().__init__(dimension=64)
+        self.seen_texts: List[str] = []
+
+    def embed_text(self, text: str):
+        self.seen_texts.append(text)
+        return super().embed_text(text)
+
+    def embed_batch(self, texts: Sequence[str]):
+        for t in texts:
+            self.seen_texts.append(t)
+        return super().embed_batch(texts)
+
+
+class LocalSpyProvider(DeterministicEmbeddingProvider):
+    """Spy provider simulating a local embedding provider (is_remote=False)."""
+
+    is_remote: bool = False
+
+    def __init__(self):
+        super().__init__(dimension=64)
+        self.seen_texts: List[str] = []
+
+    def embed_text(self, text: str):
+        self.seen_texts.append(text)
+        return super().embed_text(text)
+
+    def embed_batch(self, texts: Sequence[str]):
+        for t in texts:
+            self.seen_texts.append(t)
+        return super().embed_batch(texts)
+
+
+def test_remote_spy_never_sees_unplaced_or_hint_private(vault):
+    """Remote spy must never see unplaced text or hint-private text."""
+    spy = RemoteSpyProvider()
+    mgr = TreeManager(vault, embedding_provider=spy)
+    spy.seen_texts.clear()
+
+    # 1. Remember a fact with hint pointing to a private node (finance/banking)
+    pin_fact = "My new card PIN is 4242-SECRET-PIN"
+    mgr.remember(pin_fact, hint="finance/banking")
+    mgr.rebuild_index()
+
+    # Assert the PIN text NEVER reaches the remote spy
+    joined = " ".join(spy.seen_texts)
+    assert "4242-SECRET-PIN" not in joined, (
+        f"PIN reached remote embedding provider! Seen: {spy.seen_texts}"
+    )
+
+    # 2. Remember an unplaced fact with no hint
+    bike_fact = "Alex bought a brand new red bicycle yesterday"
+    res = mgr.remember(bike_fact, hint="")
+    mgr.rebuild_index()
+
+    # Assert unplaced fact with no hint never reaches the remote spy
+    joined = " ".join(spy.seen_texts)
+    assert "red bicycle" not in joined, (
+        f"Unplaced fact reached remote embedding provider! Seen: {spy.seen_texts}"
+    )
+
+    # 3. Place the non-private fact under a non-private node (hobbies/fitness)
+    entry_id = res["entry_id"]
+    mgr.place(entry_id, "hobbies/fitness")
+    mgr.rebuild_index()
+
+    # Now that it is placed under a confirmed non-private node, it reaches the spy
+    joined = " ".join(spy.seen_texts)
+    assert "red bicycle" in joined, (
+        f"Placed non-private fact did NOT reach remote provider after placement! Seen: {spy.seen_texts}"
+    )
+
+
+def test_local_spy_embeds_unplaced_non_private_and_protects_placed_private(vault):
+    """Local provider embeds unplaced non-private facts; placed private facts are never embedded."""
+    spy = LocalSpyProvider()
+    mgr = TreeManager(vault, embedding_provider=spy)
+    spy.seen_texts.clear()
+
+    # 1. Unplaced non-private fact IS embedded by local provider
+    tea_fact = "Alex prefers organic green tea in the morning"
+    mgr.remember(tea_fact, hint="")
+    joined = " ".join(spy.seen_texts)
+    assert "green tea" in joined, (
+        f"Unplaced fact was not embedded by local provider! Seen: {spy.seen_texts}"
+    )
+
+    # 2. Placed private text is NEVER embedded by any provider
+    secret_fact = "Super confidential account number is 999999-VAULT"
+    res_priv = mgr.remember(secret_fact, hint="finance/banking")
+    mgr.place(res_priv["entry_id"], "finance/banking", sensitivity="private")
+
+    spy.seen_texts.clear()
+    mgr.rebuild_index()
+
+    joined = " ".join(spy.seen_texts)
+    assert "999999-VAULT" not in joined, (
+        f"Placed private fact reached local embedding provider! Seen: {spy.seen_texts}"
+    )
+
+
+def test_cache_does_not_contain_skipped_texts(vault):
+    """Texts skipped as private or unplaced must not be stored in the embedding cache."""
+    spy = RemoteSpyProvider()
+    mgr = TreeManager(vault, embedding_provider=spy)
+
+    mgr.remember("My secret code is 8888-TOP-SECRET", hint="finance/banking")
+    mgr.remember("Unplaced fact with token UNPLACED-SECRET-TOKEN", hint="")
+    mgr.rebuild_index()
+
+    # Check that neither skipped text is stored in the cache
+    cache_keys = " ".join(mgr.index._embed_cache.keys())
+    assert "8888-TOP-SECRET" not in cache_keys, "Skipped hint-private text was stored in cache!"
+    assert "UNPLACED-SECRET-TOKEN" not in cache_keys, "Skipped unplaced text was stored in cache!"
+

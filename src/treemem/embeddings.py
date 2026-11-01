@@ -61,6 +61,8 @@ def cosine_similarity_matrix(query_vec: np.ndarray, doc_mat: np.ndarray) -> np.n
 class EmbeddingProvider(ABC):
     """Abstract base class for dense vector embedding models."""
 
+    is_remote: bool = False
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -90,6 +92,8 @@ class DeterministicEmbeddingProvider(EmbeddingProvider):
     Projects token and character n-grams through a deterministic pseudo-random projection matrix.
     Requires no external model downloads or network calls.
     """
+
+    is_remote: bool = False
 
     def __init__(self, dimension: int = 128, seed: int = 42):
         self._dim = dimension
@@ -147,6 +151,8 @@ class OpenAICompatibleEmbeddingProvider(EmbeddingProvider):
 
     Works with OpenAI, Voyage, Ollama, Together, vLLM, etc.
     """
+
+    is_remote: bool = True
 
     def __init__(
         self,
@@ -224,6 +230,8 @@ class OpenAICompatibleEmbeddingProvider(EmbeddingProvider):
 
 class SentenceTransformersProvider(EmbeddingProvider):
     """Local dense embedding provider using HuggingFace sentence-transformers."""
+
+    is_remote: bool = False
 
     def __init__(self, model_name: Optional[str] = None):
         self._model_name = (
