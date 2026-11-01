@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed (grading)
 - The answer grader normalizes Unicode before matching (no-break spaces, curly quotes, dashes) and accepts more phrasings of "not in memory" (for example "don't include any information"). Two correct flat answers from the gpt-oss-120b run were wrongly marked incorrect before this fix.
 - `bench/eval/rebuild_aggregate.py --regrade` re-grades saved run files with the current grader (answers and tokens are never changed). Re-grading the three qwen runs changed 0 grades.
-- README can show a second model's aggregate from `bench/results_*/llm_eval_aggregate.json`.
+- README can show other real-LLM aggregates from `bench/results_*/llm_eval_aggregate.json`.
 
 ### Added (interruption safety)
 - `run_eval.py` writes `llm_eval_aggregate.json` and `llm_eval_results.json` after **every** run, and catches rate limits and Ctrl+C, so finished runs are never lost.

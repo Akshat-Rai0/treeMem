@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 182 Passing](https://img.shields.io/badge/tests-182%20passed-brightgreen.svg)]()
+[![Tests: 186 Passing](https://img.shields.io/badge/tests-186%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -348,7 +348,10 @@ treemem serve --demo
 _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
 <!-- BENCHMARK_TABLE_AGG_END -->
 
-### Second model check
+### Other real-LLM runs
+
+Each table below is one results folder (bench/results_*). The folder name, model, number of runs and question mix are shown in its sub-heading.
+
 <!-- BENCHMARK_TABLE_AGG2_START -->
 #### results_large_vault (model `qwen/qwen3.8-27b`, 1 run(s), 15 questions)
 
@@ -406,11 +409,11 @@ What this does and does not show:
 - **Small sample.** 12 questions (11 scored) on an 8-fact vault. Treat 100% accuracy as "no failures observed on this set", not as a measured accuracy.
 - **A flat dump still wins on this vault.** Every tool call re-sends the system prompt and tool schemas (about 1,100 prompt tokens per call), so even a single guided call costs more than the whole flat dump. Guided descent cut total tokens and hops compared with manual descent in the committed runs, but not below the flat baseline. The memory-payload reduction (the tree returns far less memory text) does not become a total-token win at this size.
 - **Guided descent does not always help.** In the committed runs it answered some questions in one call, but on others (for example the negative control and the private question) it cost as much as or more than manual descent.
-- **Premature stops are the real accuracy risk.** The gate used to decide the root summary was sufficient when it only shared words with the question; with gpt-oss-120b the agent then answered "personal memory vault" for a question whose answer is a named project. The gate is changed (see the offline table above) but the fix is **not yet confirmed with a real LLM**; re-run `run_eval.py` on both models. A wrong stop looks like a confident answer, so keep measuring it on a larger question set.
-- **Results are model-dependent.** The same tree answered a question in one call with one model and needed several calls with another. Do not generalize from one model.
+- **Premature stops are the real accuracy risk.** The gate used to decide the root summary was sufficient when it only shared words with the question; observed in a gpt-oss-120b run whose result files are not included in this repository, the agent then answered "personal memory vault" for a question whose answer is a named project. The gate is changed (see the offline table above) but the fix is **not yet confirmed with a real LLM**; re-run `run_eval.py` on both models. A wrong stop looks like a confident answer, so keep measuring it on a larger question set.
+- **Results are model-dependent.** Observed in a gpt-oss-120b run whose result files are not included in this repository, the same tree answered a question in one call with one model and needed several calls with another. Do not generalize from one model.
 - **The grader matters.** An earlier grader marked correct flat answers wrong because of a no-break space and a curly apostrophe. Answers are now normalized before matching, and `python bench/eval/rebuild_aggregate.py --regrade` re-grades saved runs with the current grader without any API calls.
 - The descent gate is a lexical + TF-IDF heuristic over summaries. If the question's words are not in the summaries it falls back to search.
-- Break-even against flat is not measured. A rough extrapolation: the guided arm averaged about 4,000 wire tokens per question, so flat should lose once the log grows to roughly 6x its current size. Verify this with a larger vault before claiming it.
+- Break-even against flat is not measured with a real model. In the offline large-vault benchmark the 309-fact flat log is 11,624 tokens (about 12k), which already exceeds free-tier request limits, while one guided call returns about 200 tokens; the real-LLM wire cost is dominated by a fixed per-call tool overhead of roughly 1,400 to 1,900 tokens (see the measured overheads in bench/results_offline/large_vault_offline.json). A real-model comparison on the large vault needs the retrieval-baseline arm and a full 47-question run.
 
 ### Plumbing Smoke Test ($n=5$, Scripted Descent)
 <!-- SMOKE_BLOCK_START -->
@@ -432,7 +435,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 182 passed in 3.27s ==============================
+============================== 186 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.
