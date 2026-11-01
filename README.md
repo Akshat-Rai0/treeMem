@@ -390,6 +390,7 @@ The current gate counts a stop as sufficient only when the node summary covers t
 | mid-size vault, rich teasers | 309 | 11,624 | 31/31 / 3/8 | 31/31 / 8/8 | none | 11,787 / 396 / 2,058 |
 
 _Gate measured with scikit-learn installed, seed 7. Retrieval only: no language model answered anything. "Answerable" means the returned text contains the expected answer; "overview complete" means it contains every item of a multi-fact answer. Wire tokens are a model: a per-call overhead of 1,862 tokens for tool calls and 163 for a plain prompt, taken from the committed real-LLM runs, plus the returned tokens, plus one extra call whenever the first call lacks the answer. BM25 is modelled as one-shot retrieval before a single prompt (no tool schemas)._
+Tokens counted with cl100k_base.
 <!-- LARGE_VAULT_TABLE_END -->
 
 What this does and does not show:

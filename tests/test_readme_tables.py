@@ -153,6 +153,60 @@ def test_format_large_vault_table_shows_missing_mix_message():
     assert "question mix not recorded" in result
 
 
+def test_format_large_vault_table_cl100k_notice():
+    mod = _load_make_readme()
+    data = {
+        "tokenizer": "cl100k_base",
+        "overheads": {"call_overhead": 1862, "flat_overhead": 163},
+        "vaults": [
+            {
+                "label": "test vault",
+                "facts": 10,
+                "flat_log_tokens": 100,
+                "bm25_lookup_answerable": 5,
+                "lookup_questions": 5,
+                "bm25_overview_complete": 0,
+                "overview_questions": 0,
+                "tree_lookup_answerable": 5,
+                "tree_overview_complete": 0,
+                "tree_premature_stops": [],
+                "flat_wire_estimate": 200,
+                "bm25_wire_estimate": 150,
+                "tree_wire_estimate": 250,
+            }
+        ],
+    }
+    text = mod.format_large_vault_table(data)
+    assert "Tokens counted with cl100k_base." in text
+
+
+def test_format_large_vault_table_fallback_warning():
+    mod = _load_make_readme()
+    data = {
+        "tokenizer": "fallback-estimate",
+        "overheads": {"call_overhead": 1862, "flat_overhead": 163},
+        "vaults": [
+            {
+                "label": "test vault",
+                "facts": 10,
+                "flat_log_tokens": 100,
+                "bm25_lookup_answerable": 5,
+                "lookup_questions": 5,
+                "bm25_overview_complete": 0,
+                "overview_questions": 0,
+                "tree_lookup_answerable": 5,
+                "tree_overview_complete": 0,
+                "tree_premature_stops": [],
+                "flat_wire_estimate": 200,
+                "bm25_wire_estimate": 150,
+                "tree_wire_estimate": 250,
+            }
+        ],
+    }
+    text = mod.format_large_vault_table(data)
+    assert "**Warning: Token counts are rough estimates running 25-30% low and must be regenerated on a machine where tiktoken works.**" in text
+
+
 # ---------------------------------------------------------------------------
 # Tests: NEGATIVE_KEYWORDS word-boundary fix (D.5)
 # ---------------------------------------------------------------------------

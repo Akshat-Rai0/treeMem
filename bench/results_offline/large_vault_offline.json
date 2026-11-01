@@ -1,5 +1,6 @@
 {
   "seed": 7,
+  "tokenizer": "cl100k_base",
   "scikit_learn_installed": true,
   "overheads": {
     "flat_overhead": 163,

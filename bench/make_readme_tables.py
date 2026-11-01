@@ -183,7 +183,7 @@ def find_extra_aggregates(results_dir: Path) -> List[Path]:
     return found
 
 
-def format_large_vault_table(aggregate: Dict[str, Any], folder_name: str) -> str:
+def format_extra_aggregate_block(aggregate: Dict[str, Any], folder_name: str) -> str:
     """Format a single extra-results aggregate under its own sub-heading.
 
     Heading: #### <folder_name> (model <model>, <runs> run(s), <questions> questions)
@@ -212,6 +212,43 @@ def format_large_vault_table(aggregate: Dict[str, Any], folder_name: str) -> str
         lines.append(f"_{mix_line}_")
         lines.append("")
     lines.append(table_body)
+    return "\n".join(lines)
+
+
+def format_large_vault_table(data: Optional[Dict[str, Any]], folder_name: Optional[str] = None) -> str:
+    """Offline large-vault benchmark (bench/results_offline/large_vault_offline.json),
+    or delegated to format_extra_aggregate_block when folder_name is provided.
+    """
+    if folder_name is not None:
+        return format_extra_aggregate_block(data or {}, folder_name)
+
+    if not data:
+        return "_Not generated yet._ Run `python bench/large_vault_offline.py`."
+    overheads = data.get("overheads", {"call_overhead": 1862, "flat_overhead": 163})
+    lines = [
+        "| Vault | Facts | Flat log (tokens) | BM25 top-5: lookups / overviews complete | Tree, one guided call: lookups / overviews complete | Tree premature stops | Est. wire tokens: flat / BM25 / tree |",
+        "|:---|:---|:---|:---|:---|:---|:---|",
+    ]
+    for v in data.get("vaults", []):
+        premature = ", ".join(v.get("tree_premature_stops", [])) if v.get("tree_premature_stops") else "none"
+        lines.append(
+            f"| {v['label']} | {v['facts']} | {v['flat_log_tokens']:,} | "
+            f"{v.get('bm25_lookup_answerable', 0)}/{v.get('lookup_questions', 0)} / {v.get('bm25_overview_complete', 0)}/{v.get('overview_questions', 0)} | "
+            f"{v.get('tree_lookup_answerable', 0)}/{v.get('lookup_questions', 0)} / {v.get('tree_overview_complete', 0)}/{v.get('overview_questions', 0)} | "
+            f"{premature} | {v.get('flat_wire_estimate', 0):,} / {v.get('bm25_wire_estimate', 0):,} / {v.get('tree_wire_estimate', 0):,} |"
+        )
+    lines.append("")
+    sklearn_text = "with scikit-learn installed" if data.get("scikit_learn_installed") else "without scikit-learn (lexical gate only)"
+    lines.append(
+        f"_Gate measured {sklearn_text}, seed {data.get('seed', 7)}. Retrieval only: no language model answered anything. \"Answerable\" means the returned text contains the expected answer; "
+        f"\"overview complete\" means it contains every item of a multi-fact answer. Wire tokens are a model: a per-call overhead of "
+        f"{overheads['call_overhead']:,} tokens for tool calls and {overheads['flat_overhead']} for a plain prompt, taken from the committed real-LLM runs, "
+        f"plus the returned tokens, plus one extra call whenever the first call lacks the answer. BM25 is modelled as one-shot retrieval before a single prompt (no tool schemas)._"
+    )
+    if data.get("tokenizer") == "cl100k_base":
+        lines.append("Tokens counted with cl100k_base.")
+    else:
+        lines.append("**Warning: Token counts are rough estimates running 25-30% low and must be regenerated on a machine where tiktoken works.**")
     return "\n".join(lines)
 
 
@@ -364,6 +401,14 @@ def main():
         "<!-- GATE_TABLE_START -->",
         "<!-- GATE_TABLE_END -->",
         format_gate_table(repo_root),
+    )
+    large_path = repo_root / "bench" / "results_offline" / "large_vault_offline.json"
+    large_data = load_json(large_path) if large_path.exists() else None
+    readme = replace_table(
+        readme,
+        "<!-- LARGE_VAULT_TABLE_START -->",
+        "<!-- LARGE_VAULT_TABLE_END -->",
+        format_large_vault_table(large_data),
     )
     extra_paths = find_extra_aggregates(results_dir)
     if extra_paths:

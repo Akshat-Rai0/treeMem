@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from treemem.descent_gate import DescentGate
-from treemem.tokenizer import count_tokens
+from treemem.tokenizer import count_tokens, tokenizer_name
 from treemem.tree_manager import TreeManager
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -209,6 +209,7 @@ def run(seed: int = 7) -> Dict[str, Any]:
     midsize_minimal = build_midsize(seed, "minimal")
     results = {
         "seed": seed,
+        "tokenizer": tokenizer_name(),
         "scikit_learn_installed": DescentGate._semantic_enabled(),
         "overheads": overheads,
         "assumptions": {
