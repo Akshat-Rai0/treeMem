@@ -90,6 +90,13 @@ def main() -> None:
 
     ev = load_eval_module()
     question_by_id = {item["id"]: item for item in ev.EVAL_QUESTIONS}
+    midsize_q = HERE.parent / "vaults" / "midsize_vault_questions.json"
+    if midsize_q.exists():
+        try:
+            for item in json.loads(midsize_q.read_text(encoding="utf-8")):
+                question_by_id[item["id"]] = item
+        except Exception:
+            pass
 
     per_run_arm_summaries: List[Dict[str, Dict[str, Any]]] = []
     all_runs_records: List[Dict[str, List[Dict[str, Any]]]] = []
@@ -106,8 +113,18 @@ def main() -> None:
         all_runs_records.append(records)
         last_data = run_data
 
+    existing_aggregate_path = results_dir / "llm_eval_aggregate.json"
+    existing_aggregate = {}
+    if existing_aggregate_path.exists():
+        try:
+            existing_aggregate = json.loads(existing_aggregate_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
     class _NoClient:
-        key_usage: Dict[str, int] = {}
+        key_usage: Dict[str, int] = existing_aggregate.get("key_usage_counts", last_data.get("key_usage_counts", {}))
+
+    question_list = [question_by_id.get(q["id"], q) for q in last_data.get("questions", [])]
 
     aggregate = ev.build_aggregate(
         model=last_data["model"],
@@ -116,8 +133,21 @@ def main() -> None:
         per_run_arm_summaries=per_run_arm_summaries,
         all_runs_records=all_runs_records,
         client=_NoClient(),
+        question_list=question_list,
     )
     (results_dir / "llm_eval_aggregate.json").write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
+
+    # Report question_kinds if present; warn when older aggregate lacks the key.
+    if "question_kinds" in aggregate:
+        kinds = aggregate["question_kinds"]
+        print(
+            f"  Question mix: {kinds.get('lookup', 0)} lookup, "
+            f"{kinds.get('overview', 0)} overview, "
+            f"{kinds.get('private', 0)} private, "
+            f"{kinds.get('negative', 0)} negative"
+        )
+    else:
+        print("  question mix not recorded (older aggregate lacks question_kinds key)")
 
     last_records = all_runs_records[-1]
     if "flat" in last_records and "tree" in last_records:

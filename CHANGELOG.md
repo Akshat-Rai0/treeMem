@@ -13,26 +13,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Returns `409 Conflict` if the node was modified concurrently (e.g. by an agent or background auto-compressor) while an operator was editing.
   - Returns current summary, current updated timestamp, and conflict details in response payload.
   - Web Dashboard UI (`app.js`, `index.html`) shows interactive conflict panel with "Load Latest" and "Overwrite Anyway (Force)" buttons.
-  - 4 new unit tests in `tests/test_dashboard_edit.py` covering matching timestamps, 409 conflict detection, and force overwrite (156 total tests passing).
+  - 4 new unit tests in `tests/test_dashboard_edit.py` covering matching timestamps, 409 conflict detection, and force overwrite.
 
 ### Added (Real LLM Large Vault Evaluation)
-- Real LLM evaluation (`qwen/qwen3.8-27b` via Groq) across the 309-fact mid-size vault (`bench/vaults/midsize_vault`, `bench/results_large_vault/`):
-  - **100.0% Answer Accuracy** with 0 private leaks and a **93.3% single-call resolution rate** via guided descent (`tree_follow`).
-  - Required only **200.1 payload tokens per question** (3,002 tokens total across 15 questions) vs **11,624 tokens per question** for flat memory log dump (**98.28% payload token reduction**).
-  - Empirically demonstrated scalability boundary: flat memory dumps exceeded provider per-request / per-minute rate limits (HTTP 413 token limit exceeded), whereas TreeMem hierarchical descent operated reliably with zero failure.
+- Real LLM evaluation of the 309-fact mid-size vault (`bench/vaults/midsize_vault`,
+  `bench/results_large_vault/`):
+  - **Model**: `qwen/qwen3.8-27b` via Groq.
+  - **Scope**: one arm (`tree_follow`), one run, the **first 15 questions** of the
+    47-question mid-size vault set — all single-entity lookups (hotel, restaurant,
+    album, concert, book).  No overview, private, or unanswerable questions were
+    included in this run.
+  - **Accuracy**: 15/15 correct (100%), 0 private leaks.
+  - **Single-call rate**: 14/15 questions answered in one `recall` call (93.3%).
+  - **Token usage**: 3,002 payload tokens total (~200 per question); 34,807 wire
+    tokens total (~2,320 per question, mostly fixed tool-call overhead re-sent
+    per hop).
+  - **Size comparison** (not a measured flat run): ~200 returned tokens per
+    question versus an 11,624-token flat log dump — a structural size difference,
+    not a controlled A/B experiment.
+  - **What this run does NOT cover**: there is no flat arm, no BM25 arm, no
+    overview questions, no private questions, no unanswerable questions, and only
+    one run.  A full three-arm run (flat, tree, tree_follow, plus BM25) on all
+    47 questions is still needed.
 
 ### Added (Dense Vector Embeddings)
 - **Pluggable Dense Vector Embedding Providers** (`src/treemem/embeddings.py`):
+  - Optional library feature, off by default (`embedding_provider=None`). Not wired into the descent gate or recall routing.
+  - Never embeds private content (nodes or log entries with sensitivity `private` or under private ancestors are skipped).
+  - LRU embedding cache in `SearchIndex` prevents re-embedding unchanged texts on index rebuild.
   - Abstract `EmbeddingProvider` protocol with unit L2 normalization and cosine similarity computation.
-  - `DeterministicEmbeddingProvider`: deterministic random-projection provider based on token and bigram hashing, enabling instant, reproducible offline testing with zero external dependencies or downloads.
-  - `OpenAICompatibleEmbeddingProvider`: connects to any OpenAI-compatible `/v1/embeddings` API endpoint (OpenAI, Voyage, Ollama, Together, vLLM) via `httpx`.
-  - `SentenceTransformersProvider`: local HuggingFace embedding engine (`all-MiniLM-L6-v2` or configurable model).
-  - Dynamic factory `get_embedding_provider(...)` with environment variable detection (`TREEMEM_EMBEDDING_PROVIDER`, `TREEMEM_EMBEDDING_API_KEY`, `OPENAI_API_KEY`).
+  - `DeterministicEmbeddingProvider`: deterministic random-projection provider based on token and bigram hashing, enabling instant offline plumbing tests with zero external dependencies. Does not demonstrate semantic benefit.
+  - `OpenAICompatibleEmbeddingProvider`: connects to any OpenAI-compatible `/v1/embeddings` API endpoint (OpenAI, Voyage, Ollama, Together, vLLM) via `httpx`. Requires `TREEMEM_EMBEDDING_PROVIDER=openai` (or `api`) explicitly.
+  - `SentenceTransformersProvider`: local HuggingFace embedding engine (`all-MiniLM-L6-v2` or configurable model). Requires `TREEMEM_EMBEDDING_PROVIDER=sentence-transformers` explicitly.
+  - Dynamic factory `get_embedding_provider(...)`: returns `None` unless a provider is explicitly chosen.
 - **Tri-Hybrid Candidate Placement & Search Indexing** (`src/treemem/index.py`):
-  - Dynamic hybrid scoring blending dense embeddings (`50%`), TF-IDF bigrams (`30%`), and BM25 lexical overlap (`20%`). Gracefully degrades if TF-IDF or dense embeddings are not configured.
+  - Dynamic hybrid scoring blending dense embeddings (`50%`), TF-IDF bigrams (`30%`), and BM25 lexical overlap (`20%`) when dense vectors are explicitly configured. Gracefully degrades if TF-IDF or dense embeddings are not configured (defaults to BM25 lexical).
   - Transparent attribution reporting dominant score source (`'dense'`, `'tfidf'`, `'bm25'`, or `'hint'`).
-  - Dense hybrid retrieval in `SearchIndex.query()` boosting semantically related log entries.
-  - Comprehensive unit test suite in `tests/test_dense_embeddings.py` (15 tests, bringing total test suite to 152 passing tests).
+  - Dense retrieval in `SearchIndex.query()` when an external embedding provider is explicitly configured (lexical BM25 by default).
+  - Unit test suites in `tests/test_dense_embeddings.py` and `tests/test_embedding_safety.py`.
 
 ### Changed (Roadmap)
 - Removed speculative learned descent classifier gate from roadmap and specifications in favor of the working Heuristic Descent Gate (with stemming, query expansion, and coverage scoring). Set immediate milestones to Dense Vector Embeddings $\to$ Real LLM Large Vault Evaluation $\to$ Dashboard Conflict Handling.

@@ -167,14 +167,52 @@ def format_gate_table(repo_root: Path) -> str:
     return "\n".join(lines)
 
 
-def find_extra_aggregate(results_dir: Path) -> Optional[Path]:
-    """Look for a second model's aggregate in a sibling folder such as bench/results_gptoss/."""
+def find_extra_aggregates(results_dir: Path) -> List[Path]:
+    """Return ALL bench/results_*/llm_eval_aggregate.json files, sorted by folder name.
+
+    Skips bench/results_offline (it has no llm_eval_aggregate.json).
+    The primary bench/results folder is also excluded because it is already
+    handled by the main AGG block.
+    """
     parent = results_dir.parent
+    found: List[Path] = []
     for candidate in sorted(parent.glob("results_*")):
         aggregate_path = candidate / "llm_eval_aggregate.json"
         if aggregate_path.exists():
-            return aggregate_path
-    return None
+            found.append(aggregate_path)
+    return found
+
+
+def format_large_vault_table(aggregate: Dict[str, Any], folder_name: str) -> str:
+    """Format a single extra-results aggregate under its own sub-heading.
+
+    Heading: #### <folder_name> (model <model>, <runs> run(s), <questions> questions)
+    If question_kinds is present in the aggregate, a question-mix line is added.
+    """
+    model = aggregate.get("model", "unknown")
+    runs = aggregate.get("runs", 1)
+    questions = aggregate.get("questions", 0)
+
+    heading = f"#### {folder_name} (model `{model}`, {runs} run(s), {questions} questions)"
+
+    question_kinds = aggregate.get("question_kinds")
+    if question_kinds:
+        parts = []
+        for kind in ("lookup", "overview", "private", "negative"):
+            n = question_kinds.get(kind, 0)
+            if n:
+                parts.append(f"{n} {kind}")
+        mix_line = "questions: " + ", ".join(parts) if parts else ""
+    else:
+        mix_line = "question mix not recorded"
+
+    table_body = format_aggregate_table(aggregate)
+    lines = [heading, ""]
+    if mix_line:
+        lines.append(f"_{mix_line}_")
+        lines.append("")
+    lines.append(table_body)
+    return "\n".join(lines)
 
 
 def format_smoke_block(smoke: Dict[str, Any]) -> str:
@@ -327,20 +365,26 @@ def main():
         "<!-- GATE_TABLE_END -->",
         format_gate_table(repo_root),
     )
-    extra_path = find_extra_aggregate(results_dir)
-    extra_data = load_json(extra_path) if extra_path else None
+    extra_paths = find_extra_aggregates(results_dir)
+    if extra_paths:
+        # Render each results_* folder as its own sub-heading inside the AGG2 block.
+        blocks = []
+        for ep in extra_paths:
+            folder_name = ep.parent.name
+            agg = load_json(ep)
+            blocks.append(format_large_vault_table(agg, folder_name))
+        agg2_content = "\n\n".join(blocks)
+    else:
+        agg2_content = (
+            "_Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-dir bench/results_"
+            "<name> --arms flat,tree_follow --runs 1`, then `python bench/eval/rebuild_aggregate.py --results-dir "
+            "bench/results_<name> --regrade`, then `python bench/make_readme_tables.py`."
+        )
     readme = replace_table(
         readme,
         "<!-- BENCHMARK_TABLE_AGG2_START -->",
         "<!-- BENCHMARK_TABLE_AGG2_END -->",
-        format_aggregate_table(
-            extra_data,
-            placeholder=(
-                "_Not measured yet._ Run `python bench/eval/run_eval.py --model <model-id> --out-dir bench/results_<name> "
-                "--arms flat,tree_follow --runs 1`, then `python bench/eval/rebuild_aggregate.py --results-dir "
-                "bench/results_<name> --regrade`, then `python bench/make_readme_tables.py`."
-            ),
-        ),
+        agg2_content,
     )
     readme = replace_table(
         readme,

@@ -308,8 +308,15 @@ def grade_answer(
                 return False
         return True
     for keyword in expected_keywords:
-        if normalize_text(keyword) in low:
-            return True
+        norm_kw = normalize_text(keyword)
+        # "none" must match as a whole word to avoid false positives inside
+        # words like "nonetheless", "nonevent", "no one", etc.
+        if norm_kw == "none":
+            if re.search(r"\bnone\b", low):
+                return True
+        else:
+            if norm_kw in low:
+                return True
     return False
 
 
@@ -848,6 +855,7 @@ def run_evaluation(
             per_run_arm_summaries=per_run_arm_summaries,
             all_runs_records=all_runs_records,
             client=client,
+            question_list=question_list,
         )
         (out_dir / "llm_eval_aggregate.json").write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
         if "flat" in arms and "tree" in arms:
@@ -863,8 +871,24 @@ def build_aggregate(
     per_run_arm_summaries: List[Dict[str, Dict[str, Any]]],
     all_runs_records: List[Dict[str, List[Dict[str, Any]]]],
     client: Any,
+    question_list: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    return {
+    # Count question kinds from the question list when available.
+    question_kinds: Optional[Dict[str, int]] = None
+    if question_list:
+        kinds: Dict[str, int] = {"lookup": 0, "overview": 0, "private": 0, "negative": 0}
+        for q in question_list:
+            if q.get("private"):
+                kinds["private"] += 1
+            elif q.get("negative") or (q.get("id", "").startswith("q12")):
+                kinds["negative"] += 1
+            elif q.get("require_all"):
+                kinds["overview"] += 1
+            else:
+                kinds["lookup"] += 1
+        question_kinds = kinds
+
+    result: Dict[str, Any] = {
         "model": model,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "runs": runs_done,
@@ -873,6 +897,9 @@ def build_aggregate(
         "per_question_pass_rate": per_question_pass_rate(all_runs_records),
         "key_usage_counts": getattr(client, "key_usage", {}),
     }
+    if question_kinds is not None:
+        result["question_kinds"] = question_kinds
+    return result
 
 
 def write_legacy_single_run_file(

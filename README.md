@@ -350,6 +350,10 @@ _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and ques
 
 ### Second model check
 <!-- BENCHMARK_TABLE_AGG2_START -->
+#### results_large_vault (model `qwen/qwen3.8-27b`, 1 run(s), 15 questions)
+
+_questions: 15 lookup_
+
 1 runs x 15 questions, `qwen/qwen3.8-27b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
 
 | Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
@@ -365,12 +369,12 @@ _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and ques
 <!-- GATE_TABLE_START -->
 | Question set | Gate | Answerable from first call | Premature stops | Mean steps | Private leaks |
 |:---|:---|:---|:---|:---|:---|
-| 12 dev questions | legacy | 5/10 | q05_career_overview, q06_college_name, q09_project, q10_coding_preferences (4) | 0.25 | 0 |
-| 12 dev questions | current | 8/10 | none (0) | 0.75 | 0 |
-| 26 held-out questions | legacy | 9/19 | h08_degree, h10_classes, h17_runtime, h19_memory_project (4) | 0.154 | 0 |
-| 26 held-out questions | current | 13/19 | none (0) | 0.385 | 0 |
+| 12 dev questions | legacy | 5/10 | q02_profession, q05_career_overview, q06_college_name, q09_project (4) | 0.417 | 0 |
+| 12 dev questions | current | 9/10 | none (0) | 0.833 | 0 |
+| 26 held-out questions | legacy | 10/19 | h06_intern, h08_degree, h10_classes (3) | 0.346 | 0 |
+| 26 held-out questions | current | 12/19 | h06_intern (1) | 0.462 | 0 |
 
-_Measured with scikit-learn NOT installed (lexical scoring only). Numbers differ slightly between the two modes._
+_Measured with scikit-learn installed (hybrid TF-IDF + lexical scoring). Numbers differ slightly between the two modes._
 <!-- GATE_TABLE_END -->
 
 The current gate counts a stop as sufficient only when the node summary covers the question's own words (a literal match counts more than a synonym), prefers a child that contains words the parent lacks, and descends when a child scores close to the parent, because a wrong stop is costly while an extra server-side step is nearly free. One parameter (`descend_ratio`) was chosen after seeing both sets, so the held-out set is no longer clean; the choice sits on a plateau (0.2 to 0.4 give the same results). Remaining misses are mostly vocabulary mismatches (for example "employs" against "Work history") and one routing error (`h06`: "intern before his current job" went to `current_job`). Those need better synonyms or embeddings, which I did not add to avoid fitting the sample vault.
@@ -396,6 +400,7 @@ What this does and does not show:
 - The questions are generated from templates by the same script that makes the facts, so they share more vocabulary with the facts than real questions would. This is retrieval, not answer quality, and not a real-LLM result.
 
 ### Known limitations (read before quoting numbers)
+- **Real-LLM evidence is limited.** The only real-LLM result on the 309-fact vault is a 15-question, single-arm (`tree_follow`), single-run evaluation covering only single-entity lookups. A full three-arm run (flat, tree, tree_follow, plus BM25) on all 47 questions (including overview, private, and unanswerable) is still needed before drawing broader conclusions.
 - **Repeated runs are not independent samples.** The model runs at temperature 0 on a fixed vault with fixed questions, so the committed 3-run result reproduced the same tokens, hops and answers every time (std = 0). That shows the harness is reproducible, not that the numbers are robust. Real variance needs paraphrased questions, a larger question set, or sampling at temperature above 0.
 - **Small sample.** 12 questions (11 scored) on an 8-fact vault. Treat 100% accuracy as "no failures observed on this set", not as a measured accuracy.
 - **A flat dump still wins on this vault.** Every tool call re-sends the system prompt and tool schemas (about 1,100 prompt tokens per call), so even a single guided call costs more than the whole flat dump. Guided descent cut total tokens and hops compared with manual descent in the committed runs, but not below the flat baseline. The memory-payload reduction (the tree returns far less memory text) does not become a total-token win at this size.
@@ -440,6 +445,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 2. **The Agent Over-Descends**: Without single-call guided descent (`follow=True`), autonomous agents frequently take 4–6 tool calls when a parent summary was already sufficient to answer the question.
 3. **Negative-Control Exhaustion**: When queried about facts absent from the vault (e.g., favorite sports car brand), agents tend to exhaust their multi-hop turn budget searching alternative branches before concluding the information is unknown.
 4. **Single-Agent Local Focus**: Designed as a local daemon for single-agent sessions; multi-user distributed synchronization is out of scope.
+5. **Dense Vector Embeddings are Optional and Opt-In**: Embeddings are an optional library feature (`src/treemem/embeddings.py`), off by default (`embedding_provider=None`). They are not wired into the descent gate or recall routing, and never process private text. The built-in deterministic provider uses token/bigram hashing for offline plumbing tests and does not demonstrate semantic benefit. No embedding quality was measured.
 
 ---
 
