@@ -273,15 +273,24 @@ def get_embedding_provider(
 ) -> Optional[EmbeddingProvider]:
     """Factory to get or initialize an EmbeddingProvider.
 
+    Embeddings are **opt-in**. With no explicit choice (argument or
+    ``TREEMEM_EMBEDDING_PROVIDER`` env var), this function returns ``None``
+    and no network call is made.
+
     Resolution order:
-      1. provider_name / env `TREEMEM_EMBEDDING_PROVIDER`:
-         - 'deterministic' or 'mock' -> DeterministicEmbeddingProvider
-         - 'openai' or 'api'         -> OpenAICompatibleEmbeddingProvider
-         - 'sentence-transformers'   -> SentenceTransformersProvider
-         - 'none' or 'disabled'      -> None
-      2. If TREEMEM_EMBEDDING_API_KEY or OPENAI_API_KEY is set -> OpenAICompatibleEmbeddingProvider
-      3. If sentence_transformers is importable -> SentenceTransformersProvider
-      4. Fallback -> None (returns None so system can use lexical/TF-IDF)
+      1. ``provider_name`` argument, or env ``TREEMEM_EMBEDDING_PROVIDER``:
+         - ``'deterministic'`` or ``'mock'`` -> DeterministicEmbeddingProvider
+           (offline, deterministic hashing — does NOT demonstrate semantic quality)
+         - ``'openai'`` or ``'api'``         -> OpenAICompatibleEmbeddingProvider
+           (requires an API key; sends text to a remote endpoint)
+         - ``'sentence-transformers'``        -> SentenceTransformersProvider
+           (local HuggingFace model; downloads on first use)
+         - ``'none'``, ``'disabled'``, etc.  -> None
+      2. Otherwise                            -> None
+
+    Remote embedding (``openai``/``api``) requires ``TREEMEM_EMBEDDING_PROVIDER``
+    to be set explicitly.  Setting ``OPENAI_API_KEY`` or
+    ``TREEMEM_EMBEDDING_API_KEY`` alone does **not** activate remote embedding.
     """
     global _GLOBAL_PROVIDER
 
@@ -294,7 +303,8 @@ def get_embedding_provider(
 
     provider: Optional[EmbeddingProvider] = None
 
-    if choice in ("none", "disabled", "off", "false"):
+    if not choice or choice in ("none", "disabled", "off", "false"):
+        # No explicit choice: return None — embeddings are opt-in.
         return None
 
     if choice in ("deterministic", "mock", "test"):
@@ -305,20 +315,12 @@ def get_embedding_provider(
     elif choice in ("sentence-transformers", "st"):
         provider = SentenceTransformersProvider(**kwargs)
     else:
-        # Auto-detect:
-        # Check API keys first
-        if os.getenv("TREEMEM_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY"):
-            try:
-                provider = OpenAICompatibleEmbeddingProvider(**kwargs)
-            except Exception as e:
-                logger.debug("Failed to initialize OpenAICompatibleEmbeddingProvider: %s", e)
-
-        # Check local sentence-transformers
-        if provider is None:
-            try:
-                provider = SentenceTransformersProvider(**kwargs)
-            except (ImportError, Exception):
-                provider = None
+        logger.warning(
+            "Unknown TREEMEM_EMBEDDING_PROVIDER value %r; returning None. "
+            "Valid values: deterministic, openai, api, sentence-transformers.",
+            choice,
+        )
+        return None
 
     if not force_new and provider is not None:
         _GLOBAL_PROVIDER = provider

@@ -80,12 +80,29 @@ class TreeManager:
             self.store.write_node_atomic("", root_node)
 
     def rebuild_index(self) -> None:
-        """Rebuild the search index from disk."""
+        """Rebuild the search index from disk.
+
+        Collects all private node paths (and their ancestors) so the index
+        can skip embedding private text regardless of which provider is active.
+        """
         log_entries = self.log_writer.read_all_entries()
         leaf_facts: List[Dict[str, str]] = []
         nodes: List[Dict[str, Any]] = []
 
-        for p in self.health_checker.get_all_node_paths():
+        all_paths = self.health_checker.get_all_node_paths()
+
+        # Build the private-paths set: any path whose node or any ancestor is private.
+        private_paths: set = set()
+        for p in all_paths:
+            n = self.store.read_node(p)
+            if n and n.sensitivity == "private":
+                private_paths.add(p)
+                # All descendants of this path are also private
+                for other in all_paths:
+                    if other.startswith(p + "/"):
+                        private_paths.add(other)
+
+        for p in all_paths:
             n = self.store.read_node(p)
             if n:
                 nodes.append({
@@ -101,7 +118,7 @@ class TreeManager:
                         "path": p,
                     })
 
-        self.index.build(log_entries, leaf_facts, nodes)
+        self.index.build(log_entries, leaf_facts, nodes, private_paths=private_paths)
 
     def get_dirty_nodes(self) -> List[str]:
         """Return all dirty node paths sorted deepest first."""

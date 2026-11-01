@@ -2,7 +2,8 @@
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from collections import OrderedDict
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from rank_bm25 import BM25Okapi
 
@@ -27,12 +28,11 @@ except ImportError:
 
 from treemem.embeddings import (
     EmbeddingProvider,
-    get_embedding_provider,
     cosine_similarity_matrix,
 )
 
-
-_DEFAULT_PROVIDER = object()
+# Maximum number of embeddings kept in the LRU text-to-vector cache.
+_EMBED_CACHE_MAX = 20000
 
 
 def tokenize(text: str) -> List[str]:
@@ -41,13 +41,26 @@ def tokenize(text: str) -> List[str]:
 
 
 class SearchIndex:
-    """Maintains BM25 + TF-IDF + Dense Vector hybrid index over log entries and leaf nodes."""
+    """Maintains BM25 + TF-IDF + Dense Vector hybrid index over log entries and leaf nodes.
+
+    Embeddings are **opt-in**: pass an EmbeddingProvider explicitly or leave as
+    None (the default) for lexical-only operation.  No provider is auto-detected
+    and no network call is made unless the caller explicitly passes a remote provider.
+
+    Private-path safety: the caller MUST pass ``private_paths`` (a set of node
+    paths whose sensitivity is 'private', including all ancestor paths of every
+    private node) so that build() and add_entry() can skip embedding private text.
+    """
 
     # Default weights when dense vectors are not active
     _W_TFIDF = 0.60
     _W_BM25 = 0.40
 
-    def __init__(self, embedding_provider: Any = _DEFAULT_PROVIDER):
+    def __init__(
+        self,
+        embedding_provider: Optional[EmbeddingProvider] = None,
+        private_paths: Optional[Set[str]] = None,
+    ):
         self.entry_docs: List[Dict[str, Any]] = []
         self.placement_table: Dict[str, str] = {}  # entry_id -> leaf_path
         self.node_docs: List[Dict[str, Any]] = []  # path, name, aliases, summary
@@ -56,21 +69,89 @@ class SearchIndex:
         # TF-IDF semantic layer
         self._tfidf_vectorizer: Optional[Any] = None  # TfidfVectorizer
         self._tfidf_matrix: Optional[Any] = None      # fitted sparse matrix
-        # Dense vector embedding layer
-        if embedding_provider is _DEFAULT_PROVIDER:
-            self.embedding_provider: Optional[EmbeddingProvider] = get_embedding_provider()
-        else:
-            self.embedding_provider = embedding_provider
+        # Dense vector embedding layer — None by default (opt-in)
+        self.embedding_provider: Optional[EmbeddingProvider] = embedding_provider
         self._node_embeddings: Optional[Any] = None   # np.ndarray [M, D]
         self._entry_embeddings: Optional[Any] = None  # np.ndarray [N, D]
+        # Set of node paths (and their ancestors) that are private — never embedded.
+        self._private_paths: Set[str] = private_paths if private_paths is not None else set()
+        # LRU embedding cache: text -> np.ndarray (1-D unit vector)
+        # Prevents re-embedding the same text across rebuilds.
+        self._embed_cache: "OrderedDict[str, Any]" = OrderedDict()
+
+    def _is_private_path(self, path: str) -> bool:
+        """Return True when path is private or is a descendant of a private node."""
+        if not path:
+            return False
+        if path in self._private_paths:
+            return True
+        # Check every prefix segment
+        parts = path.strip("/").split("/")
+        for i in range(len(parts)):
+            prefix = "/".join(parts[: i + 1])
+            if prefix in self._private_paths:
+                return True
+        return False
+
+    def _cached_embed_batch(self, texts: List[str]) -> "Optional[Any]":
+        """Embed texts using the cache.
+
+        Returns a 2-D np.ndarray [len(texts), D] aligned to the input list.
+        Texts already in the cache do not trigger a provider call.
+        Returns None if the provider is unavailable.
+        """
+        if self.embedding_provider is None or not _NUMPY_AVAILABLE:
+            return None
+        if not texts:
+            dim = self.embedding_provider.dimension
+            return np.zeros((0, dim), dtype=np.float32)
+
+        # Identify which texts need embedding
+        missing_indices: List[int] = []
+        missing_texts: List[str] = []
+        for i, t in enumerate(texts):
+            if t not in self._embed_cache:
+                missing_indices.append(i)
+                missing_texts.append(t)
+
+        # Batch-embed only the missing texts
+        if missing_texts:
+            try:
+                new_vecs = self.embedding_provider.embed_batch(missing_texts)
+                for j, t in enumerate(missing_texts):
+                    vec = new_vecs[j]
+                    # Trim cache if at capacity (drop oldest)
+                    if len(self._embed_cache) >= _EMBED_CACHE_MAX:
+                        self._embed_cache.popitem(last=False)
+                    self._embed_cache[t] = vec
+            except Exception as e:
+                logger.warning("embed_batch failed: %s", e)
+                return None
+
+        # Assemble final matrix in input order
+        dim = self.embedding_provider.dimension
+        result = np.zeros((len(texts), dim), dtype=np.float32)
+        for i, t in enumerate(texts):
+            if t in self._embed_cache:
+                result[i] = self._embed_cache[t]
+        return result
 
     def build(
         self,
         log_entries: List[Dict[str, Any]],
         leaf_facts: List[Dict[str, str]],
         nodes: List[Dict[str, Any]],
+        private_paths: Optional[Set[str]] = None,
     ) -> None:
-        """Rebuild index completely from log entries, leaves, and nodes."""
+        """Rebuild index completely from log entries, leaves, and nodes.
+
+        ``private_paths`` overrides or supplements the set passed at construction.
+        Texts whose path is private (or a descendant of a private path) are
+        never passed to the embedding provider.
+        """
+        if private_paths is not None:
+            self._private_paths = private_paths
+
         self.entry_docs = []
         self.placement_table = {}
         self.node_docs = nodes
@@ -135,42 +216,96 @@ class SearchIndex:
                 self._tfidf_vectorizer = None
                 self._tfidf_matrix = None
 
-        # Compute dense embeddings if provider is available
+        # Compute dense embeddings — skip private nodes entirely.
         self._node_embeddings = None
         self._entry_embeddings = None
         if self.embedding_provider is not None and _NUMPY_AVAILABLE:
+            # Node embeddings: substitute a zero vector for private nodes so that
+            # the matrix rows remain aligned with self.node_docs.
+            node_embed_texts: List[str] = []
+            node_private_mask: List[bool] = []
+            for n, nt in zip(self.node_docs, node_texts):
+                is_priv = self._is_private_path(n.get("path", ""))
+                node_private_mask.append(is_priv)
+                node_embed_texts.append("" if is_priv else nt)
+
+            public_node_texts = [t for t, priv in zip(node_embed_texts, node_private_mask) if not priv]
             try:
                 if node_texts:
-                    self._node_embeddings = self.embedding_provider.embed_batch(node_texts)
+                    dim = self.embedding_provider.dimension
+                    result_nodes = np.zeros((len(node_texts), dim), dtype=np.float32)
+                    pub_idx = [i for i, priv in enumerate(node_private_mask) if not priv]
+                    if public_node_texts:
+                        pub_mat = self._cached_embed_batch(public_node_texts)
+                        if pub_mat is not None:
+                            for list_pos, node_idx in enumerate(pub_idx):
+                                result_nodes[node_idx] = pub_mat[list_pos]
+                    self._node_embeddings = result_nodes
             except Exception as e:
                 logger.warning("Failed to compute node dense embeddings: %s", e)
                 self._node_embeddings = None
 
+            # Entry embeddings: skip entries whose placement path is private.
+            entry_texts_all: List[str] = []
+            entry_private_mask: List[bool] = []
+            for d in self.entry_docs:
+                entry_path = self.placement_table.get(d["entry_id"], "")
+                is_priv = self._is_private_path(entry_path)
+                entry_private_mask.append(is_priv)
+                entry_texts_all.append("" if is_priv else f"{d['text']} {d.get('hint', '')}".strip())
+
+            public_entry_texts = [t for t, priv in zip(entry_texts_all, entry_private_mask) if not priv]
             try:
-                entry_texts = [f"{d['text']} {d.get('hint', '')}".strip() for d in self.entry_docs]
-                if entry_texts:
-                    self._entry_embeddings = self.embedding_provider.embed_batch(entry_texts)
+                if entry_texts_all:
+                    dim = self.embedding_provider.dimension
+                    result_entries = np.zeros((len(entry_texts_all), dim), dtype=np.float32)
+                    pub_idx = [i for i, priv in enumerate(entry_private_mask) if not priv]
+                    if public_entry_texts:
+                        pub_mat = self._cached_embed_batch(public_entry_texts)
+                        if pub_mat is not None:
+                            for list_pos, entry_idx in enumerate(pub_idx):
+                                result_entries[entry_idx] = pub_mat[list_pos]
+                    self._entry_embeddings = result_entries
             except Exception as e:
                 logger.debug("Failed to compute entry dense embeddings: %s", e)
                 self._entry_embeddings = None
 
-    def add_entry(self, entry_id: str, fact: str, hint: str = "") -> None:
-        """Add an entry to in-memory store."""
+    def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "") -> None:
+        """Add an entry to in-memory store.
+
+        If the entry's path is private, the text is NOT passed to the embedding provider.
+        """
         doc_obj = {
             "entry_id": entry_id,
             "text": fact,
             "hint": hint,
-            "path": self.placement_table.get(entry_id, "unplaced"),
+            "path": self.placement_table.get(entry_id, path or "unplaced"),
         }
         self.entry_docs.append(doc_obj)
+
+        # Determine privacy of this entry
+        entry_path = self.placement_table.get(entry_id, path or "")
+        is_private = self._is_private_path(entry_path)
+
         if (
-            self.embedding_provider is not None
+            not is_private
+            and self.embedding_provider is not None
             and self._entry_embeddings is not None
             and _NUMPY_AVAILABLE
         ):
             try:
-                entry_vec = self.embedding_provider.embed_text(f"{fact} {hint}".strip())
-                self._entry_embeddings = np.vstack([self._entry_embeddings, entry_vec])
+                text = f"{fact} {hint}".strip()
+                vecs = self._cached_embed_batch([text])
+                if vecs is not None:
+                    self._entry_embeddings = np.vstack([self._entry_embeddings, vecs[0]])
+            except Exception:
+                pass
+        elif self._entry_embeddings is not None and _NUMPY_AVAILABLE:
+            # Keep row alignment: append a zero vector for the private entry
+            try:
+                dim = self.embedding_provider.dimension if self.embedding_provider else self._entry_embeddings.shape[1]
+                zero = np.zeros((1, dim), dtype=np.float32)
+                self._entry_embeddings = np.vstack([self._entry_embeddings, zero])
             except Exception:
                 pass
 
