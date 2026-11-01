@@ -37,7 +37,9 @@ def records_from_run(run_data: Dict[str, Any], question_by_id: Dict[str, Dict[st
         item = question_by_id[question_entry["id"]]
         for arm in arm_names:
             saved = dict(question_entry[arm])
-            grade = {"correct": saved.pop("correct"), "leaked": saved.pop("leaked", False)}
+            grade = {"correct": saved.pop("correct", False), "leaked": saved.pop("leaked", False)}
+            if "failed" not in saved:
+                saved["failed"] = False
             records[arm].append({"item": item, "result": saved, "grade": grade})
     return records
 
@@ -47,7 +49,10 @@ def regrade_records(ev: Any, records: Dict[str, List[Dict[str, Any]]]) -> int:
     changed = 0
     for arm_records in records.values():
         for record in arm_records:
-            new_grade = ev.grade_question(record["item"], record["result"]["answer"])
+            if record["result"].get("failed"):
+                new_grade = {"correct": False, "leaked": False}
+            else:
+                new_grade = ev.grade_question(record["item"], record["result"].get("answer", ""))
             if new_grade != record["grade"]:
                 changed += 1
             record["grade"] = new_grade

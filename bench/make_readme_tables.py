@@ -97,6 +97,7 @@ def format_aggregate_table(aggregate: Optional[Dict[str, Any]], placeholder: Opt
         "flat": "Flat dump",
         "tree": "TreeMem, manual descent",
         "tree_follow": "TreeMem, guided descent (`follow=true`)",
+        "rag_bm25": "Retrieval baseline (BM25 top-5, no tools)",
     }
 
     def cell(entry: Dict[str, Any], metric: str, digits: int = 1) -> str:
@@ -107,18 +108,29 @@ def format_aggregate_table(aggregate: Optional[Dict[str, Any]], placeholder: Opt
         f"{aggregate['runs']} runs x {aggregate['questions']} questions, `{aggregate['model']}`, mean ± std. "
         "Accuracy is over the non-private questions; latency excludes pacing sleeps."
     )
+    has_any_failure = any(
+        entry.get("failed_questions", {}).get("mean", 0.0) > 0
+        for entry in aggregate["arms"].values()
+    )
     lines = [
         header,
         "",
-        "| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |",
-        "|:---|:---|:---|:---|:---|:---|:---|",
+        "| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) | Failed (request too large) |",
+        "|:---|:---|:---|:---|:---|:---|:---|:---|",
     ]
     for arm, entry in aggregate["arms"].items():
         label = arm_labels.get(arm, arm)
         wire_cell = f"{entry['wire_tokens']['mean']:,.0f} ± {entry['wire_tokens']['std']:,.0f}"
+        if has_any_failure:
+            mean_failed = entry.get("failed_questions", {}).get("mean", 0.0)
+            failed_cell = f"{mean_failed:.0f}/{aggregate['questions']}"
+        else:
+            failed_cell = "n/a"
+
         lines.append(
             f"| {label} | {cell(entry, 'accuracy_pct')} | {cell(entry, 'private_leaks')} | {wire_cell} | "
-            f"{cell(entry, 'mean_hops', 2)} | {cell(entry, 'single_call_rate_pct')} | {cell(entry, 'mean_latency_sec', 2)} |"
+            f"{cell(entry, 'mean_hops', 2)} | {cell(entry, 'single_call_rate_pct')} | {cell(entry, 'mean_latency_sec', 2)} | "
+            f"{failed_cell} |"
         )
     all_deterministic = True
     for entry in aggregate["arms"].values():

@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 186 Passing](https://img.shields.io/badge/tests-186%20passed-brightgreen.svg)]()
+[![Tests: 191 Passing](https://img.shields.io/badge/tests-191%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -339,11 +339,11 @@ treemem serve --demo
 <!-- BENCHMARK_TABLE_AGG_START -->
 3 runs x 12 questions, `qwen/qwen3.8-27b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
 
-| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
-|:---|:---|:---|:---|:---|:---|:---|
-| Flat dump | 100.0 ± 0.0 | 1.0 ± 0.0 | 9,858 ± 0 | 0.00 ± 0.00 | 0.0 ± 0.0 | 0.76 ± 0.15 |
-| TreeMem, manual descent | 100.0 ± 0.0 | 0.0 ± 0.0 | 66,758 ± 0 | 3.83 ± 0.00 | 8.3 ± 0.0 | 18.98 ± 0.87 |
-| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 48,356 ± 0 | 2.67 ± 0.00 | 33.3 ± 0.0 | 14.39 ± 1.12 |
+| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) | Failed (request too large) |
+|:---|:---|:---|:---|:---|:---|:---|:---|
+| Flat dump | 100.0 ± 0.0 | 1.0 ± 0.0 | 9,858 ± 0 | 0.00 ± 0.00 | 0.0 ± 0.0 | 0.76 ± 0.15 | n/a |
+| TreeMem, manual descent | 100.0 ± 0.0 | 0.0 ± 0.0 | 66,758 ± 0 | 3.83 ± 0.00 | 8.3 ± 0.0 | 18.98 ± 0.87 | n/a |
+| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 48,356 ± 0 | 2.67 ± 0.00 | 33.3 ± 0.0 | 14.39 ± 1.12 | n/a |
 
 _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
 <!-- BENCHMARK_TABLE_AGG_END -->
@@ -359,9 +359,9 @@ _questions: 15 lookup_
 
 1 runs x 15 questions, `qwen/qwen3.8-27b`, mean ± std. Accuracy is over the non-private questions; latency excludes pacing sleeps.
 
-| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) |
-|:---|:---|:---|:---|:---|:---|:---|
-| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 34,807 ± 0 | 1.07 ± 0.00 | 93.3 ± 0.0 | 6.30 ± 0.00 |
+| Arm | Accuracy % | Private leaks | Wire tokens | Mean hops | Single-call % | Mean latency (s) | Failed (request too large) |
+|:---|:---|:---|:---|:---|:---|:---|:---|
+| TreeMem, guided descent (`follow=true`) | 100.0 ± 0.0 | 0.0 ± 0.0 | 34,807 ± 0 | 1.07 ± 0.00 | 93.3 ± 0.0 | 6.30 ± 0.00 | n/a |
 
 _Std is 0 for accuracy, tokens and hops: temperature is 0 and the vault and questions are fixed, so repeated runs reproduce the same output. This shows reproducibility, not robustness._
 <!-- BENCHMARK_TABLE_AGG2_END -->
@@ -435,7 +435,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 186 passed in 3.27s ==============================
+============================== 191 passed in 3.27s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.

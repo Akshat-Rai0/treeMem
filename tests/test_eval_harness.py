@@ -333,3 +333,168 @@ def test_regrade_flag_updates_saved_runs(tmp_path):
     q08 = [q for q in fixed["questions"] if q["id"] == "q08_gym"][0]
     assert q08["flat"]["correct"] is True
     assert q08["flat"]["answer"] == "The user trains at Apex\u202fFitness."  # answers are never rewritten
+
+
+# ---------------- Phase D: retrieval baseline, failure handling, and arms ----------------
+
+def test_default_arms_unchanged():
+    assert ev.ARMS[:3] == ("flat", "tree", "tree_follow")
+    assert ev.DEFAULT_ARMS == ("flat", "tree", "tree_follow")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arms", default=",".join(ev.DEFAULT_ARMS))
+    args = parser.parse_args([])
+    assert args.arms == "flat,tree,tree_follow"
+
+
+def test_groq_key_pool_request_too_large_classification():
+    assert ev.is_request_too_large(413, "Payload Too Large") is True
+    assert ev.is_request_too_large(413, "") is True
+    assert ev.is_request_too_large(400, "Request too large for model context") is True
+    assert ev.is_request_too_large(None, "REQUEST TOO LARGE: 12000 tokens") is True
+    assert ev.is_request_too_large(None, "error: request too large to process") is True
+    assert ev.is_request_too_large(429, "Rate limit reached. Try again in 2s") is False
+    assert ev.is_request_too_large(500, "Internal Server Error") is False
+    assert ev.is_request_too_large(404, "Not Found") is False
+
+
+class RagFakeClient:
+    def __init__(self, answer="The Quill Hotel."):
+        self.answer = answer
+        self.payloads = []
+        self.key_usage = {"0": 0}
+
+    def execute_with_failover(self, endpoint, payload, **kwargs):
+        self.payloads.append(payload)
+        self.key_usage["0"] += 1
+        return {
+            "choices": [{"message": {"role": "assistant", "content": self.answer}}],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 8, "total_tokens": 128},
+        }
+
+
+def test_rag_bm25_arm(mgr):
+    client = RagFakeClient("The Quill Hotel.")
+    question = "Where is the hotel located?"
+    result = ev.run_rag_arm(client, "fake-model", mgr, question)
+
+    assert result["hops"] == 0
+    assert result["single_call"] is False
+    assert result["is_parent_stop"] is False
+    assert result["answer"] == "The Quill Hotel."
+    assert len(client.payloads) == 1
+
+    sent_messages = client.payloads[0]["messages"]
+    sys_msg = next(m["content"] for m in sent_messages if m["role"] == "system")
+    assert "<MEMORY_HITS>" in sys_msg
+    assert "</MEMORY_HITS>" in sys_msg
+
+    hits = mgr.search(question, limit=5, reveal=False)["hits"]
+    expected_payload_tokens = ev.count_tokens(json.dumps(hits, indent=2))
+    assert result["payload_tokens"] == expected_payload_tokens
+
+    # Assert private fact 987654321 never appears in any prompt sent for any question
+    for q_item in ev.EVAL_QUESTIONS:
+        c = RagFakeClient()
+        ev.run_rag_arm(c, "fake-model", mgr, q_item["question"])
+        prompt_text = json.dumps(c.payloads[0])
+        assert "987654321" not in prompt_text
+
+
+class FlatFailsClient(AlwaysRecallThenAnswer):
+    """Client that raises RequestTooLarge on any payload containing MEMORY_VAULT (the flat arm)."""
+
+    def execute_with_failover(self, endpoint, payload, **kwargs):
+        sys_msg = ""
+        for m in payload.get("messages", []):
+            if m.get("role") == "system":
+                sys_msg = m.get("content", "")
+        if "<MEMORY_VAULT>" in sys_msg:
+            raise ev.RequestTooLarge("HTTP 413: Request too large (11624 tokens)")
+        return super().execute_with_failover(endpoint, payload, **kwargs)
+
+
+def test_failure_as_result_in_evaluation(tmp_path):
+    out_dir = tmp_path / "results_fail_test"
+    client = FlatFailsClient()
+    questions = ev.EVAL_QUESTIONS[:3]
+    aggregate = ev.run_evaluation(
+        client=client,
+        model="fake-model",
+        arms=["flat", "tree_follow"],
+        runs=1,
+        vault_path=SAMPLE_VAULT,
+        out_dir=out_dir,
+        questions=questions,
+    )
+
+    flat_arm = aggregate["arms"]["flat"]
+    assert flat_arm["failed_questions"]["mean"] == len(questions)
+    assert flat_arm["accuracy_pct"]["mean"] == 0.0
+
+    tree_follow_arm = aggregate["arms"]["tree_follow"]
+    assert tree_follow_arm["failed_questions"]["mean"] == 0.0
+    assert tree_follow_arm["accuracy_pct"]["mean"] > 0.0
+
+    saved_agg = json.loads((out_dir / "llm_eval_aggregate.json").read_text())
+    assert "failed_questions" in saved_agg["arms"]["flat"]
+    assert saved_agg["arms"]["flat"]["failed_questions"]["mean"] == len(questions)
+
+
+def test_rebuild_aggregate_on_old_format_run_file(tmp_path):
+    out_dir = tmp_path / "old_results"
+    runs_dir = out_dir / "llm_eval_runs"
+    runs_dir.mkdir(parents=True)
+
+    old_run = {
+        "run": 1,
+        "model": "legacy-model",
+        "timestamp": "2026-10-30T12:00:00Z",
+        "arms": {
+            "flat": {
+                "accuracy_pct": 100.0,
+                "accuracy_questions": 2,
+                "private_leaks": 0,
+                "private_questions": 0,
+                "wire_tokens": 1000,
+                "payload_tokens": 500,
+                "mean_hops": 0.0,
+                "mean_latency_sec": 1.0,
+                "single_call_rate_pct": 0.0,
+                "parent_stop_rate_pct": 0.0,
+            }
+        },
+        "questions": [
+            {
+                "id": "q01_name",
+                "question": "What is the user's full name?",
+                "flat": {
+                    "answer": "Alex Mercer",
+                    "payload_tokens": 500,
+                    "api_prompt_tokens": 100,
+                    "api_completion_tokens": 10,
+                    "api_total_tokens": 110,
+                    "latency_sec": 1.0,
+                    "correct": True,
+                    "leaked": False,
+                },
+            }
+        ],
+    }
+    (runs_dir / "run_1.json").write_text(json.dumps(old_run, indent=2))
+
+    spec = importlib.util.spec_from_file_location("rebuild_old", ROOT / "bench" / "eval" / "rebuild_aggregate.py")
+    rebuild = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rebuild)
+    import sys
+    old_argv = sys.argv
+    sys.argv = ["rebuild_aggregate.py", "--results-dir", str(out_dir)]
+    try:
+        rebuild.main()
+    finally:
+        sys.argv = old_argv
+
+    agg = json.loads((out_dir / "llm_eval_aggregate.json").read_text())
+    assert agg["runs"] == 1
+    assert "flat" in agg["arms"]
+    assert agg["arms"]["flat"]["failed_questions"]["mean"] == 0.0

@@ -1,15 +1,17 @@
-"""End-to-end LLM agent evaluation: flat memory vs TreeMem (manual descent) vs TreeMem (guided descent).
+"""End-to-end LLM agent evaluation: flat memory vs TreeMem (manual descent) vs TreeMem (guided descent) vs BM25 retrieval baseline.
 
-Three arms:
+Four arms:
   flat         - dump the whole memory log into the prompt (no tools).
   tree         - the agent walks the tree itself with recall / expand / search.
   tree_follow  - the agent calls recall once and the server follows the descent gate (follow=True).
+  rag_bm25     - one-prompt retrieval baseline: search(limit=5), hits injected into system prompt (no tools).
 
 Examples:
-  python bench/eval/run_eval.py                      # all three arms, 1 run
+  python bench/eval/run_eval.py                      # default three arms, 1 run
   python bench/eval/run_eval.py --runs 5             # 5 repeated runs -> mean +/- std
   python bench/eval/run_eval.py --arms tree,tree_follow --runs 3
   python bench/eval/run_eval.py --limit 3 --runs 1   # quick wiring check
+  python bench/eval/run_eval.py --vault bench/vaults/midsize_vault --arms rag_bm25,tree_follow,flat --runs 1 --out-dir bench/results_large_vault_full --model qwen/qwen3.8-27b
 
 Reveal policy: the agent may ask for reveal=true, but the server only honours it when the operator
 sets TREEMEM_ALLOW_REVEAL=1. This harness uses the same policy, so by default the private question
@@ -37,8 +39,31 @@ from treemem.tree_manager import TreeManager
 
 CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
-ARMS = ("flat", "tree", "tree_follow")
+ARMS = ("flat", "tree", "tree_follow", "rag_bm25")
+DEFAULT_ARMS = ("flat", "tree", "tree_follow")
 MAX_TURNS = 5
+
+
+class RequestTooLarge(Exception):
+    """Raised when a request exceeds provider payload/token limits (HTTP 413 or 'request too large')."""
+    pass
+
+
+def is_request_too_large(status_code: Optional[int], error_text: str) -> bool:
+    """Classify whether an HTTP status or error message represents a request-too-large failure."""
+    if status_code == 413:
+        return True
+    if error_text and "request too large" in error_text.lower():
+        return True
+    return False
+
+
+RAG_SYSTEM_PROMPT = (
+    "You are an assistant answering questions from the user's personal memory.\n"
+    "Answer factually, accurately, and concisely based strictly on the retrieved memory hits.\n"
+    "If the answer is not present in the memory hits, say so clearly and do not extrapolate or make assumptions.\n\n"
+    "<MEMORY_HITS>\n{hits_json}\n</MEMORY_HITS>"
+)
 
 # Pacing sleeps keep us under rate limits; tests switch them off.
 _PACING = {"enabled": True}
@@ -84,6 +109,8 @@ class GroqKeyPool:
                 response = httpx.post(endpoint, headers=headers, json=payload, timeout=timeout)
                 if response.status_code == 200:
                     return response.json()
+                elif is_request_too_large(response.status_code, response.text):
+                    raise RequestTooLarge(f"HTTP {response.status_code}: {response.text[:200]}")
                 elif response.status_code == 429:
                     retry_after = 2.0
                     if "retry-after" in response.headers:
@@ -103,7 +130,11 @@ class GroqKeyPool:
                 else:
                     last_error = f"HTTP {response.status_code}: {response.text[:120]}"
                     time.sleep(1.5)
+            except RequestTooLarge:
+                raise
             except Exception as e:
+                if is_request_too_large(None, str(e)):
+                    raise RequestTooLarge(str(e))
                 last_error = str(e)
                 time.sleep(1.5)
 
@@ -379,19 +410,86 @@ def run_flat_arm(client: Any, model: str, vault_path: Path, question: str) -> Di
         "max_tokens": 150,
     }
 
-    resp, api_seconds = timed_chat(client, payload)
-    usage = resp.get("usage", {})
-    answer = resp["choices"][0]["message"]["content"].strip()
-    _pace(1.0)
+    try:
+        resp, api_seconds = timed_chat(client, payload)
+        usage = resp.get("usage", {})
+        answer = resp["choices"][0]["message"]["content"].strip()
+        _pace(1.0)
 
-    return {
-        "answer": answer,
-        "payload_tokens": flat_payload_tokens,
-        "api_prompt_tokens": usage.get("prompt_tokens", 0),
-        "api_completion_tokens": usage.get("completion_tokens", 0),
-        "api_total_tokens": usage.get("total_tokens", 0),
-        "latency_sec": round(api_seconds, 3),
+        return {
+            "answer": answer,
+            "payload_tokens": flat_payload_tokens,
+            "api_prompt_tokens": usage.get("prompt_tokens", 0),
+            "api_completion_tokens": usage.get("completion_tokens", 0),
+            "api_total_tokens": usage.get("total_tokens", 0),
+            "latency_sec": round(api_seconds, 3),
+            "hops": 0,
+        }
+    except RequestTooLarge:
+        return {
+            "answer": "",
+            "failed": True,
+            "failure": "request_too_large",
+            "payload_tokens": 0,
+            "attempted_payload_tokens": flat_payload_tokens,
+            "api_prompt_tokens": 0,
+            "api_completion_tokens": 0,
+            "api_total_tokens": 0,
+            "latency_sec": 0.0,
+            "hops": 0,
+        }
+
+
+def run_rag_arm(client: Any, model: str, mgr: TreeManager, question: str) -> Dict[str, Any]:
+    """Retrieval baseline (BM25 top-5, no tools)."""
+    search_res = mgr.search(question, limit=5, reveal=False)
+    hits = search_res.get("hits", [])
+    hits_json = json.dumps(hits, indent=2)
+    payload_tokens = count_tokens(hits_json)
+
+    system_prompt = RAG_SYSTEM_PROMPT.format(hits_json=hits_json)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 150,
     }
+
+    try:
+        resp, api_seconds = timed_chat(client, payload)
+        usage = resp.get("usage", {})
+        answer = resp["choices"][0]["message"]["content"].strip()
+        _pace(1.0)
+
+        return {
+            "answer": answer,
+            "payload_tokens": payload_tokens,
+            "api_prompt_tokens": usage.get("prompt_tokens", 0),
+            "api_completion_tokens": usage.get("completion_tokens", 0),
+            "api_total_tokens": usage.get("total_tokens", 0),
+            "latency_sec": round(api_seconds, 3),
+            "hops": 0,
+            "single_call": False,
+            "is_parent_stop": False,
+        }
+    except RequestTooLarge:
+        return {
+            "answer": "",
+            "failed": True,
+            "failure": "request_too_large",
+            "payload_tokens": 0,
+            "attempted_payload_tokens": payload_tokens,
+            "api_prompt_tokens": 0,
+            "api_completion_tokens": 0,
+            "api_total_tokens": 0,
+            "latency_sec": 0.0,
+            "hops": 0,
+            "single_call": False,
+            "is_parent_stop": False,
+        }
 
 
 def build_tools(follow_mode: bool) -> List[Dict[str, Any]]:
@@ -563,108 +661,126 @@ def run_agent_arm(
     depth = 0
     last_follow_reason = ""
 
-    for _turn in range(MAX_TURNS):
-        payload = {
-            "model": model,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
-            "temperature": 0.0,
-            "max_tokens": 200,
-        }
-        resp, api_seconds = timed_chat(client, payload)
-        busy_seconds += api_seconds
-
-        usage = resp.get("usage", {})
-        total_prompt_tokens += usage.get("prompt_tokens", 0)
-        total_completion_tokens += usage.get("completion_tokens", 0)
-
-        message = resp["choices"][0]["message"]
-        messages.append(message)
-
-        tool_calls = message.get("tool_calls")
-        if not tool_calls:
-            break
-
-        for tool_call in tool_calls:
-            fn_name = tool_call["function"]["name"]
-            try:
-                fn_args = json.loads(tool_call["function"]["arguments"])
-            except Exception:
-                fn_args = {}
-
-            hops.append({"tool": fn_name, "args": fn_args})
-
-            tool_started = time.time()
-            result = execute_tool(mgr, fn_name, fn_args, question, follow_mode)
-            busy_seconds += time.time() - tool_started
-
-            memory_payload_tokens += result.get("tokens", 0)
-            depth = max(depth, _depth_of(fn_args.get("path", "")))
-            if "final_path" in result:
-                depth = max(depth, _depth_of(result["final_path"]))
-                last_follow_reason = result.get("stopped_reason", "")
-
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "content": json.dumps(result),
-            })
-
-        _pace(1.2)
-
-    # If the loop ended on a tool result, ask for a final synthesis.
-    if messages and messages[-1].get("role") == "tool":
-        final_payload = {
-            "model": model,
-            "messages": messages + [
-                {
-                    "role": "user",
-                    "content": (
-                        "Based strictly on the tool outputs above, answer the original question concisely. "
-                        "If the fact was not found, or is private, say so clearly."
-                    ),
-                }
-            ],
-            "temperature": 0.0,
-            "max_tokens": 150,
-        }
-        try:
-            resp, api_seconds = timed_chat(client, final_payload)
+    try:
+        for _turn in range(MAX_TURNS):
+            payload = {
+                "model": model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": "auto",
+                "temperature": 0.0,
+                "max_tokens": 200,
+            }
+            resp, api_seconds = timed_chat(client, payload)
             busy_seconds += api_seconds
+
             usage = resp.get("usage", {})
             total_prompt_tokens += usage.get("prompt_tokens", 0)
             total_completion_tokens += usage.get("completion_tokens", 0)
-            final_answer = resp["choices"][0]["message"]["content"].strip()
-        except Exception:
-            final_answer = messages[-1].get("content", "")
-    else:
-        final_answer = ""
-        for message in reversed(messages):
-            if message.get("role") == "assistant" and message.get("content"):
-                final_answer = message["content"].strip()
+
+            message = resp["choices"][0]["message"]
+            messages.append(message)
+
+            tool_calls = message.get("tool_calls")
+            if not tool_calls:
                 break
 
-    first_path = hops[0].get("args", {}).get("path") if hops else None
-    single_call = len(hops) == 1
-    if follow_mode:
-        is_parent_stop = single_call and last_follow_reason == "stop" and depth == 0
-    else:
-        is_parent_stop = single_call and first_path in ["/", ""]
+            for tool_call in tool_calls:
+                fn_name = tool_call["function"]["name"]
+                try:
+                    fn_args = json.loads(tool_call["function"]["arguments"])
+                except Exception:
+                    fn_args = {}
 
-    return {
-        "answer": final_answer,
-        "payload_tokens": memory_payload_tokens,
-        "api_prompt_tokens": total_prompt_tokens,
-        "api_completion_tokens": total_completion_tokens,
-        "api_total_tokens": total_prompt_tokens + total_completion_tokens,
-        "hops": len(hops),
-        "hop_details": hops,
-        "depth_reached": depth,
-        "is_parent_stop": is_parent_stop,
-        "single_call": single_call,
-        "latency_sec": round(busy_seconds, 3),
-    }
+                hops.append({"tool": fn_name, "args": fn_args})
+
+                tool_started = time.time()
+                result = execute_tool(mgr, fn_name, fn_args, question, follow_mode)
+                busy_seconds += time.time() - tool_started
+
+                memory_payload_tokens += result.get("tokens", 0)
+                depth = max(depth, _depth_of(fn_args.get("path", "")))
+                if "final_path" in result:
+                    depth = max(depth, _depth_of(result["final_path"]))
+                    last_follow_reason = result.get("stopped_reason", "")
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(result),
+                })
+
+            _pace(1.2)
+
+        # If the loop ended on a tool result, ask for a final synthesis.
+        if messages and messages[-1].get("role") == "tool":
+            final_payload = {
+                "model": model,
+                "messages": messages + [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Based strictly on the tool outputs above, answer the original question concisely. "
+                            "If the fact was not found, or is private, say so clearly."
+                        ),
+                    }
+                ],
+                "temperature": 0.0,
+                "max_tokens": 150,
+            }
+            try:
+                resp, api_seconds = timed_chat(client, final_payload)
+                busy_seconds += api_seconds
+                usage = resp.get("usage", {})
+                total_prompt_tokens += usage.get("prompt_tokens", 0)
+                total_completion_tokens += usage.get("completion_tokens", 0)
+                final_answer = resp["choices"][0]["message"]["content"].strip()
+            except RequestTooLarge:
+                raise
+            except Exception:
+                final_answer = messages[-1].get("content", "")
+        else:
+            final_answer = ""
+            for message in reversed(messages):
+                if message.get("role") == "assistant" and message.get("content"):
+                    final_answer = message["content"].strip()
+                    break
+
+        first_path = hops[0].get("args", {}).get("path") if hops else None
+        single_call = len(hops) == 1
+        if follow_mode:
+            is_parent_stop = single_call and last_follow_reason == "stop" and depth == 0
+        else:
+            is_parent_stop = single_call and first_path in ["/", ""]
+
+        return {
+            "answer": final_answer,
+            "payload_tokens": memory_payload_tokens,
+            "api_prompt_tokens": total_prompt_tokens,
+            "api_completion_tokens": total_completion_tokens,
+            "api_total_tokens": total_prompt_tokens + total_completion_tokens,
+            "hops": len(hops),
+            "hop_details": hops,
+            "depth_reached": depth,
+            "is_parent_stop": is_parent_stop,
+            "single_call": single_call,
+            "latency_sec": round(busy_seconds, 3),
+        }
+    except RequestTooLarge:
+        return {
+            "answer": "",
+            "failed": True,
+            "failure": "request_too_large",
+            "payload_tokens": 0,
+            "attempted_payload_tokens": memory_payload_tokens,
+            "api_prompt_tokens": 0,
+            "api_completion_tokens": 0,
+            "api_total_tokens": 0,
+            "latency_sec": 0.0,
+            "hops": len(hops),
+            "single_call": False,
+            "is_parent_stop": False,
+        }
 
 
 def run_treemem_arm(client: Any, model: str, mgr: TreeManager, question: str) -> Dict[str, Any]:
@@ -694,12 +810,23 @@ def summarize_arm_run(question_records: List[Dict[str, Any]]) -> Dict[str, Any]:
     scored = [r for r in question_records if not r["item"].get("private")]
     private = [r for r in question_records if r["item"].get("private")]
 
-    correct_count = sum(1 for r in scored if r["grade"]["correct"])
+    # A failed question in scored is counted as incorrect over all scored questions
+    correct_count = sum(1 for r in scored if r["grade"]["correct"] and not r["result"].get("failed"))
     accuracy_pct = (correct_count / len(scored) * 100.0) if scored else 0.0
     leaks = sum(1 for r in private if r["grade"]["leaked"])
 
     results = [r["result"] for r in question_records]
     total = len(results) or 1
+    failed_count = sum(1 for res in results if res.get("failed"))
+
+    # wire_tokens excludes failed results naturally (api tokens are 0)
+    wire_tokens = sum(res.get("api_total_tokens", 0) for res in results)
+    # payload_tokens excludes failed results' payload
+    payload_tokens = sum(res.get("payload_tokens", 0) for res in results if not res.get("failed"))
+    attempted_payload_tokens = sum(
+        res.get("attempted_payload_tokens", res.get("payload_tokens", 0)) for res in results
+    )
+
     hops_list = [res.get("hops", 0) for res in results]
     latencies = [res.get("latency_sec", 0.0) for res in results]
 
@@ -708,8 +835,10 @@ def summarize_arm_run(question_records: List[Dict[str, Any]]) -> Dict[str, Any]:
         "accuracy_questions": len(scored),
         "private_leaks": leaks,
         "private_questions": len(private),
-        "wire_tokens": sum(res.get("api_total_tokens", 0) for res in results),
-        "payload_tokens": sum(res.get("payload_tokens", 0) for res in results),
+        "failed_questions": failed_count,
+        "wire_tokens": wire_tokens,
+        "payload_tokens": payload_tokens,
+        "attempted_payload_tokens": attempted_payload_tokens,
         "mean_hops": round(sum(hops_list) / total, 3),
         "mean_latency_sec": round(sum(latencies) / total, 3),
         "single_call_rate_pct": round(sum(1 for res in results if res.get("single_call")) / total * 100.0, 2),
@@ -721,6 +850,7 @@ def summarize_arm_run(question_records: List[Dict[str, Any]]) -> Dict[str, Any]:
 AGGREGATE_METRICS = (
     "accuracy_pct",
     "private_leaks",
+    "failed_questions",
     "wire_tokens",
     "payload_tokens",
     "mean_hops",
@@ -743,8 +873,9 @@ def aggregate_runs(per_run_arm_summaries: List[Dict[str, Dict[str, Any]]]) -> Di
         arm_runs = [run[arm] for run in per_run_arm_summaries if arm in run]
         entry: Dict[str, Any] = {"runs": len(arm_runs)}
         for metric in AGGREGATE_METRICS:
-            entry[metric] = mean_std([float(r[metric]) for r in arm_runs])
-        entry["accuracy_questions"] = arm_runs[0]["accuracy_questions"] if arm_runs else 0
+            values = [float(r.get(metric, 0.0)) for r in arm_runs]
+            entry[metric] = mean_std(values)
+        entry["accuracy_questions"] = arm_runs[0].get("accuracy_questions", 0) if arm_runs else 0
         arms[arm] = entry
     return arms
 
@@ -816,9 +947,15 @@ def run_evaluation(
                     result = run_treemem_arm(client, model, mgr, question)
                 elif arm == "tree_follow":
                     result = run_follow_arm(client, model, mgr, question)
+                elif arm == "rag_bm25":
+                    result = run_rag_arm(client, model, mgr, question)
                 else:
                     raise ValueError(f"Unknown arm {arm}")
-                grade = grade_question(item, result["answer"])
+
+                if result.get("failed"):
+                    grade = {"correct": False, "leaked": False, "reason": result.get("failure", "failed")}
+                else:
+                    grade = grade_question(item, result["answer"])
                 records[arm].append({"item": item, "result": result, "grade": grade})
                 print(
                     f"   {arm:<12} wire={result['api_total_tokens']:>6} hops={result.get('hops', 0)} "
@@ -971,8 +1108,8 @@ def print_summary(aggregate: Dict[str, Any]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="TreeMem real-LLM evaluation (flat vs tree vs tree_follow).")
-    parser.add_argument("--arms", default=",".join(ARMS), help="Comma-separated: flat,tree,tree_follow")
+    parser = argparse.ArgumentParser(description="TreeMem real-LLM evaluation (flat vs tree vs tree_follow vs rag_bm25).")
+    parser.add_argument("--arms", default=",".join(DEFAULT_ARMS), help="Comma-separated: flat,tree,tree_follow,rag_bm25 (default: flat,tree,tree_follow)")
     parser.add_argument("--runs", type=int, default=1, help="Repeat the whole evaluation N times (mean/std reported).")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--vault", default="examples/sample_memory")
