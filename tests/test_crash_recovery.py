@@ -38,6 +38,10 @@ def test_crash_mid_atomic_write(vault):
     tmp_file = vault / "system" / "summary.md.tmp"
     with open(tmp_file, "w") as f:
         f.write("---\nname: system\ncorrupted_half_written: true\n")
+    # Startup must not delete another process's fresh in-flight temp file; a
+    # crash artefact is stale by the time recovery is allowed to remove it.
+    import os, time
+    os.utime(tmp_file, (time.time() - 61, time.time() - 61))
 
     # Initial check before cleanup sees the stray tmp
     checker_before = HealthChecker(mgr.store, mgr.log_writer)

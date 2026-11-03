@@ -1,9 +1,14 @@
 """Storage engine for TreeMem: atomic markdown writes, frontmatter, and file locking."""
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - platform guard
+    fcntl = None
+import hashlib
 import os
 import re
 import time
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +52,8 @@ class Store:
     """Manages the disk store of node markdown files, locks, and atomic operations."""
 
     def __init__(self, root_dir: Path):
+        if fcntl is None:
+            raise RuntimeError("TreeMem currently supports macOS and Linux only")
         self.root_dir = Path(root_dir).resolve()
         self.root_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -58,10 +65,11 @@ class Store:
         self.cleanup_temp_files()
 
     def cleanup_temp_files(self) -> None:
-        """Clean up any stray .tmp files from previous killed processes."""
+        """Remove only stale temp files; another process may be writing a fresh one."""
         for tmp_file in self.root_dir.rglob("*.tmp"):
             try:
-                tmp_file.unlink()
+                if time.time() - tmp_file.stat().st_mtime > 60:
+                    tmp_file.unlink()
             except Exception:
                 pass
 
@@ -248,7 +256,7 @@ class Store:
         final_content = self.serialize_node(node)
 
         sfile = self.summary_file(norm_path)
-        tmp_file = ndir / "summary.md.tmp"
+        tmp_file = ndir / f"summary.md.{os.getpid()}.{uuid.uuid4().hex}.tmp"
 
         with open(tmp_file, "w", encoding="utf-8") as f:
             f.write(final_content)
@@ -274,7 +282,8 @@ class Store:
 
         try:
             for p in clean_paths:
-                lock_name = "root.lock" if not p else p.replace("/", "__") + ".lock"
+                # Digest avoids the old a/b == a__b collision while keeping names portable.
+                lock_name = "root.lock" if not p else hashlib.sha1(p.encode("utf-8")).hexdigest() + ".lock"
                 lock_path = self.lock_dir / lock_name
 
                 # Open or create lock file

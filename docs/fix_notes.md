@@ -27,3 +27,10 @@
 - Split preserves both ungrouped children and existing child teasers.
 - Tests: `tests/test_fix_rebuild_split.py`.
 
+## WP5 decisions
+
+- Temp files now include process and random identifiers; startup only removes files older than 60 seconds. The previous crash-recovery test was updated to model a stale artefact rather than an in-flight write.
+- Lock names use SHA-1 digests, eliminating the `a/b` versus `a__b` collision.
+- `fcntl` is platform-guarded and fails clearly on unsupported systems.
+- Tests: `tests/test_fix_store_safety.py`.
+

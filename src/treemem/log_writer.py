@@ -1,6 +1,9 @@
 """Append-only daily log writer and parser with concurrent-safe locking."""
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - platform guard
+    fcntl = None
 import os
 import threading
 from datetime import datetime, timezone
@@ -75,6 +78,8 @@ class LogWriter:
     """Manages the append-only ground truth log at <root>/log/YYYY-MM-DD.md."""
 
     def __init__(self, root_dir: Path):
+        if fcntl is None:
+            raise RuntimeError("TreeMem currently supports macOS and Linux only")
         self.root_dir = Path(root_dir)
         self.log_dir = self.root_dir / "log"
         self.log_dir.mkdir(parents=True, exist_ok=True)
