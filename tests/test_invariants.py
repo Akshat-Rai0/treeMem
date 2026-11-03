@@ -170,6 +170,8 @@ def test_invariant_7_atomic_writes_no_stray_tmp(tmp_vault):
     stray_tmp = tmp_vault / "test_node" / "summary.md.tmp"
     with open(stray_tmp, "w") as f:
         f.write("half written corrupted garbage")
+    import os, time
+    os.utime(stray_tmp, (time.time() - 61, time.time() - 61))
 
     health_dirty = mgr.health_checker.check_all()
     assert health_dirty["ok"] is False
