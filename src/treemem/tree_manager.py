@@ -1043,15 +1043,25 @@ class TreeManager:
         Tool: search(query, limit=10, reveal=False)
         Lexical search over log and leaves. Fallback when descent fails.
         Hits that live under a private node are withheld unless reveal=True.
+        Unplaced facts with sensitivity 'private' are also withheld unless reveal=True.
         """
         raw_hits = self.index.query(query, limit=limit)
         hits: List[Any] = []
-        withheld = 0
+        withheld_private = 0
+        withheld_unplaced = 0
         for hit in raw_hits:
             hit_path = hit.get("path", "") if isinstance(hit, dict) else ""
-            if not reveal and (not hit_path or hit_path == "unplaced" or self.is_private(hit_path)):
-                withheld += 1
-                continue
+            hit_sensitivity = hit.get("sensitivity", "normal") if isinstance(hit, dict) else "normal"
+            
+            if not reveal:
+                # Withhold if under a private node
+                if self.is_private(hit_path):
+                    withheld_private += 1
+                    continue
+                # Withhold if unplaced and sensitivity is private
+                if (not hit_path or hit_path == "unplaced") and hit_sensitivity == "private":
+                    withheld_unplaced += 1
+                    continue
             hits.append(hit)
 
         tok_count = count_tokens(query + str(hits))
@@ -1066,9 +1076,12 @@ class TreeManager:
             "count": len(hits),
             "tokens": tok_count,
         }
-        if withheld:
-            result["withheld_private"] = withheld
-            result["note"] = "Some matches are under private nodes and were withheld. Pass reveal=true to include them."
+        if withheld_private:
+            result["withheld_private"] = withheld_private
+            result["note_private"] = f"{withheld_private} matches are under private nodes and were withheld. Pass reveal=true to include them."
+        if withheld_unplaced:
+            result["withheld_unplaced"] = withheld_unplaced
+            result["note_unplaced"] = f"{withheld_unplaced} unplaced matches have sensitivity 'private' and were withheld. Pass reveal=true to include them."
         return result
 
     def split(self, path: str, groups: List[Dict[str, Any]]) -> Dict[str, Any]:

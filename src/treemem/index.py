@@ -430,6 +430,7 @@ class SearchIndex:
                 "entry_id": doc["entry_id"],
                 "text": doc["text"],
                 "path": self.placement_table.get(doc["entry_id"], "unplaced"),
+                "sensitivity": doc.get("sensitivity", "normal"),
                 "score": round(score, 3),
             })
         return hits
