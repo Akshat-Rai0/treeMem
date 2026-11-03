@@ -13,6 +13,7 @@ except ImportError:
 
 from treemem.reveal_policy import DENIED_NOTE, resolve_reveal
 from treemem.tree_manager import TreeManager
+from treemem.tokenizer import tokenizer_is_fallback
 
 _MANAGER: Optional[TreeManager] = None
 
@@ -261,6 +262,8 @@ def status():
         "dirty_nodes": dirty_nodes,
         "health_ok": health["ok"],
         "violations": health["violations"],
+        "tokenizer": "fallback" if tokenizer_is_fallback() else "cl100k_base",
+        "tokenizer_warning": "Token limits use a conservative estimate." if tokenizer_is_fallback() else None,
     }, indent=2)
 
 

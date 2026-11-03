@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from treemem.tokenizer import count_tokens
+from treemem.tokenizer import count_tokens, tokenizer_is_fallback
 from treemem.tree_manager import TreeManager, norm_path
 
 
@@ -208,7 +208,11 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
 
     @app.get("/api/health")
     async def get_health(authorized: bool = Depends(verify_token)):
-        return tree_manager.health_checker.check_all()
+        health = tree_manager.health_checker.check_all()
+        health["tokenizer"] = "fallback" if tokenizer_is_fallback() else "cl100k_base"
+        if tokenizer_is_fallback():
+            health["tokenizer_warning"] = "Token limits use a conservative estimate."
+        return health
 
     @app.get("/api/metrics")
     async def get_metrics(authorized: bool = Depends(verify_token)):

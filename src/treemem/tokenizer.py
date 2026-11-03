@@ -27,6 +27,11 @@ def tokenizer_name() -> str:
     return "cl100k_base" if _ENCODER is not None else FALLBACK_NAME
 
 
+def tokenizer_is_fallback() -> bool:
+    """Whether token counts use the conservative local estimate."""
+    return _ENCODER is None
+
+
 def count_tokens(text: str) -> int:
     """Return the number of tokens in the given text using cl100k_base."""
     if not text:
