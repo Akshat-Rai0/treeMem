@@ -8,3 +8,22 @@
 - The on-disk tree is derived from the append-only log, while a future placement journal adds placement intent.  Rebuild must avoid replaying its own journal writes and must distinguish an already-placed entry from one that needs moving.
 - Privacy has both stored-node and inherited-path dimensions.  Every read surface must make the same effective-private decision before serializing data, including event payloads and dashboard views.
 
+## WP1 and WP2 baseline
+
+- The pre-existing WP1 implementation keeps the legacy line format while escaping backslashes and pipes, and allocates IDs from the highest successfully parsed line number.
+- The pre-existing WP2 implementation validates all topic paths centrally, containment-checks store paths, and converts dashboard/MCP validation failures into clear client errors.
+
+## WP3 decisions
+
+- Effective privacy is inherited from every ancestor through `TreeManager.is_private()` and is applied consistently to recall, expand, guided descent, compress, search, and dashboard output.
+- MCP reveal remains operator-gated. Direct Python callers retain their explicit `reveal=True` behavior for tests and local integrations.
+- Private auto-compression is skipped unless the operator explicitly grants reveal. Search events persist a length and a short SHA-256 prefix instead of raw query text.
+- Tests: `tests/test_fix_privacy_boundaries.py`.
+
+## WP4 decisions
+
+- Successful placements are persisted in append-only `.placements.jsonl`; rebuild uses the latest entry record, then falls back to the log hint.
+- Rebuild is idempotent for facts already present and returns concrete per-entry errors instead of swallowing exceptions.
+- Split preserves both ungrouped children and existing child teasers.
+- Tests: `tests/test_fix_rebuild_split.py`.
+

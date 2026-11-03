@@ -2,6 +2,7 @@
 
 import os
 import re
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -96,6 +97,7 @@ class TreeManager:
 
     def __init__(self, root_dir: Path, embedding_provider: Optional[Any] = None):
         self.root_dir = Path(root_dir).resolve()
+        self.placements_file = self.root_dir / ".placements.jsonl"
         self.store = Store(self.root_dir)
         self.log_writer = LogWriter(self.root_dir)
         self.event_bus = EventBus(self.root_dir)
@@ -229,6 +231,7 @@ class TreeManager:
         sensitivity: Optional[str] = None,
         volatile: bool = False,
         session: str = "default",
+        record_journal: bool = True,
     ) -> Dict[str, Any]:
         """
         Tool: place(entry_id, path, sensitivity="normal", volatile=False)
@@ -349,6 +352,8 @@ class TreeManager:
 
         # Update index placement
         self.index.record_placement(entry_id, clean_path)
+        if record_journal:
+            self._append_placement(entry_id, clean_path, sensitivity, volatile)
 
         # Emit write event
         self.event_bus.emit(
@@ -364,6 +369,47 @@ class TreeManager:
             "dirtied": dirtied_paths,
             "tokens": count_tokens(fact_text),
         }
+
+    def _append_placement(self, entry_id: str, path: str, sensitivity: str, volatile: bool) -> None:
+        """Persist placement intent; the log remains the fact source of truth."""
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(), "entry_id": entry_id,
+            "path": path, "sensitivity": sensitivity, "volatile": bool(volatile),
+        }
+        with open(self.placements_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, sort_keys=True) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+
+    def _placement_records(self) -> Dict[str, Dict[str, Any]]:
+        """Read the append-only journal; last record for an entry wins."""
+        records: Dict[str, Dict[str, Any]] = {}
+        if not self.placements_file.exists():
+            return records
+        with open(self.placements_file, "r", encoding="utf-8") as f:
+            for line_no, line in enumerate(f, 1):
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                    eid = record.get("entry_id")
+                    if not eid:
+                        raise ValueError("missing entry_id")
+                    record["path"] = norm_path(record.get("path", ""))
+                    records[eid] = record
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    # A malformed journal line must not silently alter placement.
+                    records[f"__error__{line_no}"] = {"error": f"journal line {line_no}: {exc}"}
+        return records
+
+    def _placed_entry_ids(self) -> Set[str]:
+        placed: Set[str] = set()
+        for p in self.health_checker.get_all_node_paths():
+            node = self.store.read_node(p)
+            if node:
+                placed.update(f.get("entry_id", "") for f in node.facts)
+        placed.discard("")
+        return placed
 
     def recall(
         self,
@@ -996,6 +1042,7 @@ class TreeManager:
                 raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
             existing_children = set(self.store.list_child_dirs(clean_path))
+            existing_teasers = {c.get("label"): c.get("teaser", "") for c in fresh_node.children}
             for grp_name, children in validated_groups:
                 for ch in children:
                     if ch not in existing_children:
@@ -1018,7 +1065,7 @@ class TreeManager:
                     ch_dst = grp_dir / ch
                     if ch_src.exists() and ch_src.is_dir():
                         os.rename(ch_src, ch_dst)
-                        grp_children.append({"label": ch, "teaser": f"Details on {ch}"})
+                        grp_children.append({"label": ch, "teaser": existing_teasers.get(ch, f"Details on {ch}")})
 
                 grp_node = NodeData(
                     name=grp_name,
@@ -1032,10 +1079,14 @@ class TreeManager:
                 self.store.write_node_atomic(grp_path, grp_node)
                 new_children.append({"label": grp_name, "teaser": f"Group {grp_name}"})
 
+            # Keep non-moved children and their carefully-written teasers.
+            retained = [c for c in existing_children if c not in all_moved]
+            new_children.extend({"label": ch, "teaser": existing_teasers.get(ch, f"Details on {ch}")} for ch in sorted(retained))
             fresh_node.children = new_children
             fresh_node.dirty = True
             self.store.write_node_atomic(clean_path, fresh_node)
 
+        self.transclusion_mgr.rebuild_index(self.health_checker.get_all_node_paths())
         self.rebuild_index()
         return {"ok": True, "path": clean_path or "/", "new_groups": [g[0] for g in validated_groups]}
 
@@ -1046,26 +1097,40 @@ class TreeManager:
         """
         all_entries = self.log_writer.read_all_entries()
         rebuilt_count = 0
+        errors: List[Dict[str, str]] = []
 
         # Ensure root exists
         self.init_tree()
 
+        journal = self._placement_records()
+        placed = self._placed_entry_ids()
+        requested_path = norm_path(path) if path else None
+        for bad_key, bad in journal.items():
+            if bad_key.startswith("__error__"):
+                errors.append(bad)
+
         for entry in all_entries:
             eid = entry["entry_id"]
-            fact = entry["fact"]
-            hint = entry.get("hint", "") or "general"
-            target_path = norm_path(hint)
-            if not target_path:
-                target_path = "general"
-
-            if path and norm_path(path) != target_path:
-                continue
-
+            record = journal.get(eid, {})
             try:
-                self.place(entry_id=eid, path=target_path)
+                target_path = record.get("path") or norm_path(entry.get("hint", "") or "general") or "general"
+            except ValueError as exc:
+                errors.append({"entry_id": eid, "error": str(exc)})
+                continue
+            if requested_path and requested_path != target_path:
+                continue
+            if eid in placed:
+                continue
+            try:
+                self.place(
+                    entry_id=eid, path=target_path,
+                    sensitivity=record.get("sensitivity", entry.get("sensitivity", "normal")),
+                    volatile=bool(record.get("volatile", False)), record_journal=False,
+                )
                 rebuilt_count += 1
-            except Exception:
-                pass
+                placed.add(eid)
+            except (ValueError, RuntimeError, TimeoutError, OSError) as exc:
+                errors.append({"entry_id": eid, "error": str(exc)})
 
         self.rebuild_index()
-        return {"ok": True, "rebuilt_facts": rebuilt_count}
+        return {"ok": not errors, "rebuilt_facts": rebuilt_count, "errors": errors}
