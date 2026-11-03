@@ -184,6 +184,7 @@ class TreeManager:
         fact: str,
         hint: str = "",
         session: str = "default",
+        sensitivity: str = "normal",
     ) -> Dict[str, Any]:
         """
         Tool: remember(fact, hint?)
@@ -191,8 +192,10 @@ class TreeManager:
         2. Propose candidate nodes.
         3. Return {entry_id, candidates:[{path, score}], create_option:{suggested_path}}.
         """
-        entry_id = self.log_writer.append(fact=fact, hint=hint, session=session)
-        self.index.add_entry(entry_id, fact, hint)
+        if sensitivity not in {"normal", "private"}:
+            raise ValueError("sensitivity must be 'normal' or 'private'")
+        entry_id = self.log_writer.append(fact=fact, hint=hint, session=session, sensitivity=sensitivity)
+        self.index.add_entry(entry_id, fact, hint, sensitivity=sensitivity)
 
         all_node_paths = self.health_checker.get_all_node_paths()
         candidates = self.index.candidate_nodes(
@@ -223,7 +226,7 @@ class TreeManager:
         self,
         entry_id: str,
         path: str,
-        sensitivity: str = "normal",
+        sensitivity: Optional[str] = None,
         volatile: bool = False,
         session: str = "default",
     ) -> Dict[str, Any]:
@@ -242,6 +245,10 @@ class TreeManager:
         if not log_entry:
             raise ValueError(f"Log entry '{entry_id}' not found in daily log.")
         fact_text = log_entry.get("fact", "")
+        if sensitivity is None:
+            sensitivity = log_entry.get("sensitivity", "normal")
+        if sensitivity not in {"normal", "private"}:
+            raise ValueError("sensitivity must be 'normal' or 'private'")
 
         ancestors = get_ancestor_paths(clean_path)
         all_lock_paths = ancestors + [clean_path]
@@ -367,6 +374,7 @@ class TreeManager:
         follow: bool = False,
         max_depth: int = 3,
         eager_descent: bool = False,
+        reveal: bool = False,
     ) -> Dict[str, Any]:
         """
         Tool: recall(path="/", query=None, follow=False, max_depth=3)
@@ -392,6 +400,16 @@ class TreeManager:
             suggestions = [p for p in all_paths if clean_path.split("/")[-1].lower() in p.lower()][:3]
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found. Closest paths: {suggestions}")
 
+        if self.is_private(clean_path) and not reveal:
+            payload = {
+                "path": clean_path or "/", "name": node.name,
+                "summary": "[Private details withheld]", "children": [],
+                "dirty": node.dirty, "sensitivity": "private", "withheld": True,
+                "tokens": count_tokens("[Private details withheld]"),
+            }
+            self.event_bus.emit("recall", {"path": clean_path or "/", "tokens": payload["tokens"], "dirty": node.dirty, "depth": 0 if not clean_path else clean_path.count("/") + 1}, session, query_id)
+            return payload
+
         # Format children with privacy rules
         child_teasers: List[Dict[str, str]] = []
         for ch in node.children:
@@ -399,7 +417,7 @@ class TreeManager:
             ch_path = f"{clean_path}/{ch_label}" if clean_path else ch_label
             ch_node = self.store.read_node(ch_path)
             teaser = ch.get("teaser", "")
-            if ch_node and ch_node.sensitivity == "private":
+            if ch_node and self.is_private(ch_path):
                 teaser = "contains private details, expand to view"
             child_teasers.append({"label": ch_label, "teaser": teaser})
 
@@ -416,6 +434,10 @@ class TreeManager:
             "dirty": node.dirty,
             "sensitivity": node.sensitivity,
         }
+        # An explicit, operator-authorized reveal may inspect a private leaf in
+        # one call.  Normal recalls remain summary-only.
+        if reveal and self.is_private(clean_path) and self.store.is_leaf(clean_path):
+            payload["facts"] = list(node.facts)
 
         # Evaluate predictive descent gate if query is provided
         if query:
@@ -528,7 +550,7 @@ class TreeManager:
                 stopped_reason = "stop"
                 break
 
-            if child_node.sensitivity == "private":
+            if self.is_private(child_path):
                 stopped_reason = "private"
                 extra["stopped_at_private"] = True
                 extra["suggested_child"] = suggested
@@ -550,7 +572,7 @@ class TreeManager:
         if stopped_reason == "leaf":
             leaf_node = self.store.read_node(current_path)
             if leaf_node is not None:
-                if leaf_node.sensitivity == "private":
+                if self.is_private(current_path):
                     facts = [{"fact": "[Private details withheld. Pass reveal=true to expand]", "entry_id": ""}]
                 else:
                     facts = list(leaf_node.facts)
@@ -620,14 +642,23 @@ class TreeManager:
             "is_leaf": is_leaf,
         }
 
+        if self.is_private(clean_path) and not reveal:
+            payload.update({"private": True, "withheld": True})
+            if is_leaf:
+                payload["facts"] = [{"fact": "[Private details withheld]", "entry_id": ""}]
+            else:
+                payload["children"] = []
+            payload["tokens"] = count_tokens("[Private details withheld]")
+            return payload
+
         if is_leaf:
             # Leaf facts
-            if node.sensitivity == "private" and not reveal:
+            if self.is_private(clean_path) and not reveal:
                 payload["facts"] = [{"fact": "[Private details withheld. Pass reveal=true to expand]", "entry_id": ""}]
                 payload["private"] = True
             else:
                 payload["facts"] = node.facts
-                payload["private"] = (node.sensitivity == "private")
+                payload["private"] = self.is_private(clean_path)
             text_repr = "\n".join(f["fact"] for f in payload["facts"])
         else:
             # Child summaries
@@ -638,7 +669,7 @@ class TreeManager:
                 ch_node = self.store.read_node(ch_path)
                 if not ch_node:
                     continue
-                if ch_node.sensitivity == "private" and not reveal:
+                if self.is_private(ch_path) and not reveal:
                     children_data.append({
                         "label": ch_label,
                         "teaser": "contains private details, expand with reveal=true to view",
@@ -650,7 +681,7 @@ class TreeManager:
                         "label": ch_label,
                         "teaser": ch.get("teaser", ""),
                         "summary": ch_node.summary,
-                        "private": ch_node.sensitivity == "private",
+                        "private": self.is_private(ch_path),
                     })
             payload["children"] = children_data
             text_repr = "\n".join(c.get("summary", "") for c in children_data)
@@ -671,7 +702,7 @@ class TreeManager:
 
         return payload
 
-    def compress(self, path: str) -> Dict[str, Any]:
+    def compress(self, path: str, reveal: bool = False) -> Dict[str, Any]:
         """
         Tool: compress(path)
         Returns {prompt, inputs:[child summaries or facts], length_cap, required_sections}.
@@ -681,6 +712,9 @@ class TreeManager:
         node = self.store.read_node(clean_path)
         if not node:
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
+
+        if self.is_private(clean_path) and not reveal:
+            return {"ok": False, "path": clean_path or "/", "skipped_private": True}
 
         is_leaf = self.store.is_leaf(clean_path)
         inputs: List[Dict[str, Any]] = []
@@ -693,7 +727,9 @@ class TreeManager:
                 ch_label = ch["label"]
                 ch_path = f"{clean_path}/{ch_label}" if clean_path else ch_label
                 ch_node = self.store.read_node(ch_path)
-                if ch_node:
+                if ch_node and self.is_private(ch_path) and not reveal:
+                    inputs.append({"type": "private_placeholder", "label": ch_label})
+                elif ch_node:
                     inputs.append({
                         "type": "child_summary",
                         "label": ch_label,
@@ -865,7 +901,7 @@ class TreeManager:
 
         return {"ok": True, "path": clean_path or "/", "tokens": submitted_tokens, "dirty": False}
 
-    def _is_private_path(self, hit_path: str) -> bool:
+    def is_private(self, hit_path: str) -> bool:
         """True if the node at hit_path, or any ancestor of it, has sensitivity: private."""
         clean = norm_path(hit_path or "")
         if not clean:
@@ -876,6 +912,9 @@ class TreeManager:
             if node is not None and node.sensitivity == "private":
                 return True
         return False
+
+    # Kept for index integrations written before the public method was named.
+    _is_private_path = is_private
 
     def search(
         self,
@@ -894,7 +933,7 @@ class TreeManager:
         withheld = 0
         for hit in raw_hits:
             hit_path = hit.get("path", "") if isinstance(hit, dict) else ""
-            if not reveal and self._is_private_path(hit_path):
+            if not reveal and (not hit_path or hit_path == "unplaced" or self.is_private(hit_path)):
                 withheld += 1
                 continue
             hits.append(hit)
@@ -902,7 +941,7 @@ class TreeManager:
         tok_count = count_tokens(query + str(hits))
         self.event_bus.emit(
             event_type="search",
-            payload={"query": query, "hits": len(hits)},
+            payload={"query_len": len(query), "query_sha256": __import__("hashlib").sha256(query.encode("utf-8")).hexdigest()[:8], "hits": len(hits)},
             session=session,
         )
         result: Dict[str, Any] = {

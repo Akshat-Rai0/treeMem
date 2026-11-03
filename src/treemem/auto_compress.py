@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import httpx
+from treemem.reveal_policy import reveal_granted
 from treemem.tree_manager import TreeManager, norm_path
 
 logger = logging.getLogger("treemem.auto_compress")
@@ -126,7 +127,9 @@ class AutoCompressor:
     def build_compression_prompt(self, path: str) -> Tuple[str, str]:
         """Construct system and user prompts for compressing a given node."""
         clean = norm_path(path)
-        compress_info = self.mgr.compress(clean)
+        compress_info = self.mgr.compress(clean, reveal=reveal_granted())
+        if compress_info.get("skipped_private"):
+            return "", ""
         node = self.mgr.store.read_node(clean)
         node_name = node.name if node else (clean.split("/")[-1] or "root")
 
@@ -173,8 +176,12 @@ class AutoCompressor:
         node = self.mgr.store.read_node(clean)
         if not node:
             return {"ok": False, "error": f"Node '{clean or '/'}' not found"}
+        if self.mgr.is_private(clean) and not reveal_granted():
+            return {"ok": False, "path": clean or "/", "skipped_private": True}
 
         system_prompt, user_prompt = self.build_compression_prompt(clean)
+        if reveal_granted() and self.mgr.is_private(clean):
+            print(f"TreeMem warning: private content for '{clean or '/'}' is being sent to the external LLM.", file=__import__("sys").stderr)
 
         for attempt in range(max_retries + 1):
             try:
@@ -231,6 +238,8 @@ class AutoCompressor:
             res = self.compress_node(p)
             if res.get("ok"):
                 cleaned.append({"path": p, "tokens": res.get("tokens", 0), "attempts": res.get("attempts", 1)})
+            elif res.get("skipped_private"):
+                continue
             else:
                 errors.append({"path": p, "error": res.get("error")})
 
@@ -240,6 +249,7 @@ class AutoCompressor:
             "cleaned_nodes": cleaned,
             "error_count": len(errors),
             "errors": errors,
+            "skipped_private": [p for p in dirty_nodes if self.mgr.is_private(p) and not reveal_granted()],
         }
 
     def start_background_worker(self, interval_seconds: float = 30.0) -> None:

@@ -225,6 +225,7 @@ class SearchIndex:
                 "text": fact_text,
                 "hint": hint_text,
                 "path": self.placement_table.get(eid, "unplaced"),
+                "sensitivity": entry.get("sensitivity", "normal"),
             }
             self.entry_docs.append(doc_obj)
             toks = tokenize(full_text)
@@ -321,7 +322,7 @@ class SearchIndex:
                 logger.debug("Failed to compute entry dense embeddings: %s", e)
                 self._entry_embeddings = None
 
-    def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "") -> None:
+    def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "", sensitivity: str = "normal") -> None:
         """Add an entry to in-memory store.
 
         If the entry may not be embedded (e.g. private, or unplaced/hint-private for
@@ -332,6 +333,7 @@ class SearchIndex:
             "text": fact,
             "hint": hint,
             "path": self.placement_table.get(entry_id, path or "unplaced"),
+            "sensitivity": sensitivity,
         }
         self.entry_docs.append(doc_obj)
 

@@ -97,7 +97,7 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
                 "path": p or "/",
                 "id": p or "root",
                 "label": node_data.name or "root",
-                "summary": node_data.summary,
+                "summary": "[Private details withheld]" if tree_manager.is_private(p) else node_data.summary,
                 "tokens": node_data.tokens or count_tokens(node_data.summary),
                 "dirty": node_data.dirty,
                 "sensitivity": node_data.sensitivity,
@@ -141,7 +141,7 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
 
         # Respect privacy: private node bodies withheld
-        is_private = (node.sensitivity == "private")
+        is_private = tree_manager.is_private(clean_path)
         summary_text = "[Private details withheld]" if is_private else node.summary
 
         child_list = []
@@ -150,7 +150,7 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
             ch_path = f"{clean_path}/{ch_label}" if clean_path else ch_label
             ch_node = tree_manager.store.read_node(ch_path)
             teaser = ch.get("teaser", "")
-            if ch_node and ch_node.sensitivity == "private":
+            if ch_node and tree_manager.is_private(ch_path):
                 teaser = "contains private details, expand to view"
             child_list.append({"label": ch_label, "teaser": teaser})
 

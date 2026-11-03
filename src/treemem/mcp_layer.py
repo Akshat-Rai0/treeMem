@@ -43,7 +43,7 @@ mcp = MCPServer("treemem")
 
 
 @mcp.tool()
-def remember(fact: str, hint: str = ""):
+def remember(fact: str, hint: str = "", sensitivity: str = "normal"):
     """
     Store a new fact in the append-only ground-truth log and receive placement candidates.
 
@@ -53,7 +53,7 @@ def remember(fact: str, hint: str = ""):
     """
     mgr = get_manager()
     try:
-        res = mgr.remember(fact=fact, hint=hint)
+        res = mgr.remember(fact=fact, hint=hint, sensitivity=sensitivity)
     except ValueError as exc:
         return _json_err(exc)
     return _json_ok(res)
@@ -79,7 +79,7 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
 
 
 @mcp.tool()
-def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, max_depth: int = 3):
+def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, max_depth: int = 3, reveal: bool = False):
     """
     Read a concise parent topic summary and one-line teasers for child topics.
 
@@ -97,10 +97,14 @@ def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, m
         max_depth: Maximum number of child steps taken when follow=true.
     """
     mgr = get_manager()
+    effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth)
+        res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth, reveal=effective_reveal)
     except (ValueError, FileNotFoundError) as exc:
         return _json_err(exc)
+    if denied:
+        res["reveal_denied"] = True
+        res["reveal_note"] = DENIED_NOTE
     return _json_ok(res)
 
 
@@ -127,7 +131,7 @@ def expand(path: str, reveal: bool = False):
 
 
 @mcp.tool()
-def compress(path: str):
+def compress(path: str, reveal: bool = False):
     """
     Request a compression prompt and input summaries to re-summarize a dirty node.
 
@@ -135,10 +139,14 @@ def compress(path: str):
         path: Path of the node to compress.
     """
     mgr = get_manager()
+    effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.compress(path=path)
+        res = mgr.compress(path=path, reveal=effective_reveal)
     except (ValueError, FileNotFoundError) as exc:
         return _json_err(exc)
+    if denied:
+        res["reveal_denied"] = True
+        res["reveal_note"] = DENIED_NOTE
     return _json_ok(res)
 
 
