@@ -3,6 +3,7 @@
 import os
 import re
 import json
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -17,30 +18,81 @@ from treemem.transclusion import TransclusionManager
 from treemem.descent_gate import DescentGate
 
 
-_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\- ]{0,63}$")
 _MAX_PATH_DEPTH = 8
 
 
 def validate_segment(segment: str) -> str:
-    """Validate a single path segment. Raises ValueError if illegal."""
+    """Validate a single path segment. Raises ValueError if illegal.
+
+    Rules (after NFC normalization):
+    - Length 1 to 100 characters
+    - First character must be a Unicode letter or digit (str.isalnum())
+    - Every character must be: letter, digit, combining mark (category starts with "M"),
+      or one of: underscore, hyphen, dot, plus, hash, space
+    - No leading or trailing space
+    - No two consecutive dots
+    - Not "." or ".."
+    - Not "log" (reserved)
+    - Not starting with "."
+    - No "/", "\", NUL or any control character (category starts with "C")
+    """
     if segment is None:
         raise ValueError("Empty path segment is not allowed")
     seg = segment.strip() if isinstance(segment, str) else str(segment).strip()
     if not seg:
         raise ValueError("Empty path segment is not allowed")
-    if "\\" in seg or "\x00" in seg:
-        raise ValueError("Path segments cannot contain backslashes or NUL")
+
+    # Normalize to NFC
+    seg = unicodedata.normalize("NFC", seg)
+
+    # Length check
+    if len(seg) < 1 or len(seg) > 100:
+        raise ValueError(f"Path segment must be 1-100 characters, got {len(seg)}")
+
+    # First character must be alphanumeric
+    if not seg[0].isalnum():
+        raise ValueError(f"Path segment must start with a letter or digit, got '{seg[0]}'")
+
+    # Check each character
+    allowed_special = set("_-.+# ")
+    for i, ch in enumerate(seg):
+        cat = unicodedata.category(ch)
+        # Allow letters, digits, combining marks, or special chars
+        if not (ch.isalnum() or cat.startswith("M") or ch in allowed_special):
+            raise ValueError(f"Invalid character '{ch}' at position {i} in path segment")
+
+        # Reject control characters
+        if cat.startswith("C"):
+            raise ValueError(f"Control character not allowed in path segment")
+
+        # Reject slash and backslash
+        if ch in "/\\":
+            raise ValueError(f"Path segment cannot contain '/' or '\\'")
+
+        # Reject NUL
+        if ch == "\x00":
+            raise ValueError("Path segment cannot contain NUL")
+
+    # No leading or trailing space
+    if seg[0] == " " or seg[-1] == " ":
+        raise ValueError("Path segment cannot have leading or trailing space")
+
+    # No two consecutive dots
+    if ".." in seg:
+        raise ValueError("Path segment cannot contain two consecutive dots")
+
+    # Not "." or ".."
     if seg in (".", ".."):
         raise ValueError(f"Path segment '{seg}' is not allowed")
+
+    # Not starting with "."
     if seg.startswith("."):
         raise ValueError("Path segments cannot start with '.'")
+
+    # Not "log" (reserved)
     if seg.lower() == "log":
         raise ValueError("The path segment 'log' is reserved")
-    if not _SEGMENT_RE.match(seg):
-        raise ValueError(
-            f"Invalid path segment '{seg}'. "
-            "Use 1-64 characters matching [A-Za-z0-9][A-Za-z0-9_\\- ]*"
-        )
+
     return seg
 
 
@@ -49,6 +101,7 @@ def norm_path(path: str) -> str:
 
     Root is "". Raises ValueError for traversal, absolute paths, reserved
     names, and illegal segments. Used by every tool, the dashboard, and the CLI.
+    Normalizes the entire path to NFC for Unicode consistency.
     """
     if path is None:
         raise ValueError("Path is required")
@@ -68,7 +121,8 @@ def norm_path(path: str) -> str:
     if len(parts) > _MAX_PATH_DEPTH:
         raise ValueError(f"Maximum path depth is {_MAX_PATH_DEPTH}")
     validated = [validate_segment(p) for p in parts]
-    return "/".join(validated)
+    # Normalize the entire path to NFC
+    return unicodedata.normalize("NFC", "/".join(validated))
 
 
 def parent_path(path: str) -> str:
@@ -208,19 +262,25 @@ class TreeManager:
         )
 
         suggested_path = "general"
+        hint_rejected = False
+        hint_error = None
         if hint:
             try:
                 candidate = norm_path(hint)
                 if candidate:
                     suggested_path = candidate
-            except ValueError:
+            except ValueError as exc:
                 suggested_path = "general"
+                hint_rejected = True
+                hint_error = str(exc)
 
         result = {
             "entry_id": entry_id,
             "candidates": candidates,
             "create_option": {"suggested_path": suggested_path},
             "tokens": count_tokens(str(candidates)),
+            "hint_rejected": hint_rejected,
+            "hint_error": hint_error,
         }
         return result
 
@@ -894,30 +954,40 @@ class TreeManager:
             for ch_path in descendant_paths:
                 ch_node = self.store.read_node(ch_path)
                 if ch_node and ch_node.sensitivity == "private":
-                    # Check summary substring
-                    if ch_node.summary and len(ch_node.summary) > 10 and ch_node.summary.lower() in summary.lower():
-                        err = f"Summary leaks exact content from private child '{ch_path}'"
-                        self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                        return {"ok": False, "error": err}
+                    # Check summary substring using whole-word tokenization
+                    priv_summary_tokens = set(re.findall(r"[^\W_]+", ch_node.summary.lower(), re.UNICODE))
+                    sum_tokens = set(re.findall(r"[^\W_]+", summary.lower(), re.UNICODE))
+                    if priv_summary_tokens.intersection(sum_tokens):
+                        # Check if any private summary token is significant (5+ chars or 3+ digit number)
+                        for token in priv_summary_tokens.intersection(sum_tokens):
+                            if len(token) >= 5 or (token.isdigit() and len(token) >= 3):
+                                err = f"Summary leaks exact content from private child '{ch_path}' (term: '{token}')"
+                                self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
+                                return {"ok": False, "error": err}
 
-                    # Check fact text substrings and token overlap
+                    # Check fact text using whole-word tokenization
                     for f in ch_node.facts:
                         f_text = f.get("fact", "").strip().lower()
-                        if len(f_text) > 5 and f_text in summary.lower():
+                        fact_tokens = set(re.findall(r"[^\W_]+", f_text, re.UNICODE))
+                        # Check for exact fact substring (only if fact is 5+ chars total)
+                        if len(f_text) >= 5 and f_text in summary.lower():
                             err = f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
                             self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                             return {"ok": False, "error": err}
-                        for token in re.findall(r"\b\w+\b", f_text):
-                            if (len(token) >= 5 or token.isdigit()) and token in summary.lower():
-                                if token not in {"user", "details", "private", "information", "about", "their"}:
+                        # Check token overlap (only significant tokens)
+                        for token in fact_tokens.intersection(sum_tokens):
+                            if len(token) >= 5 or (token.isdigit() and len(token) >= 3):
+                                if token not in {"user", "details", "private", "information", "about", "their", "child", "expand", "view"}:
                                     err = f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
                                     self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                                     return {"ok": False, "error": err}
 
-                    # Check word overlap
-                    priv_words = set(re.findall(r"\b\w{4,}\b", (ch_node.summary + " " + " ".join(f["fact"] for f in ch_node.facts)).lower()))
-                    sum_words = set(re.findall(r"\b\w{4,}\b", summary.lower()))
-                    overlap = priv_words.intersection(sum_words) - {"child", "details", "private", "expand", "view"}
+                    # Check word overlap using whole-word tokenization
+                    priv_words = set(re.findall(r"[^\W_]+", (ch_node.summary + " " + " ".join(f["fact"] for f in ch_node.facts)).lower(), re.UNICODE))
+                    # Filter to significant words (4+ chars or 3+ digit numbers)
+                    priv_significant = {w for w in priv_words if len(w) >= 4 or (w.isdigit() and len(w) >= 3)}
+                    sum_significant = {w for w in sum_tokens if len(w) >= 4 or (w.isdigit() and len(w) >= 3)}
+                    overlap = priv_significant.intersection(sum_significant) - {"child", "details", "private", "expand", "view"}
                     if len(overlap) >= 3:
                         err = f"Summary leaks private details from child '{ch_path}' (overlapping terms: {list(overlap)[:3]})"
                         self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
