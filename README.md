@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 214 Passing](https://img.shields.io/badge/tests-214%20passed-brightgreen.svg)]()
+[![Tests: 260 Passing](https://img.shields.io/badge/tests-260%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -214,6 +214,26 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 
 ---
 
+## Path Names
+
+TreeMem path segments (node names) follow these rules:
+
+- **Length**: 1 to 100 characters after NFC Unicode normalization
+- **First character**: Must be a Unicode letter or digit (`str.isalnum()`)
+- **Allowed characters**: Letters, digits, combining marks (Unicode category starting with "M"), or: underscore (`_`), hyphen (`-`), dot (`.`), plus (`+`), hash (`#`), space
+- **No leading or trailing spaces**: Spaces are allowed only in the middle of the name
+- **No two consecutive dots**: `..` is forbidden within a segment
+- **Reserved names**: The segment `log` is reserved for the log directory
+- **Hidden files**: Segments starting with `.` are rejected
+- **Special characters**: `/`, `\`, NUL, and control characters are forbidden
+- **Maximum depth**: Paths can have at most 8 segments deep
+
+Examples of valid names: `node.js`, `C++`, `q3_résumé`, `मशीन लर्निंग`, `a.b+c#d`
+
+The entire path is normalized to NFC (Unicode composed form) so that `résumé` typed in different ways maps to the same directory.
+
+---
+
 ## 8. Instruction-File Fallback (Zero-MCP Mode)
 
 If your harness does not support MCP or you prefer standard file execution, provide your agent with the following system prompt block (found in [`examples/AGENTS_md_block.md`](examples/AGENTS_md_block.md)):
@@ -297,6 +317,7 @@ treemem serve [path] --port 8765
 treemem serve [path] --auto-compress
 
 # Launch as a stdio MCP server for agent harnesses (dashboard runs in-process by default)
+# The dashboard URL is written to <vault>/.dashboard_url with mode 0o600
 treemem serve [path] --mcp
 
 # Launch as MCP server without the dashboard
@@ -326,7 +347,7 @@ treemem serve --demo
 
 *Raw data committed in [`bench/results/llm_eval_results.json`](bench/results/llm_eval_results.json).*
 
-> **The Multi-Turn Overhead Trade-Off:** On small vaults (<30 facts), flat context dumps are faster and cheaper in total API wire tokens (9,858 vs 63,695 tokens) because multi-turn tool calling retransmits the system prompt and tool definitions on every hop. However, TreeMem achieves an **82.76% reduction in memory payload**, proving that hierarchical descent prevents memory context saturation as vaults scale to hundreds and thousands of entries.
+> **The Multi-Turn Overhead Trade-Off:** On small vaults (<30 facts), flat context dumps are faster and cheaper in total API wire tokens (9,858 vs 66,758 tokens) because multi-turn tool calling retransmits the system prompt and tool definitions on every hop. However, TreeMem achieves an **82.45% reduction in memory payload**, proving that hierarchical descent prevents memory context saturation as vaults scale to hundreds and thousands of entries.
 
 ### Synthetic Vault Scaling Study
 *Measuring memory payload token cost between flat note dumps vs. TreeMem hierarchical descent:*
