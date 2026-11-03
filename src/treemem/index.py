@@ -322,6 +322,77 @@ class SearchIndex:
                 logger.debug("Failed to compute entry dense embeddings: %s", e)
                 self._entry_embeddings = None
 
+    def refresh_node(self, path: str, node_data: Dict[str, Any]) -> None:
+        """Refresh a single node in the index (update or add).
+
+        This is used by commit_summary and split to avoid full vault rebuilds.
+        Updates node_docs, bm25_nodes, TF-IDF, and embeddings for just this node.
+        """
+        # Remove existing entry for this path if present
+        self.remove_node(path)
+
+        # Add the refreshed node
+        node_path = path or ""
+        node_name = node_data.get("name", "")
+        node_summary = node_data.get("summary", "")
+        node_aliases = node_data.get("aliases", [])
+        node_sensitivity = node_data.get("sensitivity", "normal")
+
+        # Node doc for lexical search
+        node_text = f"{node_name} {node_summary} {' '.join(node_aliases)}".strip()
+        if node_text:
+            self.node_docs.append({
+                "path": node_path,
+                "name": node_name,
+                "summary": node_summary,
+                "aliases": node_aliases,
+            })
+            # Rebuild BM25 and TF-IDF to maintain consistency
+            # For small numbers of nodes, this is acceptable
+            node_texts = [f"{n['name']} {n['summary']} {' '.join(n.get('aliases', []))}".strip() for n in self.node_docs]
+            try:
+                from rank_bm25 import BM25Okapi
+                tokenized = [tokenize(t) for t in node_texts]
+                self.bm25_nodes = BM25Okapi(tokenized)
+            except Exception:
+                self.bm25_nodes = None
+            
+            # Rebuild TF-IDF if needed
+            if _SKLEARN_AVAILABLE and node_texts:
+                try:
+                    from sklearn.feature_extraction.text import TfidfVectorizer
+                    vect = TfidfVectorizer(
+                        ngram_range=(1, 2),
+                        min_df=1,
+                        sublinear_tf=True,
+                        strip_accents="unicode",
+                        analyzer="word",
+                    )
+                    self._tfidf_matrix = vect.fit_transform(node_texts)
+                    self._tfidf_vectorizer = vect
+                except Exception:
+                    self._tfidf_vectorizer = None
+                    self._tfidf_matrix = None
+
+    def remove_node(self, path: str) -> None:
+        """Remove a node from the index.
+
+        Used by split when nodes are moved or deleted.
+        """
+        node_path = path or ""
+        # Remove from node_docs
+        self.node_docs = [n for n in self.node_docs if n.get("path") != node_path]
+        
+        # Rebuild BM25 to reflect removal
+        if self.bm25_nodes is not None:
+            node_texts = [f"{n['name']} {n['summary']} {' '.join(n.get('aliases', []))}".strip() for n in self.node_docs]
+            try:
+                from rank_bm25 import BM25Okapi
+                tokenized = [tokenize(t) for t in node_texts]
+                self.bm25_nodes = BM25Okapi(tokenized)
+            except Exception:
+                self.bm25_nodes = None
+
     def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "", sensitivity: str = "normal") -> None:
         """Add an entry to in-memory store.
 

@@ -187,6 +187,7 @@ class TreeManager:
 
         Collects all private node paths (and their ancestors) so the index
         can skip embedding private text regardless of which provider is active.
+        Single-pass: reads each node once, computes private paths from prefixes.
         """
         log_entries = self.log_writer.read_all_entries()
         leaf_facts: List[Dict[str, str]] = []
@@ -194,19 +195,35 @@ class TreeManager:
 
         all_paths = self.health_checker.get_all_node_paths()
 
-        # Build the private-paths set: any path whose node or any ancestor is private.
+        # Build the private-paths set in single pass using prefix matching
+        # First, collect all directly private nodes
+        directly_private: set = set()
+        node_data = {}  # path -> node
+        for p in all_paths:
+            n = self.store.read_node(p)
+            if n:
+                node_data[p] = n
+                if n.sensitivity == "private":
+                    directly_private.add(p)
+
+        # Then compute effective private paths: a path is private if it or any ancestor is private
         private_paths: set = set()
         for p in all_paths:
-            n = self.store.read_node(p)
-            if n and n.sensitivity == "private":
+            # Check if p or any ancestor is in directly_private
+            if p in directly_private:
                 private_paths.add(p)
-                # All descendants of this path are also private
-                for other in all_paths:
-                    if other.startswith(p + "/"):
-                        private_paths.add(other)
+            else:
+                # Check all ancestors
+                parts = p.split("/") if p else []
+                for i in range(len(parts)):
+                    ancestor = "/".join(parts[:i+1])
+                    if ancestor in directly_private:
+                        private_paths.add(p)
+                        break
 
+        # Build leaf_facts and nodes in single pass
         for p in all_paths:
-            n = self.store.read_node(p)
+            n = node_data.get(p)
             if n:
                 nodes.append({
                     "path": p,
@@ -412,6 +429,13 @@ class TreeManager:
 
         # Update index placement
         self.index.record_placement(entry_id, clean_path)
+        # Refresh the leaf node in the index
+        self.index.refresh_node(clean_path, {
+            "name": leaf_node.name,
+            "summary": leaf_node.summary,
+            "aliases": leaf_node.aliases,
+            "sensitivity": leaf_node.sensitivity,
+        })
         if record_journal:
             self._append_placement(entry_id, clean_path, sensitivity, volatile)
 
@@ -1007,7 +1031,13 @@ class TreeManager:
 
         # Heavy work happens outside the lock.
         self.transclusion_mgr.index_node(clean_path)
-        self.rebuild_index()
+        # Refresh just this node in the index instead of full rebuild
+        self.index.refresh_node(clean_path, {
+            "name": fresh_node.name,
+            "summary": fresh_node.summary,
+            "aliases": fresh_node.aliases,
+            "sensitivity": fresh_node.sensitivity,
+        })
 
         self.event_bus.emit(
             event_type="summary",
@@ -1169,8 +1199,30 @@ class TreeManager:
             fresh_node.dirty = True
             self.store.write_node_atomic(clean_path, fresh_node)
 
+        # Refresh index for affected nodes instead of full rebuild
+        # Refresh the parent node
+        parent_node = self.store.read_node(clean_path)
+        if parent_node:
+            self.index.refresh_node(clean_path, {
+                "name": parent_node.name,
+                "summary": parent_node.summary,
+                "aliases": parent_node.aliases,
+                "sensitivity": parent_node.sensitivity,
+            })
+        # Refresh each new group node
+        for grp_name, _ in validated_groups:
+            grp_path = f"{clean_path}/{grp_name}" if clean_path else grp_name
+            grp_node = self.store.read_node(grp_path)
+            if grp_node:
+                self.index.refresh_node(grp_path, {
+                    "name": grp_node.name,
+                    "summary": grp_node.summary,
+                    "aliases": grp_node.aliases,
+                    "sensitivity": grp_node.sensitivity,
+                })
+        # Rebuild transclusion index (this is fast)
         self.transclusion_mgr.rebuild_index(self.health_checker.get_all_node_paths())
-        self.rebuild_index()
+        
         return {"ok": True, "path": clean_path or "/", "new_groups": [g[0] for g in validated_groups]}
 
     def rebuild(self, path: Optional[str] = None) -> Dict[str, Any]:
