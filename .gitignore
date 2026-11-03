@@ -13,3 +13,8 @@ examples/**/.events/
 bench/vaults/*/.locks/
 bench/vaults/*/.events/
 *.lock
+.placements.jsonl
+.dashboard_url
+.locks/
+.events/
+__MACOSX/

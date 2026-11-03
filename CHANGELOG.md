@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Critical Security and Correctness Bugs)
+- **WP1: Log truncation on "|" (data loss)** - Fixed log line parsing to properly escape backslashes and pipes. Facts containing "|" are now correctly round-tripped. Line numbering uses highest parsed line number + 1, not count of lines. Added 6 regression tests in `tests/test_fix_log_escaping.py`.
+- **WP2: Path traversal** - Added comprehensive path validation rejecting "..", ".", absolute paths, backslashes, NUL, segments starting with ".", and the reserved "log" segment. Maximum depth enforced at 8. Defense-in-depth check in `Store.node_dir()` ensures resolved paths stay inside root. `split()` validates group and child names before mutation. Dashboard maps ValueError to HTTP 400. Added 8 regression tests in `tests/test_fix_path_traversal.py`.
+- **WP3: Privacy: one rule everywhere** - Implemented `TreeManager.is_private()` that checks node and all ancestors. Privacy is inherited by descendants. Private content withheld from recall, expand, compress, search, and index unless reveal is granted via `TREEMEM_ALLOW_REVEAL=1`. AutoCompressor never sends private content to external LLMs without grant. Events persist query length and SHA256 prefix instead of raw query text. Leak validator fixed to match whole words only, numeric tokens only with 3+ digits. Added 3 regression tests in `tests/test_fix_privacy_boundaries.py`.
+- **WP4: split and rebuild** - `split()` now preserves ungrouped children with their teasers. Placement journal (.placements.jsonl) records sensitivity for rebuild. `rebuild()` is idempotent, uses journal as primary source, falls back to hints with sensitivity from log, returns errors instead of bare except. Added 2 regression tests in `tests/test_fix_rebuild_split.py`.
+- **WP5: Multi-process safety in Store** - Temp file naming uses PID + UUID for uniqueness. Lock file naming uses SHA1 hash of path to avoid "a/b" vs "a__b" collision. Cleanup deletes only .tmp files older than 60 seconds. Added 2 regression tests in `tests/test_fix_store_safety.py`.
+- **WP6: Live dashboard inside the MCP process** - CLI `--mcp` now starts dashboard in daemon thread sharing same TreeManager instance. Dashboard URL printed to stderr and written to `.dashboard_url` with mode 0600. EventBus uses `loop.call_soon_threadsafe()` for thread-safe event delivery. Added 1 regression test in `tests/test_fix_events_threadsafe.py`.
+- **WP8: Portability and tokenizer honesty** - fcntl imports wrapped with platform guard, raises `RuntimeError("TreeMem currently supports macOS and Linux only")` at startup. `tokenizer_is_fallback()` exposed. Fallback uses 1.3x conservative multiplier. `status()` and `/api/health` report `"tokenizer": "fallback"` with warning. Added 1 regression test in `tests/test_fix_tokenizer_reporting.py`.
+
+### Fixed (Repo Hygiene)
+- Updated `.gitignore` to include `.placements.jsonl`, `.dashboard_url`, `.locks/`, `.events/`, `__MACOSX/`.
+- Removed stray vault directories (`demo/`, `memory/`, `my_memory/`) and cache files (`.DS_Store`, `__pycache__`, `*.pyc`, `*.egg-info`).
+
+### Changed (Documentation)
+- Updated README to reflect 11 MCP tools (was 10).
+- Added missing parameters to tool table: `place: volatile`, `remember: sensitivity`, `recall: reveal`, `compress: reveal`.
+- Moved reveal policy paragraph below tool table.
+- Changed "read-only dashboard" to "local dashboard with two write actions".
+- Documented `--mcp` in-process dashboard and `.dashboard_url`.
+- Added privacy rules section describing inheritance and rebuild behavior.
+- Documented rebuild behavior (uses placement journal as primary source).
+- Updated test count badge to 214 passing (was 191).
+- Replaced absolute file:///Users/... links with relative links.
+
 ### Added (Dashboard Conflict Handling)
 - **Optimistic Concurrency Control for Summary Edits** (`src/treemem/dashboard/server.py`, `src/treemem/tree_manager.py`):
   - `commit_summary` and `POST /api/node/summary` accept `expected_updated` timestamp and `force` boolean flags.

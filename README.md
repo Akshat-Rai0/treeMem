@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 191 Passing](https://img.shields.io/badge/tests-191%20passed-brightgreen.svg)]()
+[![Tests: 214 Passing](https://img.shields.io/badge/tests-214%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -103,7 +103,7 @@ Agent Harness (Antigravity / Devin / Claude Desktop / Cursor)
 
 ## 4. The 8 System Invariants
 
-TreeMem is built around 8 strict structural invariants verified by [`treemem check`](file:///Users/bipinkumarrai/Desktop/EVERYTHING/CODING%20PROJECTS/PORTFOLIO%20PROJ/treeMem/src/treemem/cli.py) and enforced continuously across all test suites:
+TreeMem is built around 8 strict structural invariants verified by [`treemem check`](#10-cli-reference) and enforced continuously across all test suites:
 
 1. **Node Completeness**: Every directory under the vault root (except `log/` and hidden folders) contains a valid `summary.md` with YAML frontmatter.
 2. **Log Ground Truth**: Every fact in every node references an existing, valid log entry ID (`YYYY-MM-DD#line`).
@@ -155,7 +155,7 @@ Open the authenticated URL printed in your terminal (e.g. `http://127.0.0.1:8765
 
 ## 6. Live X-Ray Dashboard
 
-TreeMem includes a local, read-only web dashboard served directly by the server:
+TreeMem includes a local web dashboard with two write actions (summary edit with conflict detection, per-node compress) served directly by the server:
 
 - **Graph Canvas**: Interactive Cytoscape.js canvas supporting both top-down **Hierarchical Tree** and **Radial** layouts.
 - **Visual Encoding**:
@@ -188,24 +188,25 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 }
 ```
 
-### The 10 MCP Tools
+### The 11 MCP Tools
 
 | Tool | Parameters | Description |
 |:---|:---|:---|
-| `remember` | `fact: str, hint?: str` | Appends fact to today's log, returns entry ID and candidate topic paths. |
-| `place` | `entry_id: str, path: str, sensitivity?: str` | Places fact into a leaf node and marks all ancestors `dirty`. |
-| `recall` | `path: str = "/"`, `query?: str`, `follow?: bool`, `max_depth?: int` | Reads node summary and 1-line child teasers (**never** child bodies). With `query` it adds the descent-gate verdict; with `follow=true` the server follows the gate read-only (never into private nodes) and returns where it stopped, in one call. |
+| `remember` | `fact: str, hint?: str, sensitivity?: str` | Appends fact to today's log, returns entry ID and candidate topic paths. `sensitivity` can be "normal" (default) or "private". |
+| `place` | `entry_id: str, path: str, sensitivity?: str, volatile?: bool` | Places fact into a leaf node and marks all ancestors `dirty`. `volatile` marks facts that can be transcluded without dirtying embedding parents. |
+| `recall` | `path: str = "/"`, `query?: str`, `follow?: bool`, `max_depth?: int`, `reveal?: bool` | Reads node summary and 1-line child teasers (**never** child bodies). With `query` it adds the descent-gate verdict; with `follow=true` the server follows the gate read-only (never into private nodes) and returns where it stopped, in one call. `reveal=true` requests private details (honored only when server operator grants it). |
 | `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. `reveal=true` is only honored when the server operator set `TREEMEM_ALLOW_REVEAL=1`; otherwise private content stays hidden and the result carries `reveal_denied`. |
-| `compress` | `path: str` | Returns compression prompt and child text to clean a dirty node (Option A). |
+| `compress` | `path: str, reveal: bool = false` | Returns compression prompt and child text to clean a dirty node (Option A). `reveal=true` requests private details (honored only when server operator grants it). |
 | `auto_compress` | `path?: str` | (Optional) Compresses dirty nodes bottom-up using an external LLM (Groq); reads API keys from `.env`. |
 | `commit_summary` | `path: str, text: str` | Validates token cap, child list, and privacy before committing atomically. |
 | `search` | `query: str, limit: int = 10, reveal: bool = False` | BM25 lexical search over log entries and leaves (fallback mechanism). Hits under private nodes are withheld unless `reveal=true` **and** the operator granted reveal (`TREEMEM_ALLOW_REVEAL=1`). |
-
-**Reveal policy.** The model must not be able to grant itself access to private data, so `reveal=true` in a tool call is a *request*, not a switch. The MCP server honors it only when a human starts it with `TREEMEM_ALLOW_REVEAL=1`. Without that, `expand` and `search` return `reveal_denied: true` plus a note telling the agent to ask the user. Direct Python callers (tests, CLI, dashboard with its own token) use `TreeManager` directly and are not affected.
-
 | `split` | `path: str, groups: dict` | Splits an overflowing node into subtopics to preserve branching caps. |
-| `rebuild` | `path?: str` | Reconstructs tree structure from append-only log files. |
+| `rebuild` | `path?: str` | Reconstructs tree structure from append-only log files. Uses the placement journal as primary source, falling back to hints. |
 | `status` | *None* | Session-start health report with total nodes, facts, and dirty count. |
+
+**Reveal policy.** The model must not be able to grant itself access to private data, so `reveal=true` in a tool call is a *request*, not a switch. The MCP server honors it only when a human starts it with `TREEMEM_ALLOW_REVEAL=1`. Without that, `expand`, `compress`, and `search` return `reveal_denied: true` plus a note telling the agent to ask the user. Direct Python callers (tests, CLI, dashboard with its own token) use `TreeManager` directly and are not affected.
+
+**Privacy rules.** A node marked `sensitivity: private` hides its content from all read operations unless reveal is granted. Privacy is inherited: a normal node under a private parent is treated as private. The index withholds unplaced private entries from search. The AutoCompressor never sends private content to external LLMs unless reveal is granted. The placement journal records sensitivity so rebuild preserves it.
 
 > **Note on Summarization Modes**:
 > * **Default Mode (Option A)**: TreeMem hosts zero models and requires zero external API keys. The client agent generates the summary text and commits it via `commit_summary`.
@@ -215,7 +216,7 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 
 ## 8. Instruction-File Fallback (Zero-MCP Mode)
 
-If your harness does not support MCP or you prefer standard file execution, provide your agent with the following system prompt block (found in [`examples/AGENTS_md_block.md`](file:///Users/bipinkumarrai/Desktop/EVERYTHING/CODING%20PROJECTS/PORTFOLIO%20PROJ/treeMem/examples/AGENTS_md_block.md)):
+If your harness does not support MCP or you prefer standard file execution, provide your agent with the following system prompt block (found in [`examples/AGENTS_md_block.md`](examples/AGENTS_md_block.md)):
 
 ```markdown
 # TreeMem Memory Protocol
@@ -282,6 +283,8 @@ treemem init [path]
 treemem check [path]
 
 # Reconstruct all nodes and facts from the append-only daily logs
+# Uses the placement journal (.placements.jsonl) as primary source,
+# falling back to hints when no journal record exists.
 treemem rebuild [path]
 
 # Automatically compress dirty nodes bottom-up using server-side LLM (Option B)
@@ -293,8 +296,11 @@ treemem serve [path] --port 8765
 # Start dashboard with background auto-compressor daemon active
 treemem serve [path] --auto-compress
 
-# Launch as a stdio MCP server for agent harnesses
+# Launch as a stdio MCP server for agent harnesses (dashboard runs in-process by default)
 treemem serve [path] --mcp
+
+# Launch as MCP server without the dashboard
+treemem serve [path] --mcp --no-dashboard
 
 # Launch interactive demo sandbox with pre-built sample memory
 treemem serve --demo
