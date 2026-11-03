@@ -39,6 +39,10 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
     app = FastAPI(title="TreeMem Dashboard", docs_url=None, redoc_url=None)
     static_dir = Path(__file__).parent / "static"
 
+    @app.exception_handler(ValueError)
+    async def _value_error_handler(request: Request, exc: ValueError):
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
     def verify_token(
         req: Request,
         t: Optional[str] = Query(None),

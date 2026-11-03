@@ -16,14 +16,58 @@ from treemem.transclusion import TransclusionManager
 from treemem.descent_gate import DescentGate
 
 
+_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\- ]{0,63}$")
+_MAX_PATH_DEPTH = 8
+
+
+def validate_segment(segment: str) -> str:
+    """Validate a single path segment. Raises ValueError if illegal."""
+    if segment is None:
+        raise ValueError("Empty path segment is not allowed")
+    seg = segment.strip() if isinstance(segment, str) else str(segment).strip()
+    if not seg:
+        raise ValueError("Empty path segment is not allowed")
+    if "\\" in seg or "\x00" in seg:
+        raise ValueError("Path segments cannot contain backslashes or NUL")
+    if seg in (".", ".."):
+        raise ValueError(f"Path segment '{seg}' is not allowed")
+    if seg.startswith("."):
+        raise ValueError("Path segments cannot start with '.'")
+    if seg.lower() == "log":
+        raise ValueError("The path segment 'log' is reserved")
+    if not _SEGMENT_RE.match(seg):
+        raise ValueError(
+            f"Invalid path segment '{seg}'. "
+            "Use 1-64 characters matching [A-Za-z0-9][A-Za-z0-9_\\- ]*"
+        )
+    return seg
+
+
 def norm_path(path: str) -> str:
-    """Normalize path to strip leading/trailing slashes and whitespace."""
-    if not path or path == "/":
+    """Normalize and validate a vault-relative node path.
+
+    Root is "". Raises ValueError for traversal, absolute paths, reserved
+    names, and illegal segments. Used by every tool, the dashboard, and the CLI.
+    """
+    if path is None:
+        raise ValueError("Path is required")
+    raw = path.strip() if isinstance(path, str) else str(path).strip()
+    if not raw or raw == "/":
         return ""
-    cleaned = path.strip().strip("/")
-    # Replace multiple slashes
-    parts = [p.strip() for p in cleaned.split("/") if p.strip()]
-    return "/".join(parts)
+    if "\x00" in raw:
+        raise ValueError("Path cannot contain NUL")
+    if "\\" in raw:
+        raise ValueError("Backslashes are not allowed in paths")
+    if raw.startswith("/") or raw.startswith("~"):
+        raise ValueError("Absolute paths are not allowed")
+    cleaned = raw.strip("/")
+    if not cleaned:
+        return ""
+    parts = cleaned.split("/")
+    if len(parts) > _MAX_PATH_DEPTH:
+        raise ValueError(f"Maximum path depth is {_MAX_PATH_DEPTH}")
+    validated = [validate_segment(p) for p in parts]
+    return "/".join(validated)
 
 
 def parent_path(path: str) -> str:
@@ -158,9 +202,14 @@ class TreeManager:
             all_node_paths=all_node_paths,
         )
 
-        suggested_path = hint.strip("/").strip() if hint else "general"
-        if not suggested_path:
-            suggested_path = "general"
+        suggested_path = "general"
+        if hint:
+            try:
+                candidate = norm_path(hint)
+                if candidate:
+                    suggested_path = candidate
+            except ValueError:
+                suggested_path = "general"
 
         result = {
             "entry_id": entry_id,
@@ -877,6 +926,27 @@ class TreeManager:
         if not self.store.exists(clean_path):
             raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
+        if not groups:
+            raise ValueError("split() requires at least one group")
+
+        validated_groups: List[Tuple[str, List[str]]] = []
+        seen_group_names: Set[str] = set()
+        all_moved: Set[str] = set()
+        for grp in groups:
+            raw_name = grp.get("name", "")
+            grp_name = validate_segment(raw_name.strip() if isinstance(raw_name, str) else str(raw_name))
+            if grp_name in seen_group_names:
+                raise ValueError(f"Duplicate group name '{grp_name}'")
+            seen_group_names.add(grp_name)
+            children: List[str] = []
+            for ch in grp.get("children", []):
+                ch_name = validate_segment(ch.strip() if isinstance(ch, str) else str(ch))
+                if ch_name in all_moved:
+                    raise ValueError(f"Child '{ch_name}' is listed in more than one group")
+                all_moved.add(ch_name)
+                children.append(ch_name)
+            validated_groups.append((grp_name, children))
+
         ndir = self.store.node_dir(clean_path)
         new_children = []
 
@@ -886,13 +956,25 @@ class TreeManager:
             if not fresh_node:
                 raise FileNotFoundError(f"Node '{clean_path or '/'}' not found.")
 
-            for grp in groups:
-                grp_name = grp["name"].strip()
+            existing_children = set(self.store.list_child_dirs(clean_path))
+            for grp_name, children in validated_groups:
+                for ch in children:
+                    if ch not in existing_children:
+                        raise ValueError(f"Child '{ch}' does not exist under '{clean_path or '/'}'")
+                if grp_name in existing_children and grp_name not in all_moved:
+                    raise ValueError(
+                        f"Group name '{grp_name}' equals an existing child that is not being moved"
+                    )
+                dest = ndir / grp_name
+                if dest.exists():
+                    raise ValueError(f"Destination '{grp_name}' already exists")
+
+            for grp_name, children in validated_groups:
                 grp_dir = ndir / grp_name
                 grp_dir.mkdir(parents=True, exist_ok=True)
 
                 grp_children = []
-                for ch in grp.get("children", []):
+                for ch in children:
                     ch_src = ndir / ch
                     ch_dst = grp_dir / ch
                     if ch_src.exists() and ch_src.is_dir():
@@ -916,7 +998,7 @@ class TreeManager:
             self.store.write_node_atomic(clean_path, fresh_node)
 
         self.rebuild_index()
-        return {"ok": True, "path": clean_path or "/", "new_groups": [g["name"] for g in groups]}
+        return {"ok": True, "path": clean_path or "/", "new_groups": [g[0] for g in validated_groups]}
 
     def rebuild(self, path: Optional[str] = None) -> Dict[str, Any]:
         """

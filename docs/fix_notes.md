@@ -33,3 +33,12 @@ These interactions can bite the fixes below.
 - Line numbers: max parsed line in today's file + 1.
 - `append(..., sensitivity=)` writes `| sens: private` when asked (unused by remember until WP3). Old lines without `sens:` parse as `normal`.
 - Tests: `tests/test_fix_log_escaping.py`.
+
+## WP2 decisions
+
+- Single validator in `norm_path` / `validate_segment`; `Store.node_dir` still containment-checks resolved paths.
+- `remember()` catches invalid hints and falls back to `suggested_path="general"` without failing the log append.
+- `split()` validates names and collisions inside the lock before mkdir/rename.
+- MCP tools return `{"ok": false, "error": ...}` JSON on ValueError. Added `set_manager` so tests (and WP6 dashboard) can inject a shared TreeManager.
+- Dashboard maps ValueError → HTTP 400 via an exception handler.
+- Tests: `tests/test_fix_path_traversal.py`.

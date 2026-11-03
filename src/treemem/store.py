@@ -66,11 +66,18 @@ class Store:
                 pass
 
     def node_dir(self, norm_path: str) -> Path:
-        """Resolve a normalized relative path (e.g. '', 'identity', 'identity/age') to directory."""
-        clean = norm_path.strip("/").strip()
+        """Resolve a normalized relative path (e.g. '', 'identity', 'identity/age') to directory.
+
+        Defense in depth: the resolved path must stay inside root_dir.
+        """
+        clean = (norm_path or "").strip("/").strip()
+        root = self.root_dir.resolve()
         if not clean:
-            return self.root_dir
-        return self.root_dir / clean
+            return root
+        candidate = (root / clean).resolve()
+        if candidate != root and not candidate.is_relative_to(root):
+            raise ValueError(f"Path '{norm_path}' is outside the memory vault")
+        return candidate
 
     def summary_file(self, norm_path: str) -> Path:
         return self.node_dir(norm_path) / "summary.md"

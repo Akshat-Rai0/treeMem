@@ -25,6 +25,20 @@ def get_manager(root_dir: Optional[str] = None) -> TreeManager:
     return _MANAGER
 
 
+def set_manager(manager: Optional[TreeManager]) -> None:
+    """Inject (or clear) the shared TreeManager used by MCP tools and the dashboard."""
+    global _MANAGER
+    _MANAGER = manager
+
+
+def _json_ok(res: Any) -> str:
+    return json.dumps(res, indent=2)
+
+
+def _json_err(exc: BaseException) -> str:
+    return json.dumps({"ok": False, "error": str(exc)}, indent=2)
+
+
 mcp = MCPServer("treemem")
 
 
@@ -38,8 +52,11 @@ def remember(fact: str, hint: str = ""):
         hint: Optional path hint where this fact might belong (e.g., 'identity/age').
     """
     mgr = get_manager()
-    res = mgr.remember(fact=fact, hint=hint)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.remember(fact=fact, hint=hint)
+    except ValueError as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -54,8 +71,11 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
         volatile: If True, indicates a volatile scalar fact that can be transcluded without dirtying embedding parents.
     """
     mgr = get_manager()
-    res = mgr.place(entry_id=entry_id, path=path, sensitivity=sensitivity, volatile=volatile)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.place(entry_id=entry_id, path=path, sensitivity=sensitivity, volatile=volatile)
+    except ValueError as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -77,8 +97,11 @@ def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, m
         max_depth: Maximum number of child steps taken when follow=true.
     """
     mgr = get_manager()
-    res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth)
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -93,11 +116,14 @@ def expand(path: str, reveal: bool = False):
     """
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
-    res = mgr.expand(path=path, reveal=effective_reveal)
+    try:
+        res = mgr.expand(path=path, reveal=effective_reveal)
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
     if denied:
         res["reveal_denied"] = True
         res["reveal_note"] = DENIED_NOTE
-    return json.dumps(res, indent=2)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -109,8 +135,11 @@ def compress(path: str):
         path: Path of the node to compress.
     """
     mgr = get_manager()
-    res = mgr.compress(path=path)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.compress(path=path)
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -123,8 +152,11 @@ def commit_summary(path: str, text: str):
         text: The complete markdown summary including frontmatter and '## Children' list.
     """
     mgr = get_manager()
-    res = mgr.commit_summary(path=path, text=text)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.commit_summary(path=path, text=text)
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -139,11 +171,14 @@ def auto_compress(path: Optional[str] = None):
     from treemem.auto_compress import AutoCompressor
     mgr = get_manager()
     compressor = AutoCompressor(mgr)
-    if path:
-        res = compressor.compress_node(path)
-    else:
-        res = compressor.compress_all_dirty()
-    return json.dumps(res, indent=2)
+    try:
+        if path:
+            res = compressor.compress_node(path)
+        else:
+            res = compressor.compress_all_dirty()
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -159,11 +194,14 @@ def search(query: str, limit: int = 10, reveal: bool = False):
     """
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
-    res = mgr.search(query=query, limit=limit, reveal=effective_reveal)
+    try:
+        res = mgr.search(query=query, limit=limit, reveal=effective_reveal)
+    except ValueError as exc:
+        return _json_err(exc)
     if denied:
         res["reveal_denied"] = True
         res["reveal_note"] = DENIED_NOTE
-    return json.dumps(res, indent=2)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -176,8 +214,11 @@ def split(path: str, groups: List[Dict[str, Any]]):
         groups: List of groups, e.g. [{"name": "group_a", "children": ["child1", "child2"]}]
     """
     mgr = get_manager()
-    res = mgr.split(path=path, groups=groups)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.split(path=path, groups=groups)
+    except (ValueError, FileNotFoundError) as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
@@ -189,8 +230,11 @@ def rebuild(path: str = ""):
         path: Optional path to rebuild. Empty string rebuilds the entire vault.
     """
     mgr = get_manager()
-    res = mgr.rebuild(path=path or None)
-    return json.dumps(res, indent=2)
+    try:
+        res = mgr.rebuild(path=path or None)
+    except ValueError as exc:
+        return _json_err(exc)
+    return _json_ok(res)
 
 
 @mcp.tool()
