@@ -14,11 +14,21 @@ def test_gitignore_exists_and_contains_required_patterns():
 
     required_patterns = [
         ".env",
+        "__pycache__/",
+        "*.pyc",
+        ".DS_Store",
+        "__MACOSX/",
+        "*.egg-info/",
         "memory/",
         "my_memory/",
         "demo/",
-        ".DS_Store",
-        "*.egg-info/",
+        ".placements.jsonl",
+        ".dashboard_url",
+        ".locks/",
+        ".events/",
+        ".pytest_cache/",
+        "dist/",
+        "build/",
     ]
 
     for pattern in required_patterns:

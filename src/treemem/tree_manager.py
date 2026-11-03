@@ -161,7 +161,7 @@ class TreeManager:
             is_private_path_fn=self._is_private_path,
         )
         self.health_checker = HealthChecker(self.store, self.log_writer)
-        self.transclusion_mgr = TransclusionManager(self.store)
+        self.transclusion_mgr = TransclusionManager(self.store, is_private_fn=self.is_private)
         self.descent_gate = DescentGate()
         self.init_tree()
         self.rebuild_index()

@@ -15,9 +15,10 @@ MAX_EMBEDS_PER_SUMMARY = 5
 class TransclusionManager:
     """Manages parsing, resolving, and indexing of transclusion embeds across node summaries."""
 
-    def __init__(self, store, max_embeds: int = MAX_EMBEDS_PER_SUMMARY):
+    def __init__(self, store, max_embeds: int = MAX_EMBEDS_PER_SUMMARY, is_private_fn=None):
         self.store = store
         self.max_embeds = max_embeds
+        self.is_private_fn = is_private_fn
         # target_path -> set of parent_paths that embed it
         self.backlink_index: Dict[str, Set[str]] = {}
 
@@ -71,8 +72,17 @@ class TransclusionManager:
         if not target_node:
             return f"[unresolved: {clean_target}#{ref}]", False
 
-        # Privacy check: If target is private, mask it
-        if target_node.sensitivity == "private":
+        # Privacy check: If target is effectively private (node or ancestor), mask it
+        is_private = False
+        if self.is_private_fn:
+            try:
+                is_private = self.is_private_fn(clean_target)
+            except Exception:
+                pass
+        elif target_node.sensitivity == "private":
+            is_private = True
+        
+        if is_private:
             return "[private detail]", True
 
         # Special keywords: 'latest', 'recent', 'volatile'

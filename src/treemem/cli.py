@@ -18,6 +18,15 @@ from treemem.mcp_layer import run_mcp_server
 from treemem.tree_manager import TreeManager
 
 
+def _write_dashboard_url_file(path: Path, url: str) -> None:
+    """Write dashboard URL to file with mode 0o600 for security."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, (url + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
 def cmd_init(args):
     target = Path(args.path or "memory").resolve()
     mgr = TreeManager(target)
@@ -119,8 +128,7 @@ def cmd_serve(args):
             url = f"http://{host}:{port}/?t={token}"
             try:
                 url_file = target / ".dashboard_url"
-                url_file.write_text(url + "\n", encoding="utf-8")
-                url_file.chmod(0o600)
+                _write_dashboard_url_file(url_file, url)
                 thread = threading.Thread(
                     target=lambda: uvicorn.run(create_app(mgr, token), host=host, port=port, log_level="warning"),
                     daemon=True,
