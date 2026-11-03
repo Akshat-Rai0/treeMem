@@ -267,10 +267,12 @@ def status():
     }, indent=2)
 
 
-def run_mcp_server(memory_dir: Optional[str] = None):
+def run_mcp_server(memory_dir: Optional[str] = None, manager: Optional[TreeManager] = None):
     """Run the MCP server over stdio."""
     if memory_dir:
         os.environ["TREEMEM_DIR"] = str(Path(memory_dir).resolve())
+    if manager is not None:
+        set_manager(manager)
     mcp.run(transport="stdio")
 
 

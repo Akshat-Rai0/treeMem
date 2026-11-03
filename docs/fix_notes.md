@@ -34,3 +34,10 @@
 - `fcntl` is platform-guarded and fails clearly on unsupported systems.
 - Tests: `tests/test_fix_store_safety.py`.
 
+## WP6 decisions
+
+- MCP mode now creates one `TreeManager` shared with an in-process loopback dashboard by default; `--no-dashboard` disables it.
+- Dashboard credentials are written to `.dashboard_url` with mode 0600 and announced on stderr so MCP stdout remains protocol-only.
+- Subscribers retain their originating event loop and receive worker-thread events via `call_soon_threadsafe`.
+- Tests: `tests/test_fix_events_threadsafe.py`.
+

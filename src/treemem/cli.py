@@ -111,7 +111,26 @@ def run_demo_script(mgr: TreeManager):
 
 def cmd_serve(args):
     if args.mcp:
-        run_mcp_server(args.path or "memory")
+        target = Path(args.path or "memory").resolve()
+        mgr = TreeManager(target)
+        if not getattr(args, "no_dashboard", False):
+            token = secrets.token_urlsafe(16)
+            host, port = "127.0.0.1", args.port or 8765
+            url = f"http://{host}:{port}/?t={token}"
+            try:
+                url_file = target / ".dashboard_url"
+                url_file.write_text(url + "\n", encoding="utf-8")
+                url_file.chmod(0o600)
+                thread = threading.Thread(
+                    target=lambda: uvicorn.run(create_app(mgr, token), host=host, port=port, log_level="warning"),
+                    daemon=True,
+                    name="TreeMem-Dashboard",
+                )
+                thread.start()
+                print(f"TreeMem dashboard: {url}", file=sys.stderr)
+            except OSError as exc:
+                print(f"TreeMem dashboard unavailable: {exc}", file=sys.stderr)
+        run_mcp_server(str(target), manager=mgr)
         return
 
     target = Path(args.path or "memory").resolve()
@@ -183,6 +202,7 @@ def main():
     p_srv.add_argument("--port", type=int, default=8765, help="Port for web dashboard")
     p_srv.add_argument("--demo", action="store_true", help="Launch demo mode with sample memory & sequence")
     p_srv.add_argument("--mcp", action="store_true", help="Run as stdio MCP server instead of HTTP dashboard")
+    p_srv.add_argument("--no-dashboard", action="store_true", help="Do not start the shared local dashboard with --mcp")
     p_srv.add_argument("--auto-compress", action="store_true", help="Run background worker to automatically compress dirty nodes")
 
     args = parser.parse_args()

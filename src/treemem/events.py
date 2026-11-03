@@ -20,7 +20,7 @@ class EventBus:
             self.events_dir.chmod(0o700)
         except Exception:
             pass
-        self._subscribers: Set[asyncio.Queue] = set()
+        self._subscribers: Dict[asyncio.Queue, asyncio.AbstractEventLoop] = {}
 
     def emit(
         self,
@@ -52,9 +52,9 @@ class EventBus:
             os.fsync(f.fileno())
 
         # Notify in-memory async queues
-        for queue in list(self._subscribers):
+        for queue, loop in list(self._subscribers.items()):
             try:
-                queue.put_nowait(event_obj)
+                loop.call_soon_threadsafe(queue.put_nowait, event_obj)
             except Exception:
                 pass
 
@@ -63,12 +63,12 @@ class EventBus:
     def subscribe(self) -> asyncio.Queue:
         """Register a new async queue for live SSE events."""
         q: asyncio.Queue = asyncio.Queue()
-        self._subscribers.add(q)
+        self._subscribers[q] = asyncio.get_running_loop()
         return q
 
     def unsubscribe(self, q: asyncio.Queue) -> None:
         """Remove an async queue."""
-        self._subscribers.discard(q)
+        self._subscribers.pop(q, None)
 
     def get_events(self, since: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """Retrieve historical events from .events/*.jsonl files."""
