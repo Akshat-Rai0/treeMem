@@ -38,9 +38,13 @@ def validate_segment(segment: str) -> str:
     """
     if segment is None:
         raise ValueError("Empty path segment is not allowed")
-    seg = segment.strip() if isinstance(segment, str) else str(segment).strip()
+    seg = segment if isinstance(segment, str) else str(segment)
     if not seg:
         raise ValueError("Empty path segment is not allowed")
+
+    # Check for leading/trailing space
+    if seg.startswith(" ") or seg.endswith(" "):
+        raise ValueError("Path segment cannot have leading or trailing space")
 
     # Normalize to NFC
     seg = unicodedata.normalize("NFC", seg)
@@ -48,6 +52,14 @@ def validate_segment(segment: str) -> str:
     # Length check
     if len(seg) < 1 or len(seg) > 100:
         raise ValueError(f"Path segment must be 1-100 characters, got {len(seg)}")
+
+    # Not "." or ".."
+    if seg in (".", ".."):
+        raise ValueError(f"Path segment '{seg}' is not allowed")
+
+    # Not starting with "."
+    if seg.startswith("."):
+        raise ValueError("Path segments cannot start with '.'")
 
     # First character must be alphanumeric
     if not seg[0].isalnum():
@@ -57,37 +69,25 @@ def validate_segment(segment: str) -> str:
     allowed_special = set("_-.+# ")
     for i, ch in enumerate(seg):
         cat = unicodedata.category(ch)
-        # Allow letters, digits, combining marks, or special chars
-        if not (ch.isalnum() or cat.startswith("M") or ch in allowed_special):
-            raise ValueError(f"Invalid character '{ch}' at position {i} in path segment")
+        # Reject NUL specifically first
+        if ch == "\x00":
+            raise ValueError("Path segment cannot contain NUL")
 
         # Reject control characters
         if cat.startswith("C"):
             raise ValueError(f"Control character not allowed in path segment")
 
-        # Reject slash and backslash
-        if ch in "/\\":
-            raise ValueError(f"Path segment cannot contain '/' or '\\'")
+        # Reject backslash (slash is handled by norm_path splitting)
+        if ch == "\\":
+            raise ValueError(f"Path segment cannot contain '\\'")
 
-        # Reject NUL
-        if ch == "\x00":
-            raise ValueError("Path segment cannot contain NUL")
-
-    # No leading or trailing space
-    if seg[0] == " " or seg[-1] == " ":
-        raise ValueError("Path segment cannot have leading or trailing space")
+        # Allow letters, digits, combining marks, or special chars
+        if not (ch.isalnum() or cat.startswith("M") or ch in allowed_special):
+            raise ValueError(f"Invalid character '{ch}' at position {i} in path segment")
 
     # No two consecutive dots
     if ".." in seg:
         raise ValueError("Path segment cannot contain two consecutive dots")
-
-    # Not "." or ".."
-    if seg in (".", ".."):
-        raise ValueError(f"Path segment '{seg}' is not allowed")
-
-    # Not starting with "."
-    if seg.startswith("."):
-        raise ValueError("Path segments cannot start with '.'")
 
     # Not "log" (reserved)
     if seg.lower() == "log":
