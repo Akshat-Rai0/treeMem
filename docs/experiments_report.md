@@ -1,5 +1,20 @@
 # Scaling Benchmark Experiments Report
 
+## 2026-11-04 Reconciliation and Gate
+
+- `bench/results_scaling/progress.jsonl`: 305 lines, 305 unique
+  `(size, arm, run, question_id)` keys; 0 duplicates.
+- By size: 50 = 139, 200 = 161, 1000 = 5, 5000 = 0.
+- Old private episodes in `bench/results_scaling/invalidated.jsonl`: 20;
+  stored original-grader outcome = 15 correct and 5 leaks. They were not
+  re-graded after the generator fix and must be rerun.
+- `tests/test_grader_private_question_fix.py` and
+  `tests/test_fix4_scaled_vault.py`: 9 passed.
+- `bench/sanity_check.py` was started, but the oracle gate did not complete:
+  provider responses were HTTP 429 with Retry-After delays up to 109 seconds.
+  No large scaling run was resumed, and no new private episode result is
+  reported.
+
 ## Completion Status
 
 **Total episodes**: 321/4000 (8.0%)

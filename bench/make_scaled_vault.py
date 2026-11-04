@@ -107,10 +107,24 @@ def build_extended_specs(seed: int, max_facts: int) -> Dict[str, Any]:
     
     # If we need more facts than the base provides, extend procedurally
     if max_facts <= len(base_specs["facts"]):
-        # Truncate to requested size
+        # Truncate facts AND candidates to match
+        # Keep only candidates whose answers appear in the truncated facts
         base_specs["facts"] = base_specs["facts"][:max_facts]
+
+        # Build a set of fact texts from the truncated facts
+        fact_texts = {f["fact"] for f in base_specs["facts"]}
+
+        # Filter candidates to only those whose answer appears in the kept facts
+        filtered_candidates = []
+        for cand in base_specs["candidates"]:
+            # Check if the candidate's answer appears in any of the kept facts
+            answer = cand.get("answer", "")
+            if any(answer.lower() in fact.lower() for fact in fact_texts):
+                filtered_candidates.append(cand)
+
+        base_specs["candidates"] = filtered_candidates
         return base_specs
-    
+
     rng = random.Random(seed + 1000)
     
     # Add procedural facts using fewer paths with more facts per path
