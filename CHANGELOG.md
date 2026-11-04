@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WP6: Live dashboard inside the MCP process** - CLI `--mcp` now starts dashboard in daemon thread sharing same TreeManager instance. Dashboard URL printed to stderr and written to `.dashboard_url` with mode 0600. EventBus uses `loop.call_soon_threadsafe()` for thread-safe event delivery. Added 1 regression test in `tests/test_fix_events_threadsafe.py`.
 - **WP8: Portability and tokenizer honesty** - fcntl imports wrapped with platform guard, raises `RuntimeError("TreeMem currently supports macOS and Linux only")` at startup. `tokenizer_is_fallback()` exposed. Fallback uses 1.3x conservative multiplier. `status()` and `/api/health` report `"tokenizer": "fallback"` with warning. Added 1 regression test in `tests/test_fix_tokenizer_reporting.py`.
 
+### Fixed (Pass 3: remaining gaps from the second review)
+- **Private teasers on disk.** `commit_summary` now overwrites the teaser of every effectively-private child with the standard private teaser (reported as `teasers_overwritten`) and scans teasers of normal children for exact private facts and private numbers. Previously an agent-written teaser such as "account number 4921" was stored verbatim in the parent's file. Tests: `tests/test_fix3_teaser_privacy.py`.
+- **Leak validator now honors inheritance.** Descendants of a private node are checked even when their own flag is `normal`; validation lives in `TreeManager._find_private_leak`.
+- **Search index drift.** Entries added after the last full build never got BM25 statistics, and node refreshes refit everything eagerly and could misalign dense-embedding rows. Lexical statistics are now refit lazily from cached tokens, nodes keep their position on refresh, and embedding rows are updated or deleted with them, so incremental updates give the same scores as `rebuild_index()`. Tests: `tests/test_fix3_index_consistency.py`.
+- **`EventBus.get_events`** reads event files newest first and stops once `limit` events are collected (and skips files older than `since`). Tests: `tests/test_fix3_events_window.py`.
+- **Case collisions.** `place` and `split` reject names that differ from an existing sibling only by letter case. Tests: `tests/test_fix3_case_collision.py`.
+- **Dotted node names.** `HealthChecker.get_all_node_paths` no longer strips leading/trailing dots from paths (a node named `v2.` was listed as `v2`).
+
 ### Fixed (Repo Hygiene)
 - Updated `.gitignore` to include `.placements.jsonl`, `.dashboard_url`, `.locks/`, `.events/`, `__MACOSX/`.
 - Removed stray vault directories (`demo/`, `memory/`, `my_memory/`) and cache files (`.DS_Store`, `__pycache__`, `*.pyc`, `*.egg-info`).
@@ -28,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented `--mcp` in-process dashboard and `.dashboard_url`.
 - Added privacy rules section describing inheritance and rebuild behavior.
 - Documented rebuild behavior (uses placement journal as primary source).
-- Updated test count badge to 214 passing (was 191).
+- Updated test count badge to 277 passing (was 191).
 - Replaced absolute file:///Users/... links with relative links.
 
 ### Added (Dashboard Conflict Handling)

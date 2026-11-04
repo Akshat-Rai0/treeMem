@@ -65,6 +65,7 @@ Width rules: three columns on >= 1100 px; below that, inspector becomes a drawer
 
 ### 3.7 Live mode
 - SSE stream. New recalls animate onto the canvas (path draws in over ~400 ms). `live ●` toggle pauses auto-follow without dropping events.
+- Live events from a real agent require the dashboard to run in the MCP process: `treemem serve <vault> --mcp` starts both and writes the access URL to `<vault>/.dashboard_url` (mode 0600) and stderr. Running the dashboard as a separate process only shows persisted history, not live events from another process.
 
 ## 4. Interactions
 
@@ -113,7 +114,7 @@ Width rules: three columns on >= 1100 px; below that, inspector becomes a drawer
 
 ## 9. Data contracts used
 
-Reads only: `/api/tree`, `/api/node`, `/api/events`, `/api/stream`, `/api/health`, `/api/metrics` as defined in system-wiring section 5.
+Reads: `/api/tree`, `/api/node`, `/api/events`, `/api/stream`, `/api/health`, `/api/metrics` as defined in system-wiring section 5. Writes (inspector only): `POST /api/node/summary` (with the conflict panel: Load Latest / Overwrite Anyway) and `POST /api/node/compress`.
 
 ## 10. Demo mode (for the GIF and README)
 

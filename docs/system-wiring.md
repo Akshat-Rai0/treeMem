@@ -95,7 +95,7 @@ All events: `{id, ts, type, session, query_id?}` plus:
 
 Events are also appended to `memory/.events/YYYY-MM-DD.jsonl` so the dashboard can replay history after restart. Events are NOT ground truth; the log is.
 
-## 5. Dashboard HTTP API (read-only)
+## 5. Dashboard HTTP API
 
 All requests require `?t=<token>` (or header). Server binds 127.0.0.1.
 
@@ -108,7 +108,7 @@ All requests require `?t=<token>` (or header). Server binds 127.0.0.1.
 | `GET /api/health` | Violations, dirty count, size stats |
 | `GET /api/metrics` | Tokens per recall, parent-stop rate, dirty-hit rate over a window |
 
-No write endpoints in v1.
+Write endpoints: `POST /api/node/summary` (summary edit with `expected_updated` conflict detection, `force` override) and `POST /api/node/compress` (per-node compress via the configured summarizer). Everything else is read-only. `/api/tree` and `/api/node` mask summaries and teasers of effectively-private nodes.
 
 ## 6. Concurrency and durability
 
@@ -191,3 +191,24 @@ Verification of MCP support in each daily harness is roadmap Phase 0.
 ## Reveal policy and evaluation wiring
 
 `mcp_layer.expand` / `mcp_layer.search` -> `reveal_policy.resolve_reveal(reveal)` -> `TreeManager.expand/search(reveal=effective)`; on denial the result gets `reveal_denied` and `reveal_note`. `bench/eval/run_eval.py` -> `execute_tool` applies the same `resolve_reveal`, runs `TreeManager.recall(follow=...)` for the guided arm, and `run_evaluation` writes per-run JSON, `llm_eval_aggregate.json` and the legacy `llm_eval_results.json`. `bench/make_readme_tables.py` turns those JSON files into the README and portfolio tables.
+
+
+## Index maintenance (incremental updates)
+
+`SearchIndex.build()` runs at startup and for `rebuild_index()`. `commit_summary`, `place` and `split` call `refresh_node(path, data)` / `remove_node(path)` / `add_entry(...)` instead. These update `node_docs` / `entry_docs` and the cached entry tokens in place and set dirty flags; BM25 and TF-IDF statistics are refit lazily by the next `query()` / `candidate_nodes()`, so incremental results equal a full rebuild. A refreshed node keeps its list position; when a dense provider is configured its embedding row is replaced (zeros for private nodes) or deleted/appended with it, otherwise the dense signal is dropped until the next full build.
+
+## Events read path
+
+`EventBus.get_events(since, limit)` lists `.events/YYYY-MM-DD.jsonl` newest first, parses only as many files as needed to return `limit` events (oldest to newest), and skips files whose date is before `since`. Raw search queries are never persisted: events carry `query_len` and an 8-character SHA-256 prefix.
+
+## commit_summary privacy pipeline
+
+1. Parse text; length and embed caps.
+2. Inside the node lock: conflict check, children must equal the directories on disk.
+3. For each child: effectively private (own flag, or the node itself is under a private ancestor) -> teaser overwritten with `PRIVATE_TEASER`; otherwise the teaser joins the scan set.
+4. `_find_private_leak(summary, normal teasers)` over every effectively-private descendant: whole-word matches (5+ letters or 3+ digit numbers) against the summary body, exact private facts anywhere, private numbers in teasers, and 3+ shared 4-letter words.
+5. Write only summary-owned fields; refresh the index node outside the lock.
+
+## Path rules
+
+`norm_path` normalizes to NFC and validates every segment (see README "Path Names"). `Store.find_case_conflict` is called by `place` and by `split` (group names) to reject names differing from an existing sibling only by case.

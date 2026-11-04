@@ -209,3 +209,10 @@ For each node the gate scores the question against the node summary and each chi
 ## Writing parent summaries so the gate can route
 
 The gate can only route on words that appear in a node summary or a child teaser. A teaser such as "Fiction speculative" hides the genres inside; "Fiction speculative: space opera, cyberpunk, dystopian, fantasy" lets a question about cyberpunk reach the right leaf. When committing a summary, list the key entities of each child in its teaser (cities, genres, tools, names), within the 150-token cap. `bench/large_vault_offline.py` shows the difference between minimal and rich teasers without any API calls.
+
+
+## Privacy inheritance and teasers (pass 3)
+
+- A node is effectively private if it or any ancestor has `sensitivity: private`. Recall, expand, compress, search, guided descent, the index and the dashboard all use this one rule.
+- Teasers of private children are server-owned: whatever the agent submits, `commit_summary` stores `contains private details, expand to view`.
+- Names that differ only by letter case from an existing sibling are rejected (`place`, `split`).

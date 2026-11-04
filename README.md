@@ -3,7 +3,7 @@
 > **Hierarchical, agent-writable memory for LLM agents exposed as a Model Context Protocol (MCP) server, stored as a plain folder of human-readable Markdown, with a live local web dashboard that visualizes every recall.**
 
 [![CI](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat-Rai0/treeMem/actions/workflows/ci.yml)
-[![Tests: 260 Passing](https://img.shields.io/badge/tests-260%20passed-brightgreen.svg)]()
+[![Tests: 277 Passing](https://img.shields.io/badge/tests-277%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![MCP: 2024-11-05](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -206,7 +206,7 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 
 **Reveal policy.** The model must not be able to grant itself access to private data, so `reveal=true` in a tool call is a *request*, not a switch. The MCP server honors it only when a human starts it with `TREEMEM_ALLOW_REVEAL=1`. Without that, `expand`, `compress`, and `search` return `reveal_denied: true` plus a note telling the agent to ask the user. Direct Python callers (tests, CLI, dashboard with its own token) use `TreeManager` directly and are not affected.
 
-**Privacy rules.** A node marked `sensitivity: private` hides its content from all read operations unless reveal is granted. Privacy is inherited: a normal node under a private parent is treated as private. The index withholds unplaced private entries from search. The AutoCompressor never sends private content to external LLMs unless reveal is granted. The placement journal records sensitivity so rebuild preserves it.
+**Privacy rules.** A node marked `sensitivity: private` hides its content from all read operations unless reveal is granted. Privacy is inherited: a normal node under a private parent is treated as private. The index withholds unplaced private entries from search. The AutoCompressor never sends private content to external LLMs unless reveal is granted. The placement journal records sensitivity so rebuild preserves it. `commit_summary` never trusts agent-written teasers for private children: the server overwrites them with `contains private details, expand to view` (the result lists `teasers_overwritten`), and teasers of normal children are scanned for exact private facts and private numbers (3+ digits) before the write is accepted.
 
 > **Note on Summarization Modes**:
 > * **Default Mode (Option A)**: TreeMem hosts zero models and requires zero external API keys. The client agent generates the summary text and commits it via `commit_summary`.
@@ -231,6 +231,8 @@ TreeMem path segments (node names) follow these rules:
 Examples of valid names: `node.js`, `C++`, `q3_résumé`, `मशीन लर्निंग`, `a.b+c#d`
 
 The entire path is normalized to NFC (Unicode composed form) so that `résumé` typed in different ways maps to the same directory.
+
+**Case collisions are rejected.** A name that differs from an existing sibling only by letter case (`docs` vs `Docs`) is refused by `place` and `split`, because case-insensitive filesystems (macOS default, Windows) would map both to one directory while the tree treated them as two nodes. The error names the existing spelling to use.
 
 ---
 
@@ -310,7 +312,8 @@ treemem rebuild [path]
 # Automatically compress dirty nodes bottom-up using server-side LLM (Option B)
 treemem compress [path] [--node path]
 
-# Start the local read-only web dashboard
+# Start the local web dashboard (live views plus two write actions: summary edit with
+# conflict detection, and per-node compress). With --mcp it runs inside the MCP process.
 treemem serve [path] --port 8765
 
 # Start dashboard with background auto-compressor daemon active
@@ -462,7 +465,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ```
 ........................................................................ [100%]
-============================== 191 passed in 3.27s ==============================
+============================== 277 passed in 48.00s ==============================
 ```
 
 - **Crash Mid-Write Simulation**: Tests deliberately simulate process crashes (`SIGKILL` / interrupted writes) during atomic file operations to confirm that corruptions and stray `.tmp` files never persist.
@@ -472,11 +475,12 @@ PYTHONPATH=src python3 -m pytest tests/ -q
 
 ## 13. Limitations & Known Issues
 
-1. **Small Vaults Favor Flat Dump**: On vaults with fewer than ~30 facts, a single flat context dump is faster and consumes fewer total API wire tokens (9,858 vs 63,695 tokens) because multi-turn tool calling re-transmits tool definitions and system prompts on every hop.
+1. **Small Vaults Favor Flat Dump**: On vaults with fewer than ~30 facts, a single flat context dump is faster and consumes fewer total API wire tokens (9,858 vs 66,758 tokens) because multi-turn tool calling re-transmits tool definitions and system prompts on every hop.
 2. **The Agent Over-Descends**: Without single-call guided descent (`follow=True`), autonomous agents frequently take 4–6 tool calls when a parent summary was already sufficient to answer the question.
 3. **Negative-Control Exhaustion**: When queried about facts absent from the vault (e.g., favorite sports car brand), agents tend to exhaust their multi-hop turn budget searching alternative branches before concluding the information is unknown.
 4. **Single-Agent Local Focus**: Designed as a local daemon for single-agent sessions; multi-user distributed synchronization is out of scope.
 5. **Dense Vector Embeddings are Optional and Opt-In**: Embeddings are an optional library feature (`src/treemem/embeddings.py`), off by default (`embedding_provider=None`). They are not wired into the descent gate or recall routing, and never process private text (nodes marked private, unplaced facts with unknown sensitivity, or facts whose hint points to a private node are never sent). **Inherent limit**: when a remote embedding provider is explicitly configured, the incoming search query text passed to `search(query)` is sent to the remote provider to compute query similarity. Stored private facts and unplaced facts are never sent, but the raw search query string itself is transmitted to the remote provider. The built-in deterministic provider uses token/bigram hashing for offline plumbing tests and does not demonstrate semantic benefit. No embedding quality was measured.
+6. **Leak validation is lexical.** `commit_summary` blocks whole-word and number overlap with private descendants (and refuses summaries on private nodes that quote their private children). A careful paraphrase of a private fact can still pass; the privacy boundary that matters is the read-side gating (`reveal` operator grant), not the validator.
 
 ---
 

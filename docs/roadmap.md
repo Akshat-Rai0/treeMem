@@ -96,3 +96,4 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 | Date | Phase | Note |
 |---|---|---|
 | 2026-10-22 | Pre-0 | Five docs written; stack decisions pending Phase 0 |
+| 2026-11-04 | Hardening | Three review passes: log escaping, path validation, privacy inheritance and teaser sanitization, placement journal, in-process dashboard, incremental index, case-collision guard. See docs/fix_notes.md |
