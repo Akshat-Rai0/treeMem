@@ -1,0 +1,8 @@
+{
+  "fact_count": 1000,
+  "node_count": 880,
+  "max_depth": 3,
+  "flat_log_tokens": 37539,
+  "tokenizer": "cl100k_base",
+  "seed": 7
+}

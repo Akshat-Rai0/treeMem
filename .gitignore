@@ -18,4 +18,5 @@ examples/**/.locks/
 examples/**/.events/
 bench/vaults/*/.locks/
 bench/vaults/*/.events/
+bench/vaults/scaled_*/
 *.lock

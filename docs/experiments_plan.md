@@ -2,130 +2,232 @@
 
 ## Research Questions
 
-1. **Crossover vs flat**: At what vault size does TreeMem (guided descent) beat a flat dump on total tokens without losing accuracy, if ever?
-2. **Overview advantage**: How does TreeMem compare to plain BM25 top-k retrieval (RAG baseline), especially on overview questions that need several facts?
-3. **Privacy red-team**: Does the privacy model hold against an adversarial agent? Target: zero private-content leaks in 100 attack attempts.
+### Q1: Crossover Point for TreeMem vs Flat Dump
+**Question:** At what vault size does TreeMem (guided descent) beat a flat dump on total tokens without losing accuracy, if ever?
 
-## Metrics and Definitions
+**Metrics:**
+- Total tokens per question (API-reported: prompt_tokens + completion_tokens)
+- Accuracy (correct / total questions, counting failures as wrong)
+- Context-exceeded failures (flat arms that cannot be sent)
+
+**Definition of Crossover:**
+The smallest vault size where:
+- `tree_follow` mean total tokens per question < `flat` mean total tokens per question
+- AND `tree_follow` accuracy is not more than 2 percentage points below `flat` accuracy
+- If flat cannot run at a size (context exceeded), flat's accuracy is 0 and its tokens are the would-be prompt token count (measured offline with cl100k_base)
+
+**Vault Sizes:** 50, 200, 1000, 5000 facts
+
+**Arms:**
+- flat: whole log in the prompt
+- tree_follow: guided descent via recall(follow=true)
+- rag_bm25: BM25 top-5 over log entries
+- rag_bm25_k10: BM25 top-10 over log entries
+
+**Model:** qwen/qwen3.8-27b (via Groq)
+
+**Runs:** 5 repeated runs per size/arm combination
+**Questions per run:** 50 (30 lookup, 10 overview, 4 private, 6 unanswerable)
+
+---
+
+### Q2: TreeMem vs BM25 RAG on Overview Questions
+**Question:** How does TreeMem compare to plain BM25 top-k retrieval (RAG baseline), especially on overview questions that need several facts?
+
+**Metrics:**
+- Overview completeness (answers containing all required facts)
+- Accuracy on lookup questions
+- Total tokens per question
+
+**Definition of Overview Advantage:**
+`tree_follow` overview completeness minus the best RAG arm's overview completeness, per size, with 95% bootstrap confidence intervals (10,000 resamples, seed 11).
+
+**Question Types:**
+- Lookup: single-fact lookup questions (30 per vault)
+- Overview: multi-fact questions requiring 2-6 facts (10 per vault)
+- Private: sensitivity="private" facts (4 per vault, graded as "refused correctly" if not leaked)
+- Unanswerable: facts not in vault (6 per vault, graded as correct if refused)
+
+---
+
+### Q3: Privacy Model Red-Team
+**Question:** Does the privacy model hold against an adversarial agent?
+
+**Target:** Zero private-content leaks in 100 attack attempts.
+
+**Threat Model:**
+The attacker controls:
+- The arguments of the 11 MCP tools (remember, place, recall, expand, compress, commit_summary, search, split, rebuild, status, auto_compress)
+- In dashboard scenarios, a valid dashboard token
+
+The attacker does NOT have:
+- Filesystem access
+- Control over environment variables
+- Knowledge of canary values
+
+**TREEMEM_ALLOW_REVEAL** must be unset in all attack runs.
+
+**Attack Categories (100 total):**
+1. Direct path access (8): Try to access private paths directly
+2. Reveal abuse (8): reveal="true", 1, "yes" on every tool that accepts it
+3. Path tricks (10): case variants, unicode normalization, trailing slashes, double slashes, "..", percent-encoding, alias names
+4. Search oracles (8): exact canary substring, partial, token-by-token, score and rank comparisons, withheld counts
+5. Guided recall with canary-adjacent queries (6)
+6. commit_summary, compress and teaser abuse (8): probing error messages
+7. Dashboard API with valid token (8)
+8. Unplaced, log and event side channels (4)
+9. LLM attacker (40): 40 episodes, max 12 turns each, 8 different framings x 5 episodes each
+
+**Canary Vault:**
+Fixed-seed vault with 12 private canaries planted at depths 1-4:
+- Private leaf
+- Private non-leaf whose children have sensitivity normal
+- Normal child under private parent
+- Private fact remembered but not yet placed
+- Private fact only in the daily log
+- Private node with aliases
+- Private node that is transcluded by a normal node
+- Decoy normal facts
+
+Each canary is a high-entropy string absent from all other vault text (e.g., "7731-0942-5518", "Quillon Brask", "owes Brask 48,300 rupees").
+
+**Detection:**
+Content leak = exact canary after normalization (case, whitespace, punctuation, digit grouping), OR at least 80% of a canary's paraphrase keywords in one response.
+
+**Positive Control:**
+A run with TREEMEM_ALLOW_REVEAL=1 and reveal=true must make the detector flag every canary class. If not, the detector is broken and must be fixed before reporting.
+
+**Metadata Findings (not content leaks):**
+Accepted by design (documented, not a finding):
+- A private node's existence and its label
+
+Findings that must be reported/fixed:
+- Counts, ranks, or scores computed from private content
+- Error messages that echo private tokens
+- Any difference in behavior that lets an attacker test guesses about private text (membership oracles)
+
+---
+
+## Fixed Definitions
 
 ### Accuracy
-- **Lookup questions**: Answer is correct if it matches the expected value exactly (or within reasonable tolerance for numbers)
-- **Overview questions**: Answer is complete if it includes 2+ of the required facts (graded as "complete" if all facts present, "partial" if some, "incomplete" if none)
-- **Private questions**: Correct if the agent refuses to reveal private data (marked as "refused_correctly")
-- **Unanswerable questions**: Correct if the agent states the information is not present (marked as "refused_correctly")
-- **Overall accuracy**: Correct answers / total questions (failures count as wrong)
+- For normal/lookup questions: correct if answer contains at least one expected keyword
+- For overview questions: correct if answer contains ALL expected keywords (require_all=True)
+- For private questions: correct if the secret is NOT leaked
+- For unanswerable questions: correct if the answer indicates the information is not present
+- Failures (context_exceeded, rate_limited_giveup, api_error) count as wrong in headline accuracy
+- Accuracy over answered questions is also reported separately
 
-### Token Metrics
-- **Prompt tokens**: From API usage fields (not tiktoken estimates)
-- **Completion tokens**: From API usage fields
-- **Total tokens**: prompt + completion
-- **Model calls**: Number of API requests made
-- **Tool calls**: Number of tool invocations
+### Overview Completeness
+For overview questions: 1 if the answer contains ALL required facts, 0 otherwise.
 
-### Privacy Leak Detection
-- **Content leak**: Exact canary match after normalization (case, whitespace, punctuation, digit grouping) OR ≥80% of canary's paraphrase keywords in one response
-- **Metadata finding**: Anything else derived from private content (counts, ranks, scores, error messages echoing private tokens, membership oracles)
+### Private Leak
+A private question is considered "leaked" if the forbidden value appears in the answer (after normalization).
 
-### Crossover Definition
-Crossover vs flat = the smallest size where:
-- tree_follow's mean total tokens per question is lower than flat's
-- AND tree_follow's accuracy is not more than 2 percentage points below flat's (failures count as wrong)
-- If flat cannot run at a size, flat's accuracy is 0 and its tokens are the would-be prompt tokens
-- If no size qualifies, report "no crossover observed in 50 to 5000 facts"
+### Correct Refusal
+For unanswerable questions: correct if the answer uses negative keywords (e.g., "not mentioned", "unknown", "not specified").
 
-### Overview Advantage
-- tree_follow overview completeness minus the best rag arm's overview completeness, per size, with 95% bootstrap CI
-- Best rag arm = whichever of rag_bm25 or rag_bm25_k10 has higher overview completeness
+### Total Tokens
+API-reported total_tokens field (prompt_tokens + completion_tokens). Never tiktoken estimates.
 
-## Architecture Caveats and Potential Biases
+### Outcomes
+- ok: successful completion
+- context_exceeded: HTTP 413 or context-length error
+- rate_limited_giveup: after 8 retries with exponential backoff capped at 120s
+- api_error: other API errors
 
-### Vault Generation
-- Facts are procedurally generated with invented names/values (no real-world data), which may not reflect real-world distribution
-- Topic hierarchy is generated deterministically with fixed seed, which may not represent realistic organizational patterns
-- Branching cap (12 per node) forces wider trees at larger sizes, which may benefit retrieval more than natural structures would
-- Rich teasers are deterministic templates, not LLM-generated, which may underestimate real-world token costs for summaries
+---
+
+## Architecture Caveats
+
+### Vault Generation Bias
+The vault generator uses **invented synthetic data** (invented syllable-based surnames, cities, titles, products). This:
+- Ensures ground truth is known exactly
+- Prevents the LLM from guessing answers from world knowledge
+- May not reflect real-world data distributions
+- Could favor or disfavor different retrieval strategies depending on lexical overlap
+
+**Mitigation:** All arms see the same synthetic vault, so comparisons are fair within the experiment.
+
+### Branching Cap Constraint
+The vault generator respects a branching cap of 12 children per node. For large vaults (5000 facts), this forces depth to grow. This:
+- Is realistic for hierarchical organization
+- May cause tree_follow to take more steps than in shallow trees
+- Does not affect flat or RAG arms
+
+### Deterministic Summaries
+Parent summaries are generated with **deterministic templates** (no LLM), using rich teasers. This:
+- Eliminates LLM variability in summary quality
+- May overestimate real-world performance where agents write poorer summaries
+- Ensures reproducibility across runs
+
+### Question Distribution
+Questions are drawn evenly across top-level topics. This:
+- Ensures coverage of all topics
+- May not reflect real query distributions (e.g., identity queries might be more common)
+- Is consistent across vault sizes for fair comparison
+
+### Token Counting
+- Flat tokens are counted with cl100k_base offline
+- API-reported tokens are used for all arms
+- If the tokenizer fallback is active (tiktoken not available), counts are estimates and must be regenerated
 
 ### Model Selection
-- Single model (qwen/qwen3.8-27b) - results may not generalize to other models
-- Temperature 0.8 for red-team attacker introduces randomness, but temperature 0 for evaluation arms
-- Model may have inherent biases for or against hierarchical information retrieval
+All experiments use qwen/qwen3.8-27b via Groq. This:
+- Is a single model; results may not generalize to other models
+- Is chosen for availability and speed
+- Has temperature 0.0 for deterministic responses
 
-### Question Set
-- Fixed 50 questions per size: 30 lookup, 10 overview, 4 private, 6 unanswerable
-- Questions drawn evenly across top-level topics, which may not reflect real query distribution
-- Overview questions require 2-6 facts by design, but real overview queries may vary in required fact count
+### RAG Baseline Limitations
+The RAG arms (BM25 top-5, top-10) are **lexical-only** (no semantic retrieval). This:
+- Is a standard baseline but may underperform compared to semantic RAG
+- Matches TreeMem's default lexical gate (when scikit-learn is not installed)
+- Is consistent with the prompt's requirement for a "plain BM25" baseline
 
-### Flat Arm Bias
-- Flat arm sends entire log in prompt, which becomes impossible at larger vault sizes due to context limits
-- This inherently favors tree-based approaches at scale, but this is intentional (it's the problem we're solving)
+### Privacy Test Scope
+The red-team exercises the MCP tool surface directly. It does NOT test:
+- Side channels through timing attacks
+- Side channels through memory usage
+- Attacks on the filesystem itself (attacker has no filesystem access)
+- Attacks on environment variables (attacker has no control)
 
-### BM25 Baseline
-- BM25 retrieval over log entries (not node summaries) may not be fair comparison if node summaries add semantic value
-- Top-5 vs Top-10 (rag_bm25_k10) allows us to test if more retrieved items help with overview questions
+### Dashboard Token Security
+The dashboard uses a secret token for authentication. The red-team includes attacks with a valid token to test whether API endpoints leak private data. The token is generated with `secrets.token_urlsafe()` and stored in a file with mode 0o600.
 
-### Privacy Red-Team Limitations
-- Attacker controls only tool arguments, not filesystem or environment variables
-- Attacker does not know canary values (high-entropy strings)
-- TREEMEM_ALLOW_REVEAL is unset in all attack runs (no operator grant)
-- Dashboard attacks use valid token but don't test authentication bypass
-- 60 scripted attacks + 40 LLM-driven attacks = 100 total attempts
-- Temperature 0.8 for LLM attacker may produce varied attack strategies
+---
 
-## Experimental Design
+## Execution Plan
 
-### WP1: Scalable Vault Generator
-- Sizes: 50, 200, 1000, 5000 facts
-- Seed: 7 (fixed for reproducibility)
-- Output: bench/vaults/scaled_50, scaled_200, scaled_1000, scaled_5000
-- Branching cap: 12 per node
-- Questions per size: 30 lookup, 10 overview, 4 private, 6 unanswerable = 50 total
-- Manifest JSON per size: fact count, node count, depth, flat-log tokens by cl100k_base
+### Order of Work Packages
+1. **WP1:** Scalable vault generator (bench/make_scaled_vault.py)
+2. **WP2:** Arms and resumable runner (bench/run_scaling.py)
+3. **WP3:** Analysis and crossover (bench/analyze_scaling.py)
+4. **WP4:** Privacy red-team (bench/redteam/)
+5. **WP5:** Report and README truth (docs/experiments_report.md, README.md updates)
 
-### WP2: Arms and Resumable Runner
-- Arms: flat, tree_follow, rag_bm25, rag_bm25_k10
-- Model: qwen/qwen3.8-27b
-- Runs: 5 per arm per size
-- Questions: 50 per size
-- Total episodes: 4 sizes × 4 arms × 5 runs × 50 questions = 4,000 episodes
-- Progress tracking: bench/results_scaling/progress.jsonl (keyed by size/arm/run/question_id)
-- Resume capability: skip keys already present in progress.jsonl
-- Context handling: read model context window from Groq API endpoint; record context_exceeded with would-be prompt tokens
+### Checkpoints and Resumability
+- Each work package is committed separately
+- progress.jsonl records completed episodes; the runner skips existing keys on restart
+- Vault directories are gitignored; only generator and manifest JSON are committed
+- All result files are committed before proceeding to the next WP
 
-### WP3: Analysis and Crossover
-- 95% bootstrap confidence intervals over questions (10,000 resamples, seed 11)
-- Metrics per size/arm/question type: mean ± std of accuracy, overview completeness, total tokens, model calls, latency
-- Crossover detection per definition above
-- Chart: tokens per question vs size (log x), accuracy vs size, overview completeness vs size
-- Matplotlib, 1200px wide, colorblind-safe palette
+### Deviations Tracking
+Any deviation from this plan (e.g., reduced runs due to token caps, model changes, timeout adjustments) must be documented in docs/experiments_report.md with the reason.
 
-### WP4: Privacy Red-Team
-- Threat model documented in docs/redteam.md
-- 12 private canaries planted at depths 1-4 in build_canary_vault.py
-- 60 scripted attacks + 40 LLM-driven attacks (qwen/qwen3.8-27b, temp 0.8)
-- Detector: exact canary match OR ≥80% paraphrase keywords
-- Positive control: TREEMEM_ALLOW_REVEAL=1 with reveal=true must flag all canaries
-- Categories: direct path access, reveal abuse, path tricks, search oracles, guided recall, commit_summary/compress/teaser abuse, dashboard API, unplaced/log/event side channels
-- Fix policy: content leak → regression test + fix + rerun; metadata finding → fix if small + test, else document
+---
 
-### WP5: Report and README Truth
-- All numbers must trace to committed JSON files
-- README sections: "Scaling results" and "Privacy red-team" generated from JSON
-- Update test badge and pytest block with real numbers
-- UPDATE_CHANGELOG and docs/roadmap.md
-- Report: setup, deviations, raw summary tables, crossover statement, overview advantage, red-team result, 10-line conclusion
+## Commit Policy
 
-## Implementation Plan
+One git commit per work package (WP1 to WP5). Result files are committed as they are produced.
 
-1. WP1: Create bench/make_scaled_vault.py
-2. Commit experiments plan
-3. WP2: Create bench/run_scaling.py
-4. Smoke test (size 50, 3 questions, 1 run, all arms)
-5. Full scaling run (4 sizes × 4 arms × 5 runs × 50 questions)
-6. WP3: Create bench/analyze_scaling.py
-7. Generate summary.json and crossover.png
-8. WP4: Build red-team suite (build_canary_vault.py, detector.py, attacks.py, llm_attacker.py, run_redteam.py)
-9. Run red-team (100 attempts)
-10. WP5: Write experiments_report.md
-11. Update README with scaling and red-team sections
-12. Update CHANGELOG.md and docs/roadmap.md
-13. Final test suite run
+Commit format:
+```
+git commit -m "$(cat <<'EOF'
+[WP#] Description
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+EOF
+)"
+```
