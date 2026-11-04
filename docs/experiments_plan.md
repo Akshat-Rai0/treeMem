@@ -231,3 +231,10 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 EOF
 )"
 ```
+
+## Time Projection
+
+Based on smoke test:
+- Total episodes: 4000
+- Projected time: 0.9 hours
+- Projected tokens: 4,135,000
