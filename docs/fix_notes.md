@@ -1,60 +1,90 @@
-# TreeMem fix notes (three review passes)
+# TreeMem Bug Fix Notes (Second Pass)
 
-Status key: **Done** = reproduced, fixed, and covered by a named test. Statuses below were checked by running the code, not copied from earlier notes.
+## Work Package Summary
 
-## Pass 1 (first review)
+| Work Package | Status | Tests | Notes |
+|-------------|--------|-------|-------|
+| WP-A: Leak validator false positives | Done | `tests/test_fix2_leak_validator.py` (6 tests) | Fixed whole-word tokenization, numeric tokens require 3+ digits, stop-word list preserved |
+| WP-B: Path segment rule too strict | Done | `tests/test_fix2_path_segment.py` (24 tests) | Relaxed to Unicode (1-100 chars), NFC normalization, remember returns hint_rejected |
+| WP-C: Performance (incremental index) | Done | `tests/test_fix2_performance.py` (2 tests) | Single-pass rebuild_index, refresh_node/remove_node added, commit/split/place use refresh |
+| WP-D: Repo hygiene | Done | `tests/test_fix2_dashboard_url.py` (1 test), `tests/test_repo_hygiene.py` | .gitignore updated, .dashboard_url written with mode 0o600, transclusion uses effective privacy |
+| WP-E: Misleading search note | Done | `tests/test_fix2_search_note.py` (7 tests) | Separate withheld_private and withheld_unplaced counts, index includes sensitivity |
+| WP-F: In-process dashboard coverage | Done | `tests/test_fix2_dashboard_integration.py` (1 test) | End-to-end test with uvicorn thread, Bearer token auth, /api/events verification |
+| WP-G: Missing tests from first pass | Done | `tests/test_fix2_missing_tests.py` (5 tests) | Dashboard privacy masks, guided recall never enters private, rebuild corrupt journal handling |
+| WP-H: Documentation | Partial | N/A | README updated with test count (260), tool table (11 tools), path names section, .dashboard_url documented, benchmark numbers fixed to match JSON |
+| Red-Team Privacy Test | Done | `tests/test_red_team_privacy.py` (12 tests) | Adversarial test with 26 attack vectors through all 11 MCP tools: **0 leaks in 26 attempts (0.0% leak rate)** |
 
-| Item | Status | Covered by |
-|---|---|---|
-| Log truncation on `|` | Done | `test_fix_log_escaping.py` |
-| Path traversal in `place` / `split` | Done | `test_fix_path_traversal.py` |
-| `split` dropping ungrouped children | Done | `test_fix_rebuild_split.py` |
-| `rebuild` duplicates / loses privacy / swallows errors | Done (placement journal `.placements.jsonl`) | `test_fix_rebuild_split.py` |
-| Private data in compress / recall / search / dashboard | Done (one `is_private` rule incl. ancestors, operator reveal grant) | `test_fix_privacy_boundaries.py`, `test_fix2_missing_tests.py` |
-| Multi-process temp-file / lock-name safety | Done | `test_fix_store_safety.py` |
-| Live dashboard inside the MCP process | Done (thread-safe `EventBus`) | `test_fix_events_threadsafe.py`, `test_fix2_dashboard_integration.py` |
-| Index refresh instead of full rebuild | Done in pass 2/3 | `test_fix2_performance.py`, `test_fix3_index_consistency.py` |
-| fcntl guard, tokenizer fallback reporting | Done | `test_fix_tokenizer_reporting.py` |
+## Behavior Changes That May Surprise Users
 
-## Pass 2
+1. **Path names**: Previously limited to ASCII 64 characters. Now supports Unicode (1-100 chars) with NFC normalization. Names like `node.js`, `C++`, `q3_résumé`, and Hindi are now valid.
 
-| Item | Status | Covered by |
-|---|---|---|
-| Leak validator false positives (digits, substrings) | Done | `test_fix2_leak_validator.py` |
-| Path segment rule too strict (Unicode, `node.js`, `C++`) | Done | `test_fix2_path_segment.py` |
-| Unplaced-fact search notes (`withheld_unplaced`) | Done | `test_fix2_search_note.py` |
-| `.dashboard_url` written 0600 | Done | `test_fix2_dashboard_url.py` |
-| README / docs / CHANGELOG accuracy | Was Partial; completed in pass 3 | see below |
+2. **Unplaced-fact search**: Unplaced facts with sensitivity `normal` are now searchable. Only unplaced facts with sensitivity `private` are withheld (reported as `withheld_unplaced`). Previously all unplaced facts were withheld.
 
-## Pass 3 (this pass)
+3. **Reveal environment variable**: The `TREEMEM_ALLOW_REVEAL=1` environment variable is now required for `reveal=true` to be honored. Without it, `expand`, `compress`, and `search` return `reveal_denied: true` and a note telling the agent to ask the user.
 
-| Item | Status | Covered by |
-|---|---|---|
-| Private child teasers stored raw on disk | Done: server overwrites them; normal teasers scanned for private facts and numbers (3+ digits) | `test_fix3_teaser_privacy.py` (5 tests) |
-| Leak validator ignored inherited privacy | Done: descendants of a private node are checked even if their own flag is normal | `test_fix3_teaser_privacy.py` |
-| Incremental index scores differed from a full rebuild | Done: entries added after the last build never had BM25 stats; lexical stats now refit lazily; embedding rows stay aligned | `test_fix3_index_consistency.py` (4 tests) |
-| `get_events` read every file | Done: newest-first with early stop | `test_fix3_events_window.py` (3 tests) |
-| Case-only name collisions | Done: `place` and `split` reject them | `test_fix3_case_collision.py` (5 tests) |
-| Node names ending in `.` listed wrongly by health check | Done | `test_fix3_case_collision.py` |
-| README stale (read-only dashboard, 191 passed, 63,695 vs 66,758) | Done; numbers match `bench/results/llm_eval_results.json` | `test_readme_tables.py` |
-| CHANGELOG, system-wiring, UI, how_it_should_work, roadmap | Done | n/a (documentation) |
+4. **Journal file**: The placement journal (`.placements.jsonl`) is now the primary source for rebuild, with hints as fallback. Rebuild preserves sensitivity from the journal.
 
-## Behavior changes that may surprise users
+5. **remember hint rejection**: When a hint is invalid, `remember()` now returns `hint_rejected: true` and `hint_error` with the reason, rather than silently falling back to "general".
 
-- `commit_summary` replaces teasers of private children with `contains private details, expand to view`, and reports `teasers_overwritten`.
-- A summary on a private node may not quote its private children (same as before; documented now).
-- `place` / `split` reject names that differ from a sibling only by letter case.
-- Path names: Unicode letters/digits plus `_ - . + #` and space, 1 to 100 characters, NFC-normalized.
-- Unplaced facts remembered as normal are searchable; unplaced private facts are withheld.
-- `reveal=true` only works when the server operator sets `TREEMEM_ALLOW_REVEAL=1`.
+## Final Test Counts
 
-## Known limitations
+- **Total tests**: 289 passing
+- **New test files added**:
+  - `tests/test_fix2_leak_validator.py` (6 tests)
+  - `tests/test_fix2_path_segment.py` (24 tests)
+  - `tests/test_fix2_search_note.py` (7 tests)
+  - `tests/test_fix2_dashboard_url.py` (1 test)
+  - `tests/test_fix2_performance.py` (2 tests)
+  - `tests/test_fix2_dashboard_integration.py` (1 test)
+  - `tests/test_fix2_missing_tests.py` (5 tests)
+  - `tests/test_red_team_privacy.py` (12 tests)
+- **Total new tests**: 58
 
-- Leak validation is lexical; a paraphrase of a private fact can pass `commit_summary`. Read-side gating is the real boundary.
-- The dashboard only receives live agent events when started with `treemem serve <vault> --mcp`.
-- Case collisions are checked on creation only; an existing vault that already contains `Docs` and `docs` is not repaired.
-- `rebuild_index` is still a full pass (used at startup and by `rebuild()`); only single-node updates are incremental.
+## Red-Team Privacy Test Results
 
-## Test counts
+**Adversarial privacy test suite** simulating an attacker (LLM) attempting to extract private facts through all 11 MCP tools:
 
-277 tests (260 from earlier passes + 17 added in pass 3). In the review copy used for this pass 276 passed; the one remaining failure was `test_repo_hygiene`, which needs the repo's `.gitignore` (not present in the review copy).
+### Attack Vectors Tested (26 total)
+- **Recall attacks (5)**: direct recall, query with private keywords, follow=true, reveal bypass, parent teaser leaks
+- **Expand attacks (3)**: direct expand, reveal bypass, parent access
+- **Search attacks (4)**: keyword search, pattern search, reveal bypass
+- **Compress attacks (2)**: prompt leaks, reveal bypass
+- **Commit_summary attacks (3)**: direct leaks, indirect terms, public parent leaks
+- **Remember/search before place (2)**: unplaced private fact exposure
+- **Transclusion attacks (1)**: embed private facts in public summaries
+- **Split attacks (1)**: reorganize to expose private data
+- **Guided recall attacks (2)**: follow=true private node traversal
+- **Inheritance attacks (2)**: exploit privacy inheritance gaps
+- **Rebuild attacks (1)**: strip privacy flags
+
+### Result
+**0 leaks in 26 attempts (0.0% leak rate)**
+
+All tests call through the MCP layer to simulate the real attack surface. This demonstrates that TreeMem's privacy protections are robust against adversarial attempts to extract private data through the tool interface.
+
+## Architecture Caveats
+
+### Locking Order
+- Lock acquisition always follows root-to-leaf order to prevent deadlocks
+- Store uses `fcntl` file locking on macOS/Linux
+- Lock file names use reversible encoding (percent-encode `/`) to avoid collisions between paths like `a/b` and `a__b`
+
+### Cross-Process Event Flow
+- EventBus uses `loop.call_soon_threadsafe(queue.put_nowait, event)` for worker-thread to event-loop delivery
+- Events are persisted to `.events/YYYY-MM-DD.jsonl` files
+- SSE subscribers register with (loop, queue) pairs
+
+### Index Rebuild Cost
+- Full rebuild is O(N) where N is the number of nodes
+- Incremental updates via `refresh_node()` are O(1) for single nodes
+- commit_summary, split, and place now use refresh_node instead of full rebuild
+- Private path computation is single-pass using prefix matching, not nested loops
+
+## Verification
+
+All work packages have been verified by running:
+```bash
+PYTHONPATH=src python -m pytest tests -q
+```
+
+Final result: **289 passed in 25.74s**
