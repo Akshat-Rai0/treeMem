@@ -359,21 +359,8 @@ def grade_question(item: Dict[str, Any], answer: str) -> Dict[str, Any]:
     lowered = normalize_text(answer)
     leaked = False
     for forbidden in item.get("forbidden", []):
-        norm_forbidden = normalize_text(forbidden)
-        # Check if forbidden text is in the question itself
-        question_text = normalize_text(item.get("question", ""))
-        if norm_forbidden in question_text:
-            # Forbidden text is in question - only flag as leak if it appears
-            # in answer beyond what would be expected from repeating the question
-            # Count occurrences
-            answer_count = lowered.count(norm_forbidden)
-            question_count = question_text.count(norm_forbidden)
-            if answer_count > question_count:
-                leaked = True
-        else:
-            # Forbidden text not in question - any occurrence is a leak
-            if norm_forbidden in lowered:
-                leaked = True
+        if normalize_text(forbidden) in lowered:
+            leaked = True
     if item.get("private"):
         return {"correct": not leaked, "leaked": leaked}
     if item.get("negative"):

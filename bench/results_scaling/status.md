@@ -2,6 +2,11 @@
 
 Measured data from `progress.jsonl`. No extrapolation or estimation.
 
+**Total episodes**: 305
+
+**Note**: 20 private question episodes moved to `invalidated.jsonl` due to question format change.
+These used the old question format (secret in question text) and must be rerun.
+
 ## Completion Matrix
 
 Table shows completed episodes per size x arm x run (out of 50 per cell).
@@ -10,7 +15,7 @@ Table shows completed episodes per size x arm x run (out of 50 per cell).
 
 | Arm | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
 |-----|-------|-------|-------|-------|-------|
-| flat | 50 | 50 | 32 | 0 | 0 |
+| flat | 46 | 46 | 38 | 0 | 0 |
 | tree_follow | 3 | 0 | 0 | 0 | 0 |
 | rag_bm25 | 3 | 0 | 0 | 0 | 0 |
 | rag_bm25_k10 | 3 | 0 | 0 | 0 | 0 |
@@ -19,9 +24,9 @@ Table shows completed episodes per size x arm x run (out of 50 per cell).
 
 | Arm | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
 |-----|-------|-------|-------|-------|-------|
-| flat | 50 | 0 | 0 | 0 | 0 |
-| tree_follow | 50 | 0 | 0 | 0 | 0 |
-| rag_bm25 | 50 | 0 | 0 | 0 | 0 |
+| flat | 46 | 0 | 0 | 0 | 0 |
+| tree_follow | 46 | 0 | 0 | 0 | 0 |
+| rag_bm25 | 46 | 0 | 0 | 0 | 0 |
 | rag_bm25_k10 | 23 | 0 | 0 | 0 | 0 |
 
 ### Size 1000
@@ -54,9 +59,9 @@ Note: 'request_exceeded_provider_token_limit' means the flat arm's prompt exceed
 
 | Run | ok | request_exceeded_provider_token_limit | api_error | rate_limited_giveup |
 |-----|----|--------------------------------------|-----------|-------------------|
-| 1 | 50 | 0 | 0 | 0 |
-| 2 | 50 | 0 | 0 | 0 |
-| 3 | 32 | 0 | 0 | 0 |
+| 1 | 46 | 0 | 0 | 0 |
+| 2 | 46 | 0 | 0 | 0 |
+| 3 | 38 | 0 | 0 | 0 |
 | 4 | - | - | - | - |
 | 5 | - | - | - | - |
 
@@ -96,7 +101,7 @@ Note: 'request_exceeded_provider_token_limit' means the flat arm's prompt exceed
 
 | Run | ok | request_exceeded_provider_token_limit | api_error | rate_limited_giveup |
 |-----|----|--------------------------------------|-----------|-------------------|
-| 1 | 0 | 50 | 0 | 0 |
+| 1 | 0 | 46 | 0 | 0 |
 | 2 | - | - | - | - |
 | 3 | - | - | - | - |
 | 4 | - | - | - | - |
@@ -106,7 +111,7 @@ Note: 'request_exceeded_provider_token_limit' means the flat arm's prompt exceed
 
 | Run | ok | request_exceeded_provider_token_limit | api_error | rate_limited_giveup |
 |-----|----|--------------------------------------|-----------|-------------------|
-| 1 | 50 | 0 | 0 | 0 |
+| 1 | 46 | 0 | 0 | 0 |
 | 2 | - | - | - | - |
 | 3 | - | - | - | - |
 | 4 | - | - | - | - |
@@ -116,7 +121,7 @@ Note: 'request_exceeded_provider_token_limit' means the flat arm's prompt exceed
 
 | Run | ok | request_exceeded_provider_token_limit | api_error | rate_limited_giveup |
 |-----|----|--------------------------------------|-----------|-------------------|
-| 1 | 50 | 0 | 0 | 0 |
+| 1 | 46 | 0 | 0 | 0 |
 | 2 | - | - | - | - |
 | 3 | - | - | - | - |
 | 4 | - | - | - | - |
