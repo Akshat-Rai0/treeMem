@@ -21,6 +21,9 @@ from treemem.descent_gate import DescentGate
 _MAX_PATH_DEPTH = 8
 
 
+PRIVATE_TEASER = "contains private details, expand to view"
+
+
 def validate_segment(segment: str) -> str:
     """Validate a single path segment. Raises ValueError if illegal.
 
@@ -319,6 +322,13 @@ class TreeManager:
         clean_path = norm_path(path)
         if not clean_path:
             raise ValueError("Cannot place fact directly at root. Specify a topic node path (e.g. 'identity/age').")
+
+        conflict = self.store.find_case_conflict(clean_path)
+        if conflict:
+            raise ValueError(
+                f"Path '{conflict[0]}' differs only by letter case from existing node '{conflict[1]}'. "
+                f"Use '{conflict[1]}' (names that differ only by case are not allowed)."
+            )
 
         # Check log entry exists
         log_entry = self.log_writer.get_entry(entry_id)
@@ -970,58 +980,36 @@ class TreeManager:
                 self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
                 return {"ok": False, "error": err}
 
-            # Validation 3: Privacy check — no content from private descendants.
-            # Read descendant nodes inside the lock for a consistent view.
-            all_node_paths = self.health_checker.get_all_node_paths()
-            prefix = (clean_path + "/") if clean_path else ""
-            descendant_paths = [p for p in all_node_paths if p.startswith(prefix) and p != clean_path]
-            for ch_path in descendant_paths:
-                ch_node = self.store.read_node(ch_path)
-                if ch_node and ch_node.sensitivity == "private":
-                    # Check summary substring using whole-word tokenization
-                    priv_summary_tokens = set(re.findall(r"[^\W_]+", ch_node.summary.lower(), re.UNICODE))
-                    sum_tokens = set(re.findall(r"[^\W_]+", summary.lower(), re.UNICODE))
-                    if priv_summary_tokens.intersection(sum_tokens):
-                        # Check if any private summary token is significant (5+ chars or 3+ digit number)
-                        for token in priv_summary_tokens.intersection(sum_tokens):
-                            if len(token) >= 5 or (token.isdigit() and len(token) >= 3):
-                                err = f"Summary leaks exact content from private child '{ch_path}' (term: '{token}')"
-                                self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                                return {"ok": False, "error": err}
+            # Validation 3: Privacy check — no content from effectively-private descendants
+            # in the summary body OR in the teasers of non-private children.
+            # Teasers of private children are never trusted: the server overwrites them.
+            sanitized_children: List[Dict[str, Any]] = []
+            overwritten_teasers: List[str] = []
+            normal_teasers: List[str] = []
+            parent_private = self.is_private(clean_path)
+            for c in children_parsed:
+                child_path = f"{clean_path}/{c['label']}" if clean_path else c["label"]
+                entry = dict(c)
+                child_node = self.store.read_node(child_path)
+                child_private = parent_private or bool(child_node is not None and child_node.sensitivity == "private")
+                if child_private:
+                    if entry.get("teaser", "") != PRIVATE_TEASER:
+                        overwritten_teasers.append(c["label"])
+                    entry["teaser"] = PRIVATE_TEASER
+                else:
+                    normal_teasers.append(entry.get("teaser", ""))
+                sanitized_children.append(entry)
 
-                    # Check fact text using whole-word tokenization
-                    for f in ch_node.facts:
-                        f_text = f.get("fact", "").strip().lower()
-                        fact_tokens = set(re.findall(r"[^\W_]+", f_text, re.UNICODE))
-                        # Check for exact fact substring (only if fact is 5+ chars total)
-                        if len(f_text) >= 5 and f_text in summary.lower():
-                            err = f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
-                            self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                            return {"ok": False, "error": err}
-                        # Check token overlap (only significant tokens)
-                        for token in fact_tokens.intersection(sum_tokens):
-                            if len(token) >= 5 or (token.isdigit() and len(token) >= 3):
-                                if token not in {"user", "details", "private", "information", "about", "their", "child", "expand", "view"}:
-                                    err = f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
-                                    self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                                    return {"ok": False, "error": err}
-
-                    # Check word overlap using whole-word tokenization
-                    priv_words = set(re.findall(r"[^\W_]+", (ch_node.summary + " " + " ".join(f["fact"] for f in ch_node.facts)).lower(), re.UNICODE))
-                    # Filter to significant words (4+ chars or 3+ digit numbers)
-                    priv_significant = {w for w in priv_words if len(w) >= 4 or (w.isdigit() and len(w) >= 3)}
-                    sum_significant = {w for w in sum_tokens if len(w) >= 4 or (w.isdigit() and len(w) >= 3)}
-                    overlap = priv_significant.intersection(sum_significant) - {"child", "details", "private", "expand", "view"}
-                    if len(overlap) >= 3:
-                        err = f"Summary leaks private details from child '{ch_path}' (overlapping terms: {list(overlap)[:3]})"
-                        self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": err}, session)
-                        return {"ok": False, "error": err}
+            leak_err = self._find_private_leak(clean_path, summary, normal_teasers, parent_private=parent_private)
+            if leak_err:
+                self.event_bus.emit("summary", {"path": clean_path or "/", "tokens": submitted_tokens, "ok": False, "error": leak_err}, session)
+                return {"ok": False, "error": leak_err}
 
             # Passed all validations: apply ONLY the summary-owned fields onto the
             # fresh node.  facts, sensitivity, aliases, children_cap, name etc. are
             # preserved from the fresh read — never from a stale copy.
             fresh_node.summary = summary
-            fresh_node.children = children_parsed
+            fresh_node.children = sanitized_children
             fresh_node.dirty = False
             fresh_node.updated = datetime.now(timezone.utc).isoformat()
             fresh_node.tokens = submitted_tokens
@@ -1045,7 +1033,87 @@ class TreeManager:
             session=session,
         )
 
-        return {"ok": True, "path": clean_path or "/", "tokens": submitted_tokens, "dirty": False}
+        result: Dict[str, Any] = {"ok": True, "path": clean_path or "/", "tokens": submitted_tokens, "dirty": False}
+        if overwritten_teasers:
+            result["teasers_overwritten"] = overwritten_teasers
+            result["note"] = "Teasers of private children were replaced by the server."
+        return result
+
+    def _find_private_leak(
+        self,
+        clean_path: str,
+        summary: str,
+        teaser_texts: List[str],
+        parent_private: Optional[bool] = None,
+    ) -> Optional[str]:
+        """
+        Return an error string if `summary` or any of `teaser_texts` leaks content from an
+        effectively-private descendant of `clean_path` (own flag OR private ancestor), else None.
+        If the node being summarized is itself private, every descendant counts as private
+        (a private node's summary may not quote its private children either).
+        Matching is by whole words (never substrings): a token is significant if it has
+        5+ characters or is a number with 3+ digits.
+        """
+        if parent_private is None:
+            parent_private = self.is_private(clean_path)
+
+        def tokens_of(text: str) -> set:
+            return set(re.findall(r"[^\W_]+", text.lower(), re.UNICODE))
+
+        def significant(tok: str, min_len: int) -> bool:
+            return len(tok) >= min_len or (tok.isdigit() and len(tok) >= 3)
+
+        teaser_blob = "\n".join(teaser_texts)
+        check_lower = (summary + "\n" + teaser_blob).lower()
+        summary_tokens_now = tokens_of(summary)       # strict checks apply to the summary body
+        teaser_tokens_now = tokens_of(teaser_blob)    # teasers: only high-signal checks (see below)
+        all_tokens_now = summary_tokens_now | teaser_tokens_now
+        stop = {"user", "details", "private", "information", "about", "their", "child", "expand", "view"}
+
+        prefix = (clean_path + "/") if clean_path else ""
+        descendants = sorted(
+            p for p in self.health_checker.get_all_node_paths() if p.startswith(prefix) and p != clean_path
+        )
+        # A descendant is effectively private if it, or any ancestor, is private.
+        # When the node being summarized is itself private, all its descendants are.
+        effective: Dict[str, bool] = {clean_path: bool(parent_private)}
+        for ch_path in descendants:
+            ch_node = self.store.read_node(ch_path)
+            parent = ch_path.rsplit("/", 1)[0] if "/" in ch_path else ""
+            is_priv = bool(ch_node is not None and ch_node.sensitivity == "private") or effective.get(parent, False)
+            effective[ch_path] = is_priv
+            if not is_priv or ch_node is None:
+                continue
+
+            # Strict single-word checks: summary body only. Teasers of normal children are short
+            # topic labels that legitimately share common words ("financial", "notes") with
+            # private descendants, so they are held to the high-signal rules below instead.
+            for token in tokens_of(ch_node.summary) & summary_tokens_now:
+                if significant(token, 5) and token not in stop:
+                    return f"Summary leaks exact content from private child '{ch_path}' (term: '{token}')"
+
+            priv_fact_tokens: set = set()
+            for f in ch_node.facts:
+                f_text = f.get("fact", "").strip().lower()
+                if len(f_text) >= 5 and f_text in check_lower:
+                    return f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
+                f_tokens = tokens_of(f_text)
+                priv_fact_tokens |= f_tokens
+                for token in f_tokens & summary_tokens_now:
+                    if significant(token, 5) and token not in stop:
+                        return f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
+
+            # Numbers of 3+ digits (account numbers, amounts, ids) never belong in a teaser.
+            priv_all_tokens = priv_fact_tokens | tokens_of(ch_node.summary)
+            for token in priv_all_tokens & teaser_tokens_now:
+                if token.isdigit() and len(token) >= 3:
+                    return f"Teaser leaks private number from child '{ch_path}' (term: '{token}')"
+
+            overlap = {w for w in priv_all_tokens if significant(w, 4)} & {w for w in all_tokens_now if significant(w, 4)}
+            overlap -= {"child", "details", "private", "expand", "view"}
+            if len(overlap) >= 3:
+                return f"Summary leaks private details from child '{ch_path}' (overlapping terms: {sorted(overlap)[:3]})"
+        return None
 
     def is_private(self, hit_path: str) -> bool:
         """True if the node at hit_path, or any ancestor of it, has sensitivity: private."""
@@ -1133,8 +1201,8 @@ class TreeManager:
         for grp in groups:
             raw_name = grp.get("name", "")
             grp_name = validate_segment(raw_name.strip() if isinstance(raw_name, str) else str(raw_name))
-            if grp_name in seen_group_names:
-                raise ValueError(f"Duplicate group name '{grp_name}'")
+            if grp_name.casefold() in {n.casefold() for n in seen_group_names}:
+                raise ValueError(f"Duplicate group name '{grp_name}' (group names that differ only by case collide)")
             seen_group_names.add(grp_name)
             children: List[str] = []
             for ch in grp.get("children", []):
@@ -1160,6 +1228,11 @@ class TreeManager:
                 for ch in children:
                     if ch not in existing_children:
                         raise ValueError(f"Child '{ch}' does not exist under '{clean_path or '/'}'")
+                for existing in existing_children:
+                    if existing != grp_name and existing.casefold() == grp_name.casefold():
+                        raise ValueError(
+                            f"Group name '{grp_name}' differs only by case from existing child '{existing}'"
+                        )
                 if grp_name in existing_children and grp_name not in all_moved:
                     raise ValueError(
                         f"Group name '{grp_name}' equals an existing child that is not being moved"

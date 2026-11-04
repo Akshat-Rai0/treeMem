@@ -20,8 +20,8 @@ class HealthChecker:
         paths = [""]
         for p in self.store.root_dir.rglob("summary.md"):
             rel_dir = p.parent.relative_to(self.store.root_dir)
-            rel_str = str(rel_dir).strip(".")
-            if rel_str and not rel_str.startswith(".") and rel_str != "log":
+            rel_str = rel_dir.as_posix()
+            if rel_str != "." and not rel_str.startswith(".") and rel_str != "log":
                 paths.append(rel_str)
         return sorted(list(set(paths)))
 

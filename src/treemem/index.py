@@ -67,6 +67,12 @@ class SearchIndex:
         self.node_docs: List[Dict[str, Any]] = []  # path, name, aliases, summary
         self.bm25_entries: Optional[BM25Okapi] = None
         self.bm25_nodes: Optional[BM25Okapi] = None
+        # Cached tokenization of entry docs (parallel to entry_docs) and dirty flags.
+        # Lexical statistics (BM25 / TF-IDF) are refit lazily on the next query so that
+        # incremental updates give exactly the same scores as a full build().
+        self._entry_tokens: List[List[str]] = []
+        self._entries_dirty: bool = False
+        self._nodes_dirty: bool = False
         # TF-IDF semantic layer
         self._tfidf_vectorizer: Optional[Any] = None  # TfidfVectorizer
         self._tfidf_matrix: Optional[Any] = None      # fitted sparse matrix
@@ -231,43 +237,12 @@ class SearchIndex:
             toks = tokenize(full_text)
             tokenized_corpus.append(toks if toks else ["empty"])
 
-        if tokenized_corpus:
-            self.bm25_entries = BM25Okapi(tokenized_corpus)
-        else:
-            self.bm25_entries = None
+        self._entry_tokens = tokenized_corpus
+        self._entries_dirty = True
+        self._ensure_entry_bm25()
 
-        node_corpus: List[List[str]] = []
-        node_texts: List[str] = []
-        for n in self.node_docs:
-            aliases_str = " ".join(n.get("aliases", []))
-            node_text = f"{n.get('name', '')} {aliases_str} {n.get('summary', '')}"
-            node_texts.append(node_text)
-            toks = tokenize(node_text)
-            node_corpus.append(toks if toks else ["empty"])
-
-        if node_corpus:
-            self.bm25_nodes = BM25Okapi(node_corpus)
-        else:
-            self.bm25_nodes = None
-
-        # Fit TF-IDF vectorizer on node texts (bigrams, sublinear_tf)
-        self._tfidf_vectorizer = None
-        self._tfidf_matrix = None
-        if _SKLEARN_AVAILABLE and node_texts and len(node_texts) >= 1:
-            try:
-                vect = TfidfVectorizer(
-                    ngram_range=(1, 2),
-                    min_df=1,
-                    sublinear_tf=True,
-                    strip_accents="unicode",
-                    analyzer="word",
-                )
-                self._tfidf_matrix = vect.fit_transform(node_texts)
-                self._tfidf_vectorizer = vect
-            except Exception:
-                # Graceful degradation: fall back to BM25-only
-                self._tfidf_vectorizer = None
-                self._tfidf_matrix = None
+        node_texts: List[str] = [self._node_text(n) for n in self.node_docs]
+        self._refit_node_lexical()
 
         # Compute dense embeddings — skip private nodes entirely.
         self._node_embeddings = None
@@ -322,76 +297,127 @@ class SearchIndex:
                 logger.debug("Failed to compute entry dense embeddings: %s", e)
                 self._entry_embeddings = None
 
-    def refresh_node(self, path: str, node_data: Dict[str, Any]) -> None:
-        """Refresh a single node in the index (update or add).
+    @staticmethod
+    def _node_text(n: Dict[str, Any]) -> str:
+        """Single source of truth for the text indexed for a node (build and refresh agree)."""
+        aliases_str = " ".join(n.get("aliases", []) or [])
+        return f"{n.get('name', '')} {aliases_str} {n.get('summary', '')}"
 
-        This is used by commit_summary and split to avoid full vault rebuilds.
-        Updates node_docs, bm25_nodes, TF-IDF, and embeddings for just this node.
-        """
-        # Remove existing entry for this path if present
-        self.remove_node(path)
+    def _ensure_entry_bm25(self) -> None:
+        """Refit entry BM25 from cached tokens if entries were added since the last fit."""
+        if not self._entries_dirty and (self.bm25_entries is not None or not self._entry_tokens):
+            return
+        self.bm25_entries = BM25Okapi(self._entry_tokens) if self._entry_tokens else None
+        self._entries_dirty = False
 
-        # Add the refreshed node
-        node_path = path or ""
-        node_name = node_data.get("name", "")
-        node_summary = node_data.get("summary", "")
-        node_aliases = node_data.get("aliases", [])
-        node_sensitivity = node_data.get("sensitivity", "normal")
+    def _refit_node_lexical(self) -> None:
+        """Fit node BM25 and TF-IDF over the current node_docs."""
+        node_texts = [self._node_text(n) for n in self.node_docs]
+        node_corpus = []
+        for t in node_texts:
+            toks = tokenize(t)
+            node_corpus.append(toks if toks else ["empty"])
+        self.bm25_nodes = BM25Okapi(node_corpus) if node_corpus else None
 
-        # Node doc for lexical search
-        node_text = f"{node_name} {node_summary} {' '.join(node_aliases)}".strip()
-        if node_text:
-            self.node_docs.append({
-                "path": node_path,
-                "name": node_name,
-                "summary": node_summary,
-                "aliases": node_aliases,
-            })
-            # Rebuild BM25 and TF-IDF to maintain consistency
-            # For small numbers of nodes, this is acceptable
-            node_texts = [f"{n['name']} {n['summary']} {' '.join(n.get('aliases', []))}".strip() for n in self.node_docs]
+        self._tfidf_vectorizer = None
+        self._tfidf_matrix = None
+        if _SKLEARN_AVAILABLE and node_texts:
             try:
-                from rank_bm25 import BM25Okapi
-                tokenized = [tokenize(t) for t in node_texts]
-                self.bm25_nodes = BM25Okapi(tokenized)
+                vect = TfidfVectorizer(
+                    ngram_range=(1, 2),
+                    min_df=1,
+                    sublinear_tf=True,
+                    strip_accents="unicode",
+                    analyzer="word",
+                )
+                self._tfidf_matrix = vect.fit_transform(node_texts)
+                self._tfidf_vectorizer = vect
             except Exception:
-                self.bm25_nodes = None
-            
-            # Rebuild TF-IDF if needed
-            if _SKLEARN_AVAILABLE and node_texts:
-                try:
-                    from sklearn.feature_extraction.text import TfidfVectorizer
-                    vect = TfidfVectorizer(
-                        ngram_range=(1, 2),
-                        min_df=1,
-                        sublinear_tf=True,
-                        strip_accents="unicode",
-                        analyzer="word",
-                    )
-                    self._tfidf_matrix = vect.fit_transform(node_texts)
-                    self._tfidf_vectorizer = vect
-                except Exception:
-                    self._tfidf_vectorizer = None
-                    self._tfidf_matrix = None
+                self._tfidf_vectorizer = None
+                self._tfidf_matrix = None
+        self._nodes_dirty = False
+
+    def _ensure_node_stats(self) -> None:
+        if self._nodes_dirty:
+            self._refit_node_lexical()
+
+    def _node_index(self, node_path: str) -> Optional[int]:
+        for i, n in enumerate(self.node_docs):
+            if n.get("path") == node_path:
+                return i
+        return None
+
+    def _embedding_rows_aligned(self, expected_rows: int) -> bool:
+        return (
+            self.embedding_provider is not None
+            and _NUMPY_AVAILABLE
+            and self._node_embeddings is not None
+            and len(self._node_embeddings) == expected_rows
+        )
+
+    def refresh_node(self, path: str, node_data: Dict[str, Any]) -> None:
+        """Update or add a single node without refitting anything eagerly.
+
+        The node keeps its position (so dense-embedding rows stay aligned); lexical
+        statistics are refit lazily on the next candidate_nodes() call, which makes the
+        result identical to a full build() over the same nodes.
+        """
+        node_path = path or ""
+        doc = {
+            "path": node_path,
+            "name": node_data.get("name", ""),
+            "summary": node_data.get("summary", ""),
+            "aliases": node_data.get("aliases", []) or [],
+            "sensitivity": node_data.get("sensitivity", "normal"),
+        }
+        text = self._node_text(doc).strip()
+        idx = self._node_index(node_path)
+        rows_before = len(self.node_docs)
+        was_aligned = self._embedding_rows_aligned(rows_before)
+
+        if idx is not None:
+            self.node_docs[idx] = doc
+        elif text:
+            self.node_docs.append(doc)
+            idx = len(self.node_docs) - 1
+        else:
+            return
+
+        if was_aligned:
+            try:
+                dim = self._node_embeddings.shape[1]
+                row = np.zeros((1, dim), dtype=np.float32)
+                if not self._is_private_path(node_path):
+                    vecs = self._cached_embed_batch([text])
+                    if vecs is not None:
+                        row[0] = vecs[0]
+                if idx < rows_before:
+                    self._node_embeddings[idx] = row[0]
+                else:
+                    self._node_embeddings = np.vstack([self._node_embeddings, row])
+            except Exception as e:
+                logger.warning("Failed to refresh node embedding for '%s': %s", node_path, e)
+                self._node_embeddings = None
+        elif self._node_embeddings is not None:
+            # Rows no longer line up with node_docs; drop dense signal until the next full build.
+            self._node_embeddings = None
+
+        self._nodes_dirty = True
 
     def remove_node(self, path: str) -> None:
-        """Remove a node from the index.
-
-        Used by split when nodes are moved or deleted.
-        """
+        """Remove a node (used by split when nodes are moved or deleted)."""
         node_path = path or ""
-        # Remove from node_docs
-        self.node_docs = [n for n in self.node_docs if n.get("path") != node_path]
-        
-        # Rebuild BM25 to reflect removal
-        if self.bm25_nodes is not None:
-            node_texts = [f"{n['name']} {n['summary']} {' '.join(n.get('aliases', []))}".strip() for n in self.node_docs]
-            try:
-                from rank_bm25 import BM25Okapi
-                tokenized = [tokenize(t) for t in node_texts]
-                self.bm25_nodes = BM25Okapi(tokenized)
-            except Exception:
-                self.bm25_nodes = None
+        idx = self._node_index(node_path)
+        if idx is None:
+            return
+        rows_before = len(self.node_docs)
+        was_aligned = self._embedding_rows_aligned(rows_before)
+        del self.node_docs[idx]
+        if was_aligned:
+            self._node_embeddings = np.delete(self._node_embeddings, idx, axis=0)
+        elif self._node_embeddings is not None:
+            self._node_embeddings = None
+        self._nodes_dirty = True
 
     def add_entry(self, entry_id: str, fact: str, hint: str = "", path: str = "", sensitivity: str = "normal") -> None:
         """Add an entry to in-memory store.
@@ -407,6 +433,9 @@ class SearchIndex:
             "sensitivity": sensitivity,
         }
         self.entry_docs.append(doc_obj)
+        toks = tokenize(f"{fact} {hint}")
+        self._entry_tokens.append(toks if toks else ["empty"])
+        self._entries_dirty = True
 
         if (
             self._may_embed_entry(doc_obj)
@@ -442,6 +471,7 @@ class SearchIndex:
         if not self.entry_docs or not query_str.strip():
             return []
 
+        self._ensure_entry_bm25()
         toks = tokenize(query_str)
         q_lower = query_str.lower()
         query_words = set(toks)
@@ -534,6 +564,7 @@ class SearchIndex:
         if not self.node_docs:
             return candidates[:limit]
 
+        self._ensure_node_stats()
         query_text = f"{fact} {hint}".strip()
         toks = tokenize(query_text)
         query_words = set(toks)

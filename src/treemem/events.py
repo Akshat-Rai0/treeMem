@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import os
 import uuid
 from datetime import datetime, timezone
@@ -71,27 +72,40 @@ class EventBus:
         self._subscribers.pop(q, None)
 
     def get_events(self, since: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """Retrieve historical events from .events/*.jsonl files."""
+        """Retrieve historical events (oldest to newest) from .events/YYYY-MM-DD.jsonl.
+
+        Files are read newest first and reading stops as soon as `limit` matching events
+        have been collected (or a file is older than `since`), so the cost depends on the
+        requested window, not on how long the vault has been running.
+        """
         if not self.events_dir.exists():
             return []
 
-        all_events: List[Dict[str, Any]] = []
-        for file in sorted(self.events_dir.glob("*.jsonl")):
+        since_day = since[:10] if since and re.match(r"^\d{4}-\d{2}-\d{2}", since) else None
+        collected: List[Dict[str, Any]] = []
+        for file in sorted(self.events_dir.glob("*.jsonl"), reverse=True):
+            if since_day and file.stem < since_day:
+                break
+            file_events: List[Dict[str, Any]] = []
             try:
                 with open(file, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line:
-                            try:
-                                ev = json.loads(line)
-                                if since and ev.get("ts", "") <= since:
-                                    continue
-                                all_events.append(ev)
-                            except Exception:
-                                pass
-            except Exception:
-                pass
+                        if not line:
+                            continue
+                        try:
+                            ev = json.loads(line)
+                        except Exception:
+                            continue
+                        if since and ev.get("ts", "") <= since:
+                            continue
+                        file_events.append(ev)
+            except OSError:
+                continue
+            collected = file_events + collected
+            if limit > 0 and len(collected) >= limit:
+                break
 
         if limit > 0:
-            return all_events[-limit:]
-        return all_events
+            return collected[-limit:]
+        return collected

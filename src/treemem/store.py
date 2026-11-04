@@ -116,6 +116,27 @@ class Store:
                     children.append(d.name)
         return children
 
+    def find_case_conflict(self, norm_path: str) -> Optional[Tuple[str, str]]:
+        """
+        Return (requested_path, existing_path) if any segment of norm_path differs only by
+        letter case from an existing sibling directory, else None.
+
+        Case-insensitive filesystems (macOS default, Windows) would silently map such names
+        onto the same directory while the tree treats them as two nodes.
+        """
+        prefix = ""
+        for seg in [s for s in norm_path.split("/") if s]:
+            siblings = self.list_child_dirs(prefix)
+            for sib in siblings:
+                if sib != seg and sib.casefold() == seg.casefold():
+                    requested = f"{prefix}/{seg}" if prefix else seg
+                    existing = f"{prefix}/{sib}" if prefix else sib
+                    return requested, existing
+            if seg not in siblings:
+                return None  # everything below is new, no further siblings to compare
+            prefix = f"{prefix}/{seg}" if prefix else seg
+        return None
+
     def parse_summary_md(self, text: str) -> Tuple[Dict[str, Any], str, List[Dict[str, str]], List[Dict[str, str]]]:
         """Parse summary.md text into (frontmatter, summary_body, children_list, facts_list)."""
         frontmatter: Dict[str, Any] = {}
