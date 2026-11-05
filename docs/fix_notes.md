@@ -41,7 +41,7 @@
 
 ## Final Test Counts
 
-- **Total tests**: 330 (329 pass in the review copy; the one failure is `test_repo_hygiene`, which needs the repo's `.gitignore`)
+- **Total tests**: 338 (337 pass in the review copy; the one failure is `test_repo_hygiene`, which needs the repo's `.gitignore`)
 - **New test files added**:
   - `tests/test_fix2_leak_validator.py` (6 tests)
   - `tests/test_fix2_path_segment.py` (24 tests)

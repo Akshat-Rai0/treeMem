@@ -238,3 +238,10 @@ The runner prints a projection after its smoke test. It is a LOWER BOUND: it mul
 latency by the number of episodes and ignores rate-limit waits, retries and pacing. The earlier figure of
 "0.9 hours" in this file was exactly that and is not a prediction. Provider limits decide the real duration.
 
+
+## Time Projection
+
+Based on smoke test (lower bound, ignores rate-limit waits and retries):
+- Total episodes: 4000
+- At least 3.9 hours
+- About 4,419,333 tokens
