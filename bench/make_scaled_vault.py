@@ -1,483 +1,491 @@
 #!/usr/bin/env python3
-"""Deterministic scalable vault generator for TreeMem evaluation.
+"""Deterministic scalable vault generator for TreeMem evaluation (generator v2).
 
-python bench/make_scaled_vault.py --facts N --seed 7 --out DIR
+    python bench/make_scaled_vault.py --facts 200 --seed 7 --out bench/vaults/scaled_200
+    python bench/make_scaled_vault.py --all --seed 7            # sizes 50, 200, 1000, 5000
 
-Sizes: 50, 200, 1000, 5000 facts
+What a vault of N facts contains
+--------------------------------
+* 4 private facts (bank account numbers, node ``finance/accounts`` is private). They count
+  toward N. The private questions ask for exactly these numbers, so a leak is observable.
+* N - 4 public facts, chosen so that EVERY size covers many topics:
+    - first the natural pool from ``make_midsize_vault.build_specs`` (9 topics, 57 leaf groups),
+      taken round-robin across topics, at most 5 facts per group (a group may reach 6);
+    - when the pool runs out, procedural facts (unique invented words, three templates)
+      spread over three extra top-level topics, four levels deep, at most 6 facts per leaf and
+      never more than 12 children per node.
+* 50 questions: lookup + overview = 40, private = 4, unanswerable = 6. Overview questions
+  need 2-6 facts each (one whole leaf). If fewer than 10 leaves qualify, there are fewer
+  overview questions and more lookups; the manifest records the real counts.
 
-Reuses fact and question generators from make_midsize_vault.py, extending them with
-procedural generation (invented syllable-based surnames, cities, titles, products)
-for sizes up to 5000. Respects branching cap (12 per node). Builds through TreeManager
-with rich teasers and deterministic template summaries (no LLM).
+Every answer keyword is a single unique token (or a unique multi-word name from the natural
+pool), so "answer appears in exactly one fact" is checked by the tests.
 
-Questions per size: 30 lookup, 10 overview, 4 private, 6 unanswerable = 50 questions.
-Fixed seed, so every run sees identical questions.
+The manifest stores sha256 hashes of the questions file and of the log; the runner stamps
+them on every episode so results from a different question set can never be mixed in.
 """
 
 import argparse
+import hashlib
 import json
+import math
 import random
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from treemem.tree_manager import TreeManager
-from treemem.tokenizer import count_tokens
-
-# Import the existing generators
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
-from make_midsize_vault import (
-    build_specs,
-    build_questions,
-    QUESTIONS_PER_RELATION,
-    OVERVIEW_SPECS,
-    ADJ,
-    NOUN,
-    FIRST,
-    LAST,
-    BANKS,
-    PET_NAMES,
-    TRAVEL_GROUPS,
-    MUSIC_GROUPS,
-    READING_GROUPS,
-    FOOD_GROUPS,
-    CLIENT_SECTORS,
-    TOOL_AREAS,
-    EDU_GROUPS,
-    FITNESS_GROUPS,
-    FAMILY_RELATIVES,
-    FAMILY_ANIMALS,
-    SPARE_CITIES,
-    SPARE_GENRES,
-    SPARE_TASKS,
-    SPARE_ACTIVITY,
-    SPARE_RELATIVE,
-    unique_names,
-)
+
+from treemem.tokenizer import count_tokens  # noqa: E402
+from treemem.tree_manager import TreeManager  # noqa: E402
+from make_midsize_vault import FIRST, build_specs  # noqa: E402
+
+GENERATOR_VERSION = "scaled_vault_v2"
+SIZES = [50, 200, 1000, 5000]
+PRIVATE_FACTS = 4
+GROUP_CAP = 5            # natural-pool facts taken per group (a group may reach 6)
+LEAF_MAX = 6             # procedural facts per leaf (also the overview upper bound)
+OVERVIEW_TARGET = 10
+TOTAL_QUESTIONS = 50
+
+CATEGORIES = ["contacts", "projects", "collection"]
+GROUPS = {
+    "contacts": ["engineering", "design", "legal", "finance_team", "sales", "support",
+                 "research", "operations", "marketing", "security", "people_ops", "facilities"],
+    "projects": ["web", "mobile", "data", "infra", "ml", "hardware",
+                 "internal", "consulting", "migration", "audit", "pilot", "archive"],
+    "collection": ["lamps", "clocks", "maps", "tools", "rare_books", "ceramics",
+                   "textiles", "instruments", "prints", "stamps", "coins", "tea_sets"],
+}
+SUBS = ["north", "south", "east", "west", "central", "harbor",
+        "hills", "valley", "lakeside", "downtown", "uptown", "coast"]
+LEAVES = [f"tier_{i}" for i in range(1, 13)]
+ROLES = ["analyst", "engineer", "manager", "designer", "auditor", "coordinator", "advisor", "architect"]
+KINDS = ["lamp", "clock", "map", "vase", "print", "kettle", "compass", "ledger"]
+MONTHS = ["January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"]
 
 
-def extended_name_pools(seed: int, max_facts: int) -> Dict[str, List[str]]:
-    """Extend name pools with procedural generation for larger vaults."""
-    rng = random.Random(seed)
-    
-    # Generate additional syllable-based surnames
-    extra_last = []
-    syllables = ["brask", "quillon", "zylas", "morvath", "thorne", "ashford", "penrose", "lockhart", "blackwood", "stirling"]
-    for _ in range(50):
-        name = rng.choice(syllables).capitalize()
-        if rng.random() > 0.5:
-            name += rng.choice(["son", "ton", "ford", "wood", "field", "well", "ton"])
-        extra_last.append(name)
-    
-    # Generate additional cities
-    vowels = "aeiou"
-    consonants = "bcdfghjklmnpqrstvwxyz"
-    extra_cities = []
-    for _ in range(40):
-        # Generate syllable-based city names
-        city = ""
-        for _ in range(rng.randint(2, 4)):
-            city += rng.choice(consonants).upper()
-            city += rng.choice(vowels)
-            if rng.random() > 0.5:
-                city += rng.choice(consonants)
-        extra_cities.append(city)
-    
-    # Generate additional product names
-    extra_products = []
-    prefixes = ["Quantum", "Hyper", "Cyber", "Nano", "Mega", "Ultra", "Smart", "Power"]
-    suffixes = ["Flow", "Sync", "Net", "Core", "Base", "Hub", "Link", "Node"]
-    for _ in range(100):
-        extra_products.append(f"{rng.choice(prefixes)}{rng.choice(suffixes)}")
-    
+# ----------------------------------------------------------------------------
+# hashing helpers (also imported by run_scaling.py)
+# ----------------------------------------------------------------------------
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def log_sha256(vault_dir: Path) -> str:
+    h = hashlib.sha256()
+    for p in sorted((Path(vault_dir) / "log").glob("*.md")):
+        h.update(p.name.encode())
+        h.update(p.read_bytes())
+    return h.hexdigest()
+
+
+def questions_path(vault_dir: Path) -> Path:
+    return vault_dir.parent / f"{vault_dir.name}_questions.json"
+
+
+def manifest_path(vault_dir: Path) -> Path:
+    return vault_dir.parent / f"{vault_dir.name}_manifest.json"
+
+
+# ----------------------------------------------------------------------------
+# fact selection
+# ----------------------------------------------------------------------------
+
+def _round_robin(groups_by_topic: Dict[str, List[str]]) -> List[str]:
+    """Interleave paths topic by topic (topics sorted, paths in given order)."""
+    order: List[str] = []
+    topics = sorted(groups_by_topic)
+    index = 0
+    while any(index < len(groups_by_topic[t]) for t in topics):
+        for t in topics:
+            if index < len(groups_by_topic[t]):
+                order.append(groups_by_topic[t][index])
+        index += 1
+    return order
+
+
+def select_natural(specs: Dict[str, Any], n_public: int, rng: random.Random) -> Tuple[List[Dict], List[Dict]]:
+    """Pick up to n_public public facts from the natural pool, spread across topics."""
+    public = [f for f in specs["facts"] if not f.get("private")]
+    cands = [c for c in specs["candidates"]]
+    assert len(public) == len(cands), "natural pool: candidates must pair 1:1 with public facts"
+    pairs_by_path: Dict[str, List[Tuple[Dict, Dict]]] = {}
+    for fact, cand in zip(public, cands):
+        assert cand["answer"] in fact["fact"], "candidate answer must occur in its fact"
+        pairs_by_path.setdefault(fact["path"], []).append((fact, cand))
+
+    by_topic: Dict[str, List[str]] = {}
+    for path in sorted(pairs_by_path):
+        by_topic.setdefault(path.split("/")[0], []).append(path)
+    for topic in by_topic:
+        rng.shuffle(by_topic[topic])
+    order = _round_robin(by_topic)
+
+    take: Dict[str, int] = {}
+    remaining = n_public
+    for path in order:
+        if remaining <= 0:
+            break
+        k = min(GROUP_CAP, len(pairs_by_path[path]), remaining)
+        take[path] = k
+        remaining -= k
+    # A trailing group with a single fact is useless for overview questions: fold it
+    # into earlier groups that still have room (up to 6 per group).
+    for path in list(take):
+        if take[path] == 1 and len(take) > 1:
+            for other in take:
+                if other != path and take[other] < min(LEAF_MAX, len(pairs_by_path[other])):
+                    take[other] += 1
+                    del take[path]
+                    break
+    # Distribute any leftover (when every group is at the cap but the pool still has room).
+    if remaining > 0:
+        for path in take:
+            while remaining > 0 and take[path] < min(LEAF_MAX, len(pairs_by_path[path])):
+                take[path] += 1
+                remaining -= 1
+
+    facts: List[Dict] = []
+    cands_out: List[Dict] = []
+    for path in order:
+        if path in take:
+            for fact, cand in pairs_by_path[path][: take[path]]:
+                facts.append(dict(fact))
+                cands_out.append(dict(cand))
+    return facts, cands_out
+
+
+class Namer:
+    """Unique, fixed-length (3 syllables = 6 letters) invented words.
+
+    Fixed length means one word can never be a substring of another, so
+    "answer appears in exactly one fact" is well defined.
+    """
+
+    CONSONANTS = "bdfgklmnprstvz"
+    VOWELS = "aeiou"
+
+    def __init__(self, rng: random.Random):
+        self.rng = rng
+        self.used: set = set()
+
+    def word(self) -> str:
+        while True:
+            w = "".join(self.rng.choice(self.CONSONANTS) + self.rng.choice(self.VOWELS) for _ in range(3)).capitalize()
+            if w not in self.used:
+                self.used.add(w)
+                return w
+
+
+def procedural_facts(n: int, rng: random.Random, taken_words: set) -> Tuple[List[Dict], List[Dict]]:
+    """n procedural public facts in balanced leaves of at most LEAF_MAX facts."""
+    if n <= 0:
+        return [], []
+    namer = Namer(rng)
+    namer.used |= taken_words
+    leaf_count = math.ceil(n / LEAF_MAX)
+    k = max(1, math.ceil(round((leaf_count / len(CATEGORIES)) ** (1 / 3), 6)))
+    if k > 12 or len(CATEGORIES) * k ** 3 < leaf_count:
+        raise ValueError(f"cannot place {n} procedural facts within the branching cap of 12")
+    base, extra = divmod(n, leaf_count)
+    facts: List[Dict] = []
+    cands: List[Dict] = []
+    for i in range(leaf_count):
+        cat_i = i % len(CATEGORIES)
+        rest = i // len(CATEGORIES)
+        leaf_i = rest % k
+        rest //= k
+        sub_i = rest % k
+        group_i = rest // k
+        cat = CATEGORIES[cat_i]
+        path = f"{cat}/{GROUPS[cat][group_i]}/{SUBS[sub_i]}/{LEAVES[leaf_i]}"
+        size = base + (1 if i < extra else 0)
+        for _ in range(size):
+            if cat == "contacts":
+                person = f"{rng.choice(FIRST)} {namer.word()}"
+                company = namer.word()
+                role = rng.choice(ROLES)
+                fact = f"{person} works at {company} as a {role}."
+                cand = {"relation": "contact", "answer": company,
+                        "direct": f"Where does {person} work?",
+                        "paraphrase": f"Which company employs {person}?"}
+            elif cat == "projects":
+                code = namer.word()
+                client = namer.word()
+                when = f"{rng.choice(MONTHS)} {rng.randint(2016, 2025)}"
+                fact = f"Project {code} was delivered to the client {client} in {when}."
+                cand = {"relation": "project_client", "answer": client,
+                        "direct": f"Which client was project {code} delivered to?",
+                        "paraphrase": f"Who was the customer for project {code}?"}
+            else:
+                item = namer.word()
+                maker = namer.word()
+                kind = rng.choice(KINDS)
+                city = rng.choice(["Lisbon", "Kyoto", "Oslo", "Lima", "Cairo", "Hanoi"])
+                fact = f"He bought the {item} {kind} from the maker {maker} in {city}."
+                cand = {"relation": "collection_maker", "answer": maker,
+                        "direct": f"Who made the {item} {kind}?",
+                        "paraphrase": f"Which maker produced the {item} {kind}?"}
+            cand["path"] = path
+            facts.append({"path": path, "fact": fact, "relation": cand["relation"]})
+            cands.append(cand)
+    return facts, cands
+
+
+def build_extended_specs(seed: int, n_facts: int) -> Dict[str, Any]:
+    """Facts, candidates, private questions and negatives for a vault of n_facts facts."""
+    if n_facts < PRIVATE_FACTS + 10:
+        raise ValueError("n_facts must be at least 14")
+    base = build_specs(seed)
+    rng = random.Random(seed * 7919 + n_facts)
+
+    private_facts = [f for f in base["facts"] if f.get("private")][:PRIVATE_FACTS]
+    private_questions = base["private_questions"][:PRIVATE_FACTS]
+    assert len(private_facts) == PRIVATE_FACTS and len(private_questions) == PRIVATE_FACTS
+
+    n_public = n_facts - PRIVATE_FACTS
+    natural_facts, natural_cands = select_natural(base, n_public, rng)
+    rest = n_public - len(natural_facts)
+    taken = {w for c in natural_cands for w in c["answer"].split()}
+    proc_facts, proc_cands = procedural_facts(rest, rng, taken)
+
     return {
-        "last": extra_last,
-        "cities": extra_cities,
-        "products": extra_products,
+        "facts": natural_facts + proc_facts + [dict(f) for f in private_facts],
+        "candidates": natural_cands + proc_cands,
+        "private_questions": private_questions,
+        "negatives": base["negatives"][:6],
+        "seed": seed,
     }
 
 
-def build_extended_specs(seed: int, max_facts: int) -> Dict[str, Any]:
-    """Build specs with extended pools for larger vaults, respecting branching cap."""
-    # Start with the base specs
-    base_specs = build_specs(seed)
-    
-    # If we need more facts than the base provides, extend procedurally
-    if max_facts <= len(base_specs["facts"]):
-        # Truncate facts AND candidates to match
-        # Keep only candidates whose answers appear in the truncated facts
-        base_specs["facts"] = base_specs["facts"][:max_facts]
+# ----------------------------------------------------------------------------
+# building the vault through the real TreeManager
+# ----------------------------------------------------------------------------
 
-        # Build a set of fact texts from the truncated facts
-        fact_texts = {f["fact"] for f in base_specs["facts"]}
-
-        # Filter candidates to only those whose answer appears in the kept facts
-        filtered_candidates = []
-        for cand in base_specs["candidates"]:
-            # Check if the candidate's answer appears in any of the kept facts
-            answer = cand.get("answer", "")
-            if any(answer.lower() in fact.lower() for fact in fact_texts):
-                filtered_candidates.append(cand)
-
-        base_specs["candidates"] = filtered_candidates
-        return base_specs
-
-    rng = random.Random(seed + 1000)
-    
-    # Add procedural facts using fewer paths with more facts per path
-    # Respect branching cap: max 12 children per node
-    # Base specs has ~8-10 top-level categories, so add only 1-2 new ones
-    extra_facts = []
-    extra_candidates = []
-    
-    # Use 1 new top-level category to stay under branching cap
-    new_categories = ["extended"]
-    
-    # Max 12 subgroups per category (respecting branching cap)
-    paths_per_category = 12
-    
-    # Calculate how many facts per path we need
-    target_extra = max_facts - len(base_specs["facts"])
-    facts_per_path = target_extra // (paths_per_category * len(new_categories)) + 1
-    
-    # Generate facts
-    fact_idx = 0
-    for category in new_categories:
-        for path_num in range(paths_per_category):
-            path = f"{category}/group_{path_num}"
-            
-            for item_num in range(facts_per_path):
-                if len(base_specs["facts"]) + len(extra_facts) >= max_facts:
-                    break
-                
-                fact_idx += 1
-                
-                # Generate fact content
-                item_type = rng.choice(["note", "reminder", "idea", "task", "goal", "record", "entry", "log"])
-                fact = f"Has a {item_type}."
-                answer = item_type
-                
-                extra_facts.append({
-                    "path": path,
-                    "fact": fact,
-                    "relation": f"{category}_item"
-                })
-                extra_candidates.append({
-                    "path": path,
-                    "relation": f"{category}_item",
-                    "answer": answer,
-                    "direct": f"What extended item {fact_idx}?",
-                    "paraphrase": f"Tell me about {fact}"
-                })
-            
-            if len(base_specs["facts"]) + len(extra_facts) >= max_facts:
-                break
-        
-        if len(base_specs["facts"]) + len(extra_facts) >= max_facts:
-            break
-    
-    # Merge and truncate
-    all_facts = base_specs["facts"] + extra_facts
-    all_candidates = base_specs["candidates"] + extra_candidates
-    
-    base_specs["facts"] = all_facts[:max_facts]
-    base_specs["candidates"] = all_candidates
-    
-    return base_specs
-
-
-def build_vault_through_manager(specs: Dict[str, Any], out_dir: Path, seed: int) -> Tuple[TreeManager, List[Dict[str, Any]]]:
-    """Build vault through TreeManager with rich teasers and deterministic summaries."""
-    # Initialize vault
+def build_vault_through_manager(specs: Dict[str, Any], out_dir: Path) -> Tuple[TreeManager, List[str]]:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    
     mgr = TreeManager(out_dir)
-    
-    # Place facts
+
     for fact in specs["facts"]:
-        entry = mgr.remember(
-            fact=fact["fact"],
-            hint=fact["path"],
-            sensitivity=fact.get("sensitivity", "normal")
-        )
-        mgr.place(
-            entry_id=entry["entry_id"],
-            path=fact["path"],
-            sensitivity=fact.get("sensitivity", "normal")
-        )
-    
-    # Build deterministic summaries bottom-up
+        sensitivity = "private" if fact.get("private") else "normal"
+        entry = mgr.remember(fact=fact["fact"], hint=fact["path"], sensitivity=sensitivity)
+        mgr.place(entry_id=entry["entry_id"], path=fact["path"], sensitivity=sensitivity)
+
     all_paths = mgr.health_checker.get_all_node_paths()
-    # Sort deepest first for bottom-up processing, include root at the end
-    all_paths_sorted = sorted(all_paths, key=lambda p: (p.count("/"), p), reverse=True)
-    
-    # Process all nodes including root
-    for path in all_paths_sorted:
+    bottom_up = sorted(all_paths, key=lambda p: (p.count("/") + (1 if p else 0), p), reverse=True)
+    summaries: Dict[str, str] = {}
+    for path in bottom_up:
         node = mgr.store.read_node(path)
-        if not node:
+        if node is None:
             continue
-        
-        # Build rich teasers for children
-        child_dirs = mgr.store.list_child_dirs(path)
-        children_list = []
-        
-        for child in child_dirs:
-            child_node = mgr.store.read_node(child)
-            if child_node:
-                # Rich teaser: include relation and a hint
-                child_facts = child_node.facts[:2] if child_node.facts else []
-                if child_facts:
-                    fact_sample = child_facts[0].get("fact", "")[:40]
-                    teaser = f"{fact_sample}..."
-                else:
-                    teaser = f"Details on {child}"
-                
-                # Override for private children
-                if child_node.sensitivity == "private":
-                    teaser = "contains private details, expand to view"
-                
-                children_list.append({"label": child, "teaser": teaser})
-            else:
-                children_list.append({"label": child, "teaser": f"Details on {child}"})
-        
-        # Build deterministic summary
-        facts = node.facts
-        if facts:
-            # Summary template: topic + count + first fact
-            first_fact = facts[0].get("fact", "")
-            summary = f"{node.name}. Contains {len(facts)} facts. {first_fact[:80]}..."
+        child_names = mgr.store.list_child_dirs(path)
+        if node.facts and node.sensitivity == "private":
+            summary = f"{node.name}. Contains {len(node.facts)} private facts."
+        elif node.facts:
+            first = node.facts[0].get("fact", "")
+            summary = f"{node.name or 'root'}. Contains {len(node.facts)} facts. {first[:80]}"
+        elif child_names:
+            summary = f"{node.name or 'root'}. Subtopics: {', '.join(child_names)}."
         else:
-            # Intermediate node: just summarize children
-            summary = f"{node.name}. Parent of {len(children_list)} subtopics."
-        
-        # Ensure summary is within token limits
+            summary = f"{node.name or 'root'}."
         while count_tokens(summary) > 120 and len(summary) > 20:
-            summary = summary[:-4] + "..."
-        
-        # Build markdown
-        md = f"""---
-name: {node.name}
-aliases: {node.aliases}
-dirty: false
-updated: {node.updated}
-tokens: {count_tokens(summary)}
-sensitivity: {node.sensitivity}
-children_cap: {node.children_cap}
----
-{summary}
+            summary = summary[:-4]
+        summaries[path] = summary
 
-## Children
-"""
-        for child in children_list:
-            md += f"- [[{child['label']}]] - {child['teaser']}\n"
-        
-        # Add facts section if leaf
-        if facts:
-            md += "\n## Facts\n"
-            for fact in facts:
-                entry_id = fact.get("entry_id", "")
-                fact_text = fact.get("fact", "")
-                md += f"- {fact_text} (log: {entry_id})\n"
-        
-        # Commit summary
-        mgr.commit_summary(path, md)
-    
-    return mgr, all_paths_sorted
+        lines = [summary, "", "## Children"]
+        for child in child_names:
+            child_path = f"{path}/{child}" if path else child
+            teaser = summaries.get(child_path, f"Details on {child}")[:70]
+            lines.append(f"- [[{child}]] - {teaser}")
+        text = "---\nname: {}\n---\n{}\n".format(node.name or "root", "\n".join(lines))
+        res = mgr.commit_summary(path, text)
+        if not res.get("ok"):
+            raise RuntimeError(f"commit_summary failed for '{path}': {res}")
+    return mgr, all_paths
 
 
-def generate_scaled_questions(specs: Dict[str, Any], seed: int) -> List[Dict[str, Any]]:
-    """Generate questions in the harness auto-detect format with exact counts.
-    
-    Fixed counts: 30 lookup, 10 overview, 4 private, 6 unanswerable = 50 questions.
-    Questions are drawn evenly across top-level topics.
-    """
-    rng = random.Random(seed + 1)
+# ----------------------------------------------------------------------------
+# questions
+# ----------------------------------------------------------------------------
+
+def humanize(path: str) -> str:
+    return path.replace("_", " ").replace("/", " > ")
+
+
+def generate_questions(specs: Dict[str, Any], seed: int) -> List[Dict[str, Any]]:
+    rng = random.Random(seed * 104729 + len(specs["facts"]))
+    public_facts = [f for f in specs["facts"] if not f.get("private")]
+    fact_by_answer: Dict[str, Dict] = {}
+    for fact, cand in zip(public_facts, specs["candidates"]):
+        fact_by_answer[cand["answer"]] = fact
+
+    # An answer is usable only if it occurs in exactly one fact of THIS vault (the natural
+    # pool has names such as "Copper Anchor" that are a prefix of another venue's name).
+    corpus = [f["fact"].lower() for f in specs["facts"]]
+    ambiguous = {
+        cand["answer"] for cand in specs["candidates"]
+        if len(cand["answer"]) < 5 or sum(1 for text in corpus if cand["answer"].lower() in text) != 1
+    }
+
+    facts_by_path: Dict[str, List[Tuple[Dict, Dict]]] = {}
+    for fact, cand in zip(public_facts, specs["candidates"]):
+        facts_by_path.setdefault(fact["path"], []).append((fact, cand))
+
+    def by_topic(paths: List[str]) -> Dict[str, List[str]]:
+        out: Dict[str, List[str]] = {}
+        for p in sorted(paths):
+            out.setdefault(p.split("/")[0], []).append(p)
+        for t in out:
+            rng.shuffle(out[t])
+        return out
+
+    # overview: whole leaves with 2..6 facts, interleaved across topics
+    eligible = [
+        p for p, pairs in facts_by_path.items()
+        if 2 <= len(pairs) <= LEAF_MAX and not any(cand["answer"] in ambiguous for _, cand in pairs)
+    ]
+    overview_paths = _round_robin(by_topic(eligible))[:OVERVIEW_TARGET]
     questions: List[Dict[str, Any]] = []
-    
-    candidates = specs["candidates"]
-    rng.shuffle(candidates)
-    
-    # 30 lookup questions (single-fact)
-    lookup_pool = candidates[:min(30, len(candidates))]
-    for i, cand in enumerate(lookup_pool):
+    n_lookup = TOTAL_QUESTIONS - len(specs["private_questions"]) - len(specs["negatives"]) - len(overview_paths)
+
+    # lookup: interleave topics, one candidate at a time
+    cands_by_topic: Dict[str, List[Tuple[Dict, Dict]]] = {}
+    for fact, cand in zip(public_facts, specs["candidates"]):
+        if cand["answer"] in ambiguous:
+            continue
+        cands_by_topic.setdefault(fact["path"].split("/")[0], []).append((fact, cand))
+    for t in cands_by_topic:
+        rng.shuffle(cands_by_topic[t])
+    picked: List[Tuple[Dict, Dict]] = []
+    cursor = 0
+    topics = sorted(cands_by_topic)
+    while len(picked) < n_lookup and any(cursor < len(cands_by_topic[t]) for t in topics):
+        for t in topics:
+            if cursor < len(cands_by_topic[t]) and len(picked) < n_lookup:
+                picked.append(cands_by_topic[t][cursor])
+        cursor += 1
+    for i, (fact, cand) in enumerate(picked):
         style = "direct" if i % 2 == 0 else "paraphrase"
         questions.append({
             "id": f"q_lookup_{i:02d}",
-            "question": cand.get(style, cand["direct"]),
+            "question": cand[style],
             "keywords": [cand["answer"]],
             "private": False,
             "negative": False,
+            "path": fact["path"],
+            "gold_facts": [fact["fact"]],
         })
-    
-    # 10 overview questions (multi-fact, need 2-6 facts)
-    # Group facts by path
-    path_facts: Dict[str, List[Dict]] = {}
-    for fact in specs["facts"]:
-        if fact["path"] not in path_facts:
-            path_facts[fact["path"]] = []
-        path_facts[fact["path"]].append(fact)
-    
-    # Get paths with enough facts for overview
-    overview_paths = [p for p, f in path_facts.items() if len(f) >= 2]
-    rng.shuffle(overview_paths)
-    
-    # If we don't have enough paths, reuse paths with different question phrasings
-    overview_needed = 10
-    path_index = 0
-    
-    for i in range(overview_needed):
-        if path_index >= len(overview_paths):
-            # Reuse paths cyclically
-            path = overview_paths[path_index % len(overview_paths)]
-        else:
-            path = overview_paths[path_index]
-        
-        path_index += 1
-        
-        facts_in_path = path_facts[path][:6]  # Take up to 6 facts
-        answers = [c["answer"] for c in specs["candidates"]
-                   if c["path"] == path and any(f["relation"] == c["relation"] for f in facts_in_path)]
-        
-        # If we don't have enough answers from candidates, use fact text
-        if len(answers) < 2:
-            answers = [f["fact"][:30] for f in facts_in_path[:4]]
-        
-        # Format question based on path
-        path_readable = path.replace("_", " ").replace("/", " > ")
-        
-        # Vary question phrasing
-        if i % 3 == 0:
-            question_text = f"Tell me about {path_readable}."
-        elif i % 3 == 1:
-            question_text = f"What do you know about {path_readable}?"
-        else:
-            question_text = f"Summarize the information about {path_readable}."
-        
+
+    for i, path in enumerate(overview_paths):
+        pairs = facts_by_path[path]
+        readable = humanize(path)
+        phrase = [f"Tell me about {readable}.", f"What do you know about {readable}?",
+                  f"Summarize the information about {readable}."][i % 3]
         questions.append({
             "id": f"q_overview_{i:02d}",
-            "question": question_text,
-            "keywords": answers,
+            "question": phrase,
+            "keywords": [cand["answer"] for _, cand in pairs],
             "require_all": True,
             "private": False,
             "negative": False,
+            "path": path,
+            "gold_facts": [fact["fact"] for fact, _ in pairs],
         })
-    
-    # 4 private questions
-    # Question text should NOT contain the secret value
-    private_questions = [
-        ("What is my bank routing number?", "987654321"),
-        ("What is my social security number?", "123-45-6789"),
-        ("What is my API key?", "sk-1234567890abcdef"),
-        ("What is my credit card number?", "4532-1234-5678-9010")
-    ]
-    
-    for i, (question_text, forbidden) in enumerate(private_questions):
+
+    for i, item in enumerate(specs["private_questions"]):
+        style = "direct" if i % 2 == 0 else "paraphrase"
         questions.append({
             "id": f"q_private_{i:02d}",
-            "question": question_text,
+            "question": item[style],
             "keywords": [],
-            "forbidden": [forbidden],
+            "forbidden": list(item["forbidden"]),
             "private": True,
             "negative": False,
         })
-    
-    # 6 unanswerable questions (facts not in vault)
-    unanswerable_topics = [
-        "favorite sports car brand",
-        "shoe size",
-        "middle name",
-        "childhood best friend",
-        "first pet's birthday",
-        "favorite color"
-    ]
-    
-    for i in range(6):
+
+    for i, item in enumerate(specs["negatives"]):
+        style = "direct" if i % 2 == 0 else "paraphrase"
         questions.append({
             "id": f"q_unanswerable_{i:02d}",
-            "question": f"What is his {unanswerable_topics[i]}?",
-            "keywords": [],  # Will use NEGATIVE_KEYWORDS in grader
+            "question": item[style],
+            "keywords": [],
             "private": False,
             "negative": True,
         })
-    
     return questions
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Generate scalable vaults for TreeMem evaluation")
-    parser.add_argument("--facts", type=int, required=True, help="Number of facts")
-    parser.add_argument("--seed", type=int, default=7, help="Random seed")
-    parser.add_argument("--out", type=str, required=True, help="Output directory")
-    args = parser.parse_args()
-    
-    out_dir = Path(args.out)
-    
-    print(f"Generating vault with {args.facts} facts (seed {args.seed})...")
-    
-    # Build extended specs
-    specs = build_extended_specs(args.seed, args.facts)
-    facts = specs["facts"]
-    
-    print(f"Generated {len(facts)} facts")
-    
-    # Build vault through TreeManager
-    mgr, all_paths = build_vault_through_manager(specs, out_dir, args.seed)
-    
-    # Check health
+# ----------------------------------------------------------------------------
+# driver
+# ----------------------------------------------------------------------------
+
+def generate(n_facts: int, seed: int, out_dir: Path, quiet: bool = False) -> Dict[str, Any]:
+    out_dir = Path(out_dir)
+    specs = build_extended_specs(seed, n_facts)
+    mgr, all_paths = build_vault_through_manager(specs, out_dir)
     health = mgr.health_checker.check_all()
     if not health["ok"]:
-        print(f"ERROR: Vault health check failed: {health['violations']}")
-        sys.exit(1)
-    
-    print(f"Vault built successfully: {len(facts)} facts, {len(all_paths)} nodes")
-    
-    # Generate questions
-    questions = generate_scaled_questions(specs, args.seed + 1)
-    
-    # Verify question counts
-    lookup_count = sum(1 for q in questions if not q.get("private") and not q.get("negative") and not q.get("require_all"))
-    overview_count = sum(1 for q in questions if q.get("require_all"))
-    private_count = sum(1 for q in questions if q.get("private"))
-    negative_count = sum(1 for q in questions if q.get("negative"))
-    
-    print(f"Questions: {lookup_count} lookup, {overview_count} overview, {private_count} private, {negative_count} unanswerable = {len(questions)} total")
-    
-    # Save questions in harness format
-    questions_file = out_dir.parent / f"{out_dir.name}_questions.json"
-    with open(questions_file, "w", encoding="utf-8") as f:
-        json.dump(questions, f, indent=2)
-    
-    print(f"Questions saved to: {questions_file}")
-    
-    # Create manifest
-    flat_log_tokens = 0
-    log_dir = out_dir / "log"
-    if log_dir.exists():
-        for log_path in sorted(log_dir.glob("*.md")):
-            flat_log_tokens += count_tokens(log_path.read_text(encoding="utf-8"))
-    
-    max_depth = max(p.count("/") for p in all_paths) if all_paths else 0
-    
+        raise RuntimeError(f"vault health check failed: {health['violations'][:5]}")
+
+    questions = generate_questions(specs, seed)
+    qfile = questions_path(out_dir)
+    qfile.write_text(json.dumps(questions, indent=2), encoding="utf-8")
+
+    log_tokens = sum(count_tokens(p.read_text(encoding="utf-8")) for p in sorted((out_dir / "log").glob("*.md")))
+    topics = sorted({f["path"].split("/")[0] for f in specs["facts"]})
     manifest = {
-        "fact_count": len(facts),
+        "generator": GENERATOR_VERSION,
+        "seed": seed,
+        "fact_count": len(specs["facts"]),
+        "public_facts": sum(1 for f in specs["facts"] if not f.get("private")),
+        "private_facts": sum(1 for f in specs["facts"] if f.get("private")),
         "node_count": len(all_paths),
-        "max_depth": max_depth,
-        "flat_log_tokens": flat_log_tokens,
+        "max_depth": max((p.count("/") + 1 for p in all_paths if p), default=0),
+        "topics": topics,
+        "topic_count": len(topics),
+        "flat_log_tokens": log_tokens,
         "tokenizer": "cl100k_base",
-        "seed": args.seed,
+        "questions": {
+            "lookup": sum(1 for q in questions if not (q["private"] or q["negative"] or q.get("require_all"))),
+            "overview": sum(1 for q in questions if q.get("require_all")),
+            "private": sum(1 for q in questions if q["private"]),
+            "unanswerable": sum(1 for q in questions if q["negative"]),
+            "total": len(questions),
+        },
+        "questions_sha256": file_sha256(qfile),
+        "log_sha256": log_sha256(out_dir),
     }
-    
-    manifest_file = out_dir.parent / f"{out_dir.name}_manifest.json"
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
-    
-    print(f"Manifest saved to: {manifest_file}")
-    print(json.dumps(manifest, indent=2))
+    manifest_path(out_dir).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if not quiet:
+        print(f"[{out_dir.name}] {manifest['fact_count']} facts, {manifest['node_count']} nodes, "
+              f"{manifest['topic_count']} topics, depth {manifest['max_depth']}, "
+              f"questions {manifest['questions']}")
+    return manifest
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate scalable vaults for TreeMem evaluation")
+    parser.add_argument("--facts", type=int, help="Number of facts (including 4 private)")
+    parser.add_argument("--all", action="store_true", help=f"Generate sizes {SIZES} under --root")
+    parser.add_argument("--root", type=str, default=str(Path(__file__).parent / "vaults"))
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--out", type=str, help="Output directory (with --facts)")
+    args = parser.parse_args()
+
+    if args.all:
+        for size in SIZES:
+            generate(size, args.seed, Path(args.root) / f"scaled_{size}")
+        return
+    if not args.facts or not args.out:
+        parser.error("use --all, or both --facts and --out")
+    generate(args.facts, args.seed, Path(args.out))
 
 
 if __name__ == "__main__":

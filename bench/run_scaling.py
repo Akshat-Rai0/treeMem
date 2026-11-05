@@ -24,6 +24,7 @@ import os
 import random
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -36,6 +37,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from treemem.tree_manager import TreeManager
 from treemem.tokenizer import count_tokens
+
+sys.path.insert(0, str(Path(__file__).parent))
+from make_scaled_vault import (  # noqa: E402
+    GENERATOR_VERSION,
+    file_sha256,
+    log_sha256,
+    manifest_path,
+    questions_path,
+)
 
 # Import grading functions from eval harness
 sys.path.insert(0, str(Path(__file__).parent / "eval"))
@@ -61,6 +71,14 @@ QUESTIONS_PER_RUN = 50
 
 RESULT_DIR = Path(__file__).parent.parent / "bench" / "results_scaling"
 PROGRESS_FILE = RESULT_DIR / "progress.jsonl"
+INVALIDATED_FILE = RESULT_DIR / "invalidated.jsonl"
+VAULT_ROOT = Path(__file__).parent / "vaults"
+PLAN_FILE = Path(__file__).parent.parent / "docs" / "experiments_plan.md"
+
+# An episode is final only when it produced a gradable result. Transient failures
+# (rate limits, network errors) are retried on the next resume instead of being
+# frozen into the data as wrong answers.
+DONE_OUTCOMES = {"ok", "context_exceeded"}
 
 
 def load_groq_keys() -> List[str]:
@@ -399,37 +417,34 @@ def run_tree_follow_arm(
 def run_episode(
     client: GroqKeyPool,
     model: str,
-    vault_path: Path,
+    vault_copy: Path,
+    mgr: TreeManager,
     question: Dict[str, Any],
     arm: str,
     run_num: int,
     size: int,
+    fingerprint: Dict[str, str],
 ) -> Dict[str, Any]:
-    """Run a single episode (one question with one arm)."""
+    """Run a single episode (one question with one arm) on a prepared vault copy."""
     question_id = question["id"]
     question_text = question["question"]
-    
-    # Make a temporary copy of the vault for this run
-    with tempfile.TemporaryDirectory() as tmp:
-        vault_copy = Path(tmp) / "vault"
-        shutil.copytree(vault_path, vault_copy)
-        mgr = TreeManager(vault_copy)
-        
-        if arm == "flat":
-            result = run_flat_arm(client, model, vault_copy, question_text, question_id)
-        elif arm == "tree_follow":
-            result = run_tree_follow_arm(client, model, mgr, question_text, question_id)
-        elif arm == "rag_bm25":
-            result = run_rag_arm(client, model, mgr, question_text, question_id, limit=5)
-        elif arm == "rag_bm25_k10":
-            result = run_rag_arm(client, model, mgr, question_text, question_id, limit=10)
-        else:
-            raise ValueError(f"Unknown arm: {arm}")
+
+    if arm == "flat":
+        result = run_flat_arm(client, model, vault_copy, question_text, question_id)
+    elif arm == "tree_follow":
+        result = run_tree_follow_arm(client, model, mgr, question_text, question_id)
+    elif arm == "rag_bm25":
+        result = run_rag_arm(client, model, mgr, question_text, question_id, limit=5)
+    elif arm == "rag_bm25_k10":
+        result = run_rag_arm(client, model, mgr, question_text, question_id, limit=10)
+    else:
+        raise ValueError(f"Unknown arm: {arm}")
     
     # Grade the answer
     grade = grade_question(question, result["answer"])
     
-    # Add metadata
+    # Add metadata (the hashes make it impossible to mix episodes from different question sets)
+    result.update(fingerprint)
     result["size"] = size
     result["arm"] = arm
     result["run"] = run_num
@@ -454,6 +469,82 @@ def run_episode(
     return result
 
 
+def vault_fingerprint(size: int) -> Dict[str, str]:
+    """Hashes of the questions file and the log for scaled_<size>, computed from the files."""
+    vault_dir = VAULT_ROOT / f"scaled_{size}"
+    qfile = questions_path(vault_dir)
+    if not vault_dir.exists() or not qfile.exists():
+        raise FileNotFoundError(
+            f"Vault or questions missing for size {size}. Run: python bench/make_scaled_vault.py --all"
+        )
+    return {
+        "generator": GENERATOR_VERSION,
+        "questions_sha": file_sha256(qfile),
+        "vault_sha": log_sha256(vault_dir),
+    }
+
+
+def find_stale_rows(sizes: List[int]) -> List[Dict[str, Any]]:
+    """Rows in progress.jsonl whose question/vault hashes differ from the current files."""
+    if not PROGRESS_FILE.exists():
+        return []
+    current = {size: vault_fingerprint(size) for size in sizes}
+    stale = []
+    with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            size = row.get("size")
+            if size not in current:
+                continue
+            fp = current[size]
+            if (row.get("questions_sha"), row.get("vault_sha")) != (fp["questions_sha"], fp["vault_sha"]):
+                stale.append(row)
+    return stale
+
+
+def invalidate_rows(stale: List[Dict[str, Any]], reason: str) -> None:
+    """Move stale rows out of progress.jsonl into invalidated.jsonl (never deleted)."""
+    stale_keys = {(r["size"], r["arm"], r["run"], r["question_id"], r.get("questions_sha")) for r in stale}
+    kept: List[str] = []
+    moved: List[str] = []
+    with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            key = (row["size"], row["arm"], row["run"], row["question_id"], row.get("questions_sha"))
+            if key in stale_keys:
+                row["invalidation_reason"] = reason
+                moved.append(json.dumps(row))
+            else:
+                kept.append(line.rstrip("\n"))
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(INVALIDATED_FILE, "a", encoding="utf-8") as f:
+        for line in moved:
+            f.write(line + "\n")
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        for line in kept:
+            f.write(line + "\n")
+    print(f"Moved {len(moved)} stale rows to {INVALIDATED_FILE.name}; {len(kept)} rows kept.")
+
+
+def guard_against_stale_results(sizes: List[int], invalidate: bool) -> None:
+    stale = find_stale_rows(sizes)
+    if not stale:
+        return
+    by_size: Dict[int, int] = {}
+    for row in stale:
+        by_size[row["size"]] = by_size.get(row["size"], 0) + 1
+    print("ERROR: progress.jsonl contains episodes produced with a different question set or vault")
+    print(f"       (or without hashes): {by_size}")
+    if not invalidate:
+        print("       Refusing to resume. Re-run with --invalidate-stale to move them to invalidated.jsonl.")
+        sys.exit(2)
+    invalidate_rows(stale, "stale: questions/vault hash differs from current files")
+
+
 def load_progress() -> Dict[str, Dict[str, Any]]:
     """Load progress from progress.jsonl."""
     progress = {}
@@ -462,6 +553,8 @@ def load_progress() -> Dict[str, Dict[str, Any]]:
             for line in f:
                 if line.strip():
                     entry = json.loads(line)
+                    if entry.get("outcome") not in DONE_OUTCOMES:
+                        continue  # transient failure: retry on resume
                     key = f"{entry['size']}_{entry['arm']}_{entry['run']}_{entry['question_id']}"
                     progress[key] = entry
     return progress
@@ -475,12 +568,26 @@ def save_progress(entry: Dict[str, Any]) -> None:
         f.flush()
 
 
+class PreparedVault:
+    """A private copy of one vault plus a TreeManager over it, reused for a whole (size, run)."""
+
+    def __init__(self, vault_dir: Path):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self._tmp.name) / "vault"
+        shutil.copytree(vault_dir, self.path)
+        self.mgr = TreeManager(self.path)
+
+    def close(self) -> None:
+        self._tmp.cleanup()
+
+
 def run_scaling(
     sizes: List[int] = None,
     arms: List[str] = None,
     runs: int = RUNS,
     model: str = DEFAULT_MODEL,
     smoke_only: bool = False,
+    invalidate_stale: bool = False,
 ) -> None:
     """Main scaling runner."""
     if sizes is None:
@@ -496,7 +603,10 @@ def run_scaling(
         sys.exit(1)
     
     client = GroqKeyPool(keys)
-    
+
+    # Refuse to mix episodes produced with a different question set or vault.
+    guard_against_stale_results(sorted(set(sizes) | {50}), invalidate_stale)
+
     # Load existing progress
     progress = load_progress()
     
@@ -507,7 +617,7 @@ def run_scaling(
     smoke_run = 1
     smoke_arms = arms
     
-    vault_dir = Path(__file__).parent.parent / "bench" / "vaults" / f"scaled_{smoke_size}"
+    vault_dir = VAULT_ROOT / f"scaled_{smoke_size}"
     if not vault_dir.exists():
         print(f"ERROR: Vault directory not found: {vault_dir}")
         print("Run bench/make_scaled_vault.py first to generate vaults")
@@ -516,19 +626,27 @@ def run_scaling(
     questions = load_questions(vault_dir)[:smoke_questions]
     
     smoke_results = []
+    smoke_fp = vault_fingerprint(smoke_size)
     for arm in smoke_arms:
-        for q in questions:
-            key = f"{smoke_size}_{arm}_{smoke_run}_{q['id']}"
-            if key in progress:
-                print(f"  SKIP: {key} (already done)")
-                continue
-            
-            print(f"  Running: {key}")
-            result = run_episode(client, model, vault_dir, q, arm, smoke_run, smoke_size)
-            save_progress(result)
-            smoke_results.append(result)
-            progress[key] = result
-    
+        prepared = None
+        try:
+            for q in questions:
+                key = f"{smoke_size}_{arm}_{smoke_run}_{q['id']}"
+                if key in progress:
+                    print(f"  SKIP: {key} (already done)")
+                    continue
+                if prepared is None:
+                    prepared = PreparedVault(vault_dir)
+                print(f"  Running: {key}")
+                result = run_episode(client, model, prepared.path, prepared.mgr, q, arm, smoke_run, smoke_size, smoke_fp)
+                save_progress(result)
+                if result["outcome"] in DONE_OUTCOMES:
+                    progress[key] = result
+                smoke_results.append(result)
+        finally:
+            if prepared is not None:
+                prepared.close()
+
     # Calculate projected time and tokens
     if smoke_results:
         avg_latency = sum(r["latency_sec"] for r in smoke_results) / len(smoke_results)
@@ -541,16 +659,16 @@ def run_scaling(
         
         print(f"\n=== PROJECTION ===")
         print(f"  Total episodes: {total_episodes}")
-        print(f"  Projected time: {projected_time_hours:.1f} hours")
+        print(f"  Projected time: at least {projected_time_hours:.1f} hours (lower bound: ignores rate-limit waits and retries)")
         print(f"  Projected tokens: {projected_tokens:,.0f}")
         
         # Write to experiments_plan.md
-        plan_file = Path(__file__).parent.parent / "docs" / "experiments_plan.md"
+        plan_file = PLAN_FILE
         if plan_file.exists():
             with open(plan_file, "r", encoding="utf-8") as f:
                 plan_content = f.read()
             
-            projection_section = f"\n## Time Projection\n\nBased on smoke test:\n- Total episodes: {total_episodes}\n- Projected time: {projected_time_hours:.1f} hours\n- Projected tokens: {projected_tokens:,.0f}\n"
+            projection_section = f"\n## Time Projection\n\nBased on smoke test (lower bound, ignores rate-limit waits and retries):\n- Total episodes: {total_episodes}\n- At least {projected_time_hours:.1f} hours\n- About {projected_tokens:,.0f} tokens\n"
             
             if "## Time Projection" not in plan_content:
                 plan_content += projection_section
@@ -567,29 +685,39 @@ def run_scaling(
     # Full run
     for size in sizes:
         print(f"\n=== SIZE {size} ===")
-        vault_dir = Path(__file__).parent.parent / "bench" / "vaults" / f"scaled_{size}"
+        vault_dir = VAULT_ROOT / f"scaled_{size}"
         if not vault_dir.exists():
             print(f"ERROR: Vault directory not found: {vault_dir}")
             continue
         
         questions = load_questions(vault_dir)
-        
+        fingerprint = vault_fingerprint(size)
+
         for arm in arms:
             print(f"  Arm: {arm}")
             for run_num in range(1, runs + 1):
-                print(f"    Run {run_num}/{runs}")
-                for q in questions:
-                    key = f"{size}_{arm}_{run_num}_{q['id']}"
-                    if key in progress:
-                        continue
-                    
-                    result = run_episode(client, model, vault_dir, q, arm, run_num, size)
-                    save_progress(result)
-                    progress[key] = result
-        
-        # Commit after each size
+                pending = [q for q in questions if f"{size}_{arm}_{run_num}_{q['id']}" not in progress]
+                print(f"    Run {run_num}/{runs}: {len(pending)} pending")
+                if not pending:
+                    continue
+                prepared = PreparedVault(vault_dir)
+                try:
+                    for q in pending:
+                        key = f"{size}_{arm}_{run_num}_{q['id']}"
+                        result = run_episode(client, model, prepared.path, prepared.mgr, q, arm, run_num, size, fingerprint)
+                        save_progress(result)
+                        if result["outcome"] in DONE_OUTCOMES:
+                            progress[key] = result
+                finally:
+                    prepared.close()
+
+        # Commit after each size (best effort; never stops the run)
         print(f"  Size {size} complete, committing...")
-        os.system(f"git add {RESULT_DIR} && git commit -m '[WP2] Add results for size {size}'")
+        try:
+            subprocess.run(["git", "add", str(RESULT_DIR)], check=False)
+            subprocess.run(["git", "commit", "-m", f"[WP2] Add results for size {size}"], check=False)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  (git commit skipped: {exc})")
 
 
 def main():
@@ -599,12 +727,18 @@ def main():
     parser.add_argument("--runs", type=int, default=RUNS, help="Number of runs per arm")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model to use")
     parser.add_argument("--smoke-only", action="store_true", help="Run smoke test only")
+    parser.add_argument(
+        "--invalidate-stale",
+        action="store_true",
+        help="Move episodes whose question/vault hashes differ from the current files to invalidated.jsonl",
+    )
     args = parser.parse_args()
     
     sizes = [args.size] if args.size else None
     arms = [args.arm] if args.arm else None
     
-    run_scaling(sizes=sizes, arms=arms, runs=args.runs, model=args.model, smoke_only=args.smoke_only)
+    run_scaling(sizes=sizes, arms=arms, runs=args.runs, model=args.model, smoke_only=args.smoke_only,
+                invalidate_stale=args.invalidate_stale)
 
 
 if __name__ == "__main__":

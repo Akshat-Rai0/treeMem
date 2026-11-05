@@ -8,7 +8,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Tuple, Any, Dict, List, Optional
 
 _LOG_LOCK = threading.Lock()
 
@@ -87,6 +87,41 @@ class LogWriter:
             self.log_dir.chmod(0o700)
         except Exception:
             pass
+        # Per-day-file cache: date -> ((size, mtime_ns), {line: entry}, max_line).
+        # Validated by stat on every use, so appends from other processes are picked up.
+        self._file_cache: Dict[str, Tuple[Tuple[int, int], Dict[int, Dict[str, Any]], int]] = {}
+        self._cache_lock = threading.Lock()
+
+    def _stat_key(self, log_file: Path) -> Optional[Tuple[int, int]]:
+        try:
+            st = log_file.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime_ns)
+
+    def _load_file(self, log_file: Path, date_str: str) -> Tuple[Dict[int, Dict[str, Any]], int]:
+        """Entries of one daily file keyed by line number (first occurrence wins), plus max line.
+
+        Re-parses only when the file changed since the last call; appending N facts is O(N), not O(N^2).
+        """
+        key = self._stat_key(log_file)
+        if key is None:
+            return {}, 0
+        with self._cache_lock:
+            cached = self._file_cache.get(date_str)
+            if cached is not None and cached[0] == key:
+                return cached[1], cached[2]
+        entries: Dict[int, Dict[str, Any]] = {}
+        max_line = 0
+        with open(log_file, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                parsed = self._parse_line(date_str, raw_line)
+                if parsed:
+                    entries.setdefault(parsed["line"], parsed)
+                    max_line = max(max_line, parsed["line"])
+        with self._cache_lock:
+            self._file_cache[date_str] = (key, entries, max_line)
+        return entries, max_line
 
     def append(self, fact: str, hint: str = "", session: str = "", sensitivity: str = "normal") -> str:
         """Append a fact to today's log file atomically and return entry_id (date#line)."""
@@ -122,20 +157,32 @@ class LogWriter:
                         f.flush()
                         os.fsync(f.fileno())
 
+                    self._remember_appended(log_file, date_str, entry_line)
                     return f"{date_str}#{line_num}"
                 finally:
                     fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN)
 
+    def _remember_appended(self, log_file: Path, date_str: str, entry_line: str) -> None:
+        """Keep the cache current after our own append without re-reading the file."""
+        parsed = self._parse_line(date_str, entry_line)
+        key = self._stat_key(log_file)
+        with self._cache_lock:
+            cached = self._file_cache.get(date_str)
+            if parsed is None or key is None or cached is None:
+                self._file_cache.pop(date_str, None)
+                return
+            old_key, entries, max_line = cached
+            # Only extend if nobody else wrote since we cached (size grew by exactly our line).
+            if key[0] != old_key[0] + len(entry_line.encode("utf-8")):
+                self._file_cache.pop(date_str, None)
+                return
+            entries.setdefault(parsed["line"], parsed)
+            self._file_cache[date_str] = (key, entries, max(max_line, parsed["line"]))
+
     def _next_line_number(self, log_file: Path, date_str: str) -> int:
         """Highest parsed line number in today's file + 1 (not a count of lines)."""
-        max_num = 0
-        if log_file.exists():
-            with open(log_file, "r", encoding="utf-8") as f:
-                for raw_line in f:
-                    parsed = self._parse_line(date_str, raw_line)
-                    if parsed:
-                        max_num = max(max_num, parsed["line"])
-        return max_num + 1
+        _, max_line = self._load_file(log_file, date_str)
+        return max_line + 1
 
     def get_entry(self, entry_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a specific log entry by date#line."""
@@ -151,12 +198,8 @@ class LogWriter:
         if not log_file.exists():
             return None
 
-        with open(log_file, "r", encoding="utf-8") as f:
-            for raw_line in f:
-                parsed = self._parse_line(date_str, raw_line)
-                if parsed and parsed.get("line") == target_line:
-                    return parsed
-        return None
+        entries, _ = self._load_file(log_file, date_str)
+        return entries.get(target_line)
 
     def read_all_entries(self) -> List[Dict[str, Any]]:
         """Return all log entries across all daily log files in chronological order."""

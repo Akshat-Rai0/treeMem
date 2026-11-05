@@ -1085,10 +1085,17 @@ class TreeManager:
             if not is_priv or ch_node is None:
                 continue
 
+            # Node labels (path segments) and aliases are public by design: a parent's summary
+            # must be able to say "accounts" about a child called "accounts". Words that appear
+            # only as the label of the private node are therefore not content.
+            label_tokens = tokens_of(ch_path.replace("/", " ").replace("_", " "))
+            for alias in (ch_node.aliases or []):
+                label_tokens |= tokens_of(str(alias))
+
             # Strict single-word checks: summary body only. Teasers of normal children are short
             # topic labels that legitimately share common words ("financial", "notes") with
             # private descendants, so they are held to the high-signal rules below instead.
-            for token in tokens_of(ch_node.summary) & summary_tokens_now:
+            for token in (tokens_of(ch_node.summary) - label_tokens) & summary_tokens_now:
                 if significant(token, 5) and token not in stop:
                     return f"Summary leaks exact content from private child '{ch_path}' (term: '{token}')"
 
@@ -1099,7 +1106,7 @@ class TreeManager:
                     return f"Summary leaks private fact from child '{ch_path}': '{f_text}'"
                 f_tokens = tokens_of(f_text)
                 priv_fact_tokens |= f_tokens
-                for token in f_tokens & summary_tokens_now:
+                for token in (f_tokens - label_tokens) & summary_tokens_now:
                     if significant(token, 5) and token not in stop:
                         return f"Summary leaks private details from child '{ch_path}' (term: '{token}')"
 
@@ -1109,7 +1116,7 @@ class TreeManager:
                 if token.isdigit() and len(token) >= 3:
                     return f"Teaser leaks private number from child '{ch_path}' (term: '{token}')"
 
-            overlap = {w for w in priv_all_tokens if significant(w, 4)} & {w for w in all_tokens_now if significant(w, 4)}
+            overlap = {w for w in (priv_all_tokens - label_tokens) if significant(w, 4)} & {w for w in all_tokens_now if significant(w, 4)}
             overlap -= {"child", "details", "private", "expand", "view"}
             if len(overlap) >= 3:
                 return f"Summary leaks private details from child '{ch_path}' (overlapping terms: {sorted(overlap)[:3]})"

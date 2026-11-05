@@ -48,6 +48,9 @@ class NodeData:
         self.children_cap = children_cap
 
 
+_YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)  # libyaml when available (about 10x faster)
+
+
 class Store:
     """Manages the disk store of node markdown files, locks, and atomic operations."""
 
@@ -146,7 +149,7 @@ class Store:
             parts = text.split("---", 2)
             if len(parts) >= 3:
                 try:
-                    loaded = yaml.safe_load(parts[1])
+                    loaded = yaml.load(parts[1], Loader=_YAML_LOADER)
                     if isinstance(loaded, dict):
                         frontmatter = loaded
                 except Exception:
