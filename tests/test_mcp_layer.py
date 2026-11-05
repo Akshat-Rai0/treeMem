@@ -1,13 +1,17 @@
 """Tests for MCP stdio protocol and tool execution."""
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
-def test_mcp_stdio_lifecycle():
-    sample_vault = str(Path("examples/sample_memory").resolve())
+def test_mcp_stdio_lifecycle(tmp_path):
+    # Work on a copy: the server writes events into the vault, and the committed sample vault must stay untouched.
+    vault_copy = tmp_path / "sample_memory"
+    shutil.copytree(Path("examples/sample_memory").resolve(), vault_copy)
+    sample_vault = str(vault_copy)
     python_bin = sys.executable
 
     proc = subprocess.Popen(

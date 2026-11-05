@@ -70,3 +70,14 @@ def test_private_node_summary_may_not_quote_its_private_children(tmp_path):
     assert res["ok"] is False
     ok = m.commit_summary("priv", "Loans and related paperwork.\n\n## Children\n- [[loan]] - x")
     assert ok["ok"] is True
+
+
+def test_parent_summary_may_name_a_private_child(tmp_path):
+    """Labels are public by design: a parent must be able to say 'accounts' about child 'accounts'."""
+    m = TreeManager(tmp_path / "v")
+    r = m.remember("Harborline Bank account number is 8578933331.", hint="finance/accounts", sensitivity="private")
+    m.place(r["entry_id"], "finance/accounts", sensitivity="private")
+    ok = m.commit_summary("finance", "finance. Subtopics: accounts.\n\n## Children\n- [[accounts]] - x")
+    assert ok["ok"] is True
+    bad = m.commit_summary("finance", "Bank account 8578933331 lives here.\n\n## Children\n- [[accounts]] - x")
+    assert bad["ok"] is False
