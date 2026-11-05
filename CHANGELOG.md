@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Faster node listing and YAML parsing** (`os.scandir` walk, libyaml when available). Building a 5,000-fact vault went from not finishing in 5 minutes to about 2.5 minutes.
 - **Validator:** a parent's summary may now name the label (or alias) of a private child; only content words are checked.
 - **Tests no longer write into `examples/sample_memory`** (`test_mcp_layer` works on a copy).
+- **Agent-in-the-loop evaluation kit** (`bench/agent_eval/`, `docs/agent_eval_protocol.md`): per-arm shuffled batches and ready-to-paste prompts that expose only id and question, offline grading with the committed grader, exact McNemar test, Wilson intervals, and an audit of the MCP event log. Tests: `tests/test_fix5_agent_eval.py`.
 - **Invalidated 305 episodes** collected with question sets that no longer exist (`bench/results_scaling/invalidated.jsonl`), and removed extrapolated figures and stale derived files. No valid scaling result exists yet; see `docs/experiments_report.md`.
 
 ### Fixed (Pass 3: remaining gaps from the second review)
