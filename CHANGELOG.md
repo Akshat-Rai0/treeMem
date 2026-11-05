@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WP6: Live dashboard inside the MCP process** - CLI `--mcp` now starts dashboard in daemon thread sharing same TreeManager instance. Dashboard URL printed to stderr and written to `.dashboard_url` with mode 0600. EventBus uses `loop.call_soon_threadsafe()` for thread-safe event delivery. Added 1 regression test in `tests/test_fix_events_threadsafe.py`.
 - **WP8: Portability and tokenizer honesty** - fcntl imports wrapped with platform guard, raises `RuntimeError("TreeMem currently supports macOS and Linux only")` at startup. `tokenizer_is_fallback()` exposed. Fallback uses 1.3x conservative multiplier. `status()` and `/api/health` report `"tokenizer": "fallback"` with warning. Added 1 regression test in `tests/test_fix_tokenizer_reporting.py`.
 
+### Fixed (Pass 4: benchmark instrument and scalability)
+- **Scaled-vault generator rewritten** (`bench/make_scaled_vault.py`, `scaled_vault_v2`). The old one built the size-50 vault from the first 50 facts of the pool (travel only) while questions came from a different pool, so benchmark questions were not answerable from the vault. Now every size covers 9 to 12 topics, private questions target real private facts, every answer is unique in its vault, and the manifest carries sha256 hashes. Tests: `tests/test_fix4_scaled_vault.py`.
+- **Runner safety** (`bench/run_scaling.py`): episodes are stamped with question and vault hashes and a resume refuses to mix them (`--invalidate-stale`); transient failures are retried instead of stored as wrong answers; one vault copy and index per (size, arm, run). Tests: `tests/test_fix4_run_scaling.py`.
+- **Sanity gate** (`bench/sanity_check.py`): oracle arm (at least 95%) and flat arm at size 50 (at least 90%) using each question's gold facts; writes `bench/results_scaling/sanity.json`.
+- **Log scaling.** `LogWriter.append` and `get_entry` re-parsed the whole day file on every call (quadratic); they now use a stat-validated cache. Tests: `tests/test_fix4_log_scaling.py`.
+- **Faster node listing and YAML parsing** (`os.scandir` walk, libyaml when available). Building a 5,000-fact vault went from not finishing in 5 minutes to about 2.5 minutes.
+- **Validator:** a parent's summary may now name the label (or alias) of a private child; only content words are checked.
+- **Tests no longer write into `examples/sample_memory`** (`test_mcp_layer` works on a copy).
+- **Invalidated 305 episodes** collected with question sets that no longer exist (`bench/results_scaling/invalidated.jsonl`), and removed extrapolated figures and stale derived files. No valid scaling result exists yet; see `docs/experiments_report.md`.
+
 ### Fixed (Pass 3: remaining gaps from the second review)
 - **Private teasers on disk.** `commit_summary` now overwrites the teaser of every effectively-private child with the standard private teaser (reported as `teasers_overwritten`) and scans teasers of normal children for exact private facts and private numbers. Previously an agent-written teaser such as "account number 4921" was stored verbatim in the parent's file. Tests: `tests/test_fix3_teaser_privacy.py`.
 - **Leak validator now honors inheritance.** Descendants of a private node are checked even when their own flag is `normal`; validation lives in `TreeManager._find_private_leak`.
