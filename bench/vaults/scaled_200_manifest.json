@@ -1,8 +1,32 @@
 {
+  "generator": "scaled_vault_v2",
+  "seed": 7,
   "fact_count": 200,
-  "node_count": 33,
-  "max_depth": 1,
-  "flat_log_tokens": 7752,
+  "public_facts": 196,
+  "private_facts": 4,
+  "node_count": 60,
+  "max_depth": 2,
+  "topics": [
+    "education",
+    "family",
+    "finance",
+    "fitness",
+    "food",
+    "music",
+    "reading",
+    "travel",
+    "work"
+  ],
+  "topic_count": 9,
+  "flat_log_tokens": 7356,
   "tokenizer": "cl100k_base",
-  "seed": 7
+  "questions": {
+    "lookup": 30,
+    "overview": 10,
+    "private": 4,
+    "unanswerable": 6,
+    "total": 50
+  },
+  "questions_sha256": "9fd34bed6695081bf9712eeb02504d8ad9d33da73e293390bd91462e27a61f07",
+  "log_sha256": "c9d17c6681811ef0376f4aad95b61dd0523f62f72bb76b741da022b7eaca0025"
 }

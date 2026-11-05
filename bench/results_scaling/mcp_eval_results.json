@@ -1,0 +1,113 @@
+{
+  "treemanager_direct": [
+    {
+      "question_id": "q_lookup_00",
+      "question": "Who taught his typography course?",
+      "answer": "Recall returned path: /, summary: root. Subtopics: education, family, finance, fitness, food, music, reading, travel, work....",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_01",
+      "question": "What does his grandmother call the parrot?",
+      "answer": "Recall returned path: family/grandmother, summary: grandmother. Contains 3 facts. His grandmother's dog is named Maple....",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_02",
+      "question": "Where does he practice orienteering?",
+      "answer": "Recall returned path: /, summary: root. Subtopics: education, family, finance, fitness, food, music, reading, travel, work....",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_03",
+      "question": "Which Bengali meal is his favourite?",
+      "answer": "Recall returned path: /, summary: root. Subtopics: education, family, finance, fitness, food, music, reading, travel, work....",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_04",
+      "question": "What is his favorite bebop album?",
+      "answer": "Recall returned path: /, summary: root. Subtopics: education, family, finance, fitness, food, music, reading, travel, work....",
+      "correct": false,
+      "leaked": false
+    }
+  ],
+  "simulated_agent": [
+    {
+      "question_id": "q_lookup_00",
+      "question": "Who taught his typography course?",
+      "answer": "Found 5 hits. First hit: ...",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_01",
+      "question": "What does his grandmother call the parrot?",
+      "answer": "Found 5 hits. First hit: ...",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_02",
+      "question": "Where does he practice orienteering?",
+      "answer": "Found 5 hits. First hit: ...",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_03",
+      "question": "Which Bengali meal is his favourite?",
+      "answer": "Found 5 hits. First hit: ...",
+      "correct": false,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_04",
+      "question": "What is his favorite bebop album?",
+      "answer": "Found 5 hits. First hit: ...",
+      "correct": false,
+      "leaked": false
+    }
+  ],
+  "oracle": [
+    {
+      "question_id": "q_lookup_00",
+      "question": "Who taught his typography course?",
+      "answer": "He took the course on typography taught by Professor Tomas Petrov.",
+      "correct": true,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_01",
+      "question": "What does his grandmother call the parrot?",
+      "answer": "His grandmother's parrot is named Cinder.",
+      "correct": true,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_02",
+      "question": "Where does he practice orienteering?",
+      "answer": "He practices orienteering at Velvet Training Hall.",
+      "correct": true,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_03",
+      "question": "Which Bengali meal is his favourite?",
+      "answer": "His favorite Bengali dish is Fire skewers.",
+      "correct": true,
+      "leaked": false
+    },
+    {
+      "question_id": "q_lookup_04",
+      "question": "What is his favorite bebop album?",
+      "answer": "His favorite bebop album is Ivory Voyage.",
+      "correct": true,
+      "leaked": false
+    }
+  ]
+}

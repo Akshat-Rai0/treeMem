@@ -1,0 +1,113 @@
+{
+  "model": "qwen/qwen3.8-27b",
+  "results": [
+    {
+      "check": "oracle",
+      "size": 50,
+      "questions_sha": "1c62caa1cabc7db55835620c8dc3b7642cce5dc8aefb44149eb6bb9cc04cff36",
+      "n": 40,
+      "correct": 38,
+      "rate": 0.95,
+      "threshold": 0.95,
+      "passed": true,
+      "failures": [
+        {
+          "id": "q_overview_04",
+          "question": "What do you know about music > jazz blues?",
+          "keywords": [
+            "Ivory Voyage",
+            "Misty Hall",
+            "Copper Anchor",
+            "Wandering Theatre",
+            "Northern Voyage"
+          ],
+          "gold_facts": [
+            "His favorite bebop album is Ivory Voyage.",
+            "He saw The Velvet Lynxs perform live at Misty Hall.",
+            "His favorite delta blues album is Copper Anchor.",
+            "He saw The Quiet Moths perform live at Wandering Theatre.",
+            "His favorite cool jazz album is Northern Voyage."
+          ],
+          "answer": "Based on the provided facts, here is what is known regarding jazz and blues:\n\n**Jazz**\n*   **Bebop:** The favorite album is *Ivory Voyage*.\n*   **Cool Jazz:** The favorite album is *Northern Voyage*.\n\n**Blues**\n*   **Delta Blues:** The favorite album is *Copper Anchor*.",
+          "correct": false
+        },
+        {
+          "id": "q_overview_08",
+          "question": "Summarize the information about education > courses social.",
+          "keywords": [
+            "Rafael Zielinski",
+            "Tomas Ivanov",
+            "Mara Westbrook",
+            "Kofi Rasmussen"
+          ],
+          "gold_facts": [
+            "He took the course on microeconomics taught by Professor Rafael Zielinski.",
+            "He took the course on sociology taught by Professor Tomas Ivanov.",
+            "He took the course on political theory taught by Professor Mara Westbrook.",
+            "He took the course on cognitive psychology taught by Professor Kofi Rasmussen."
+          ],
+          "answer": "He took the course on sociology taught by Professor Tomas Ivanov.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "check": "oracle",
+      "size": 200,
+      "questions_sha": "9fd34bed6695081bf9712eeb02504d8ad9d33da73e293390bd91462e27a61f07",
+      "n": 40,
+      "correct": 38,
+      "rate": 0.95,
+      "threshold": 0.95,
+      "passed": true,
+      "failures": [
+        {
+          "id": "q_overview_00",
+          "question": "Tell me about education > courses social.",
+          "keywords": [
+            "Rafael Zielinski",
+            "Tomas Ivanov",
+            "Mara Westbrook",
+            "Kofi Rasmussen"
+          ],
+          "gold_facts": [
+            "He took the course on microeconomics taught by Professor Rafael Zielinski.",
+            "He took the course on sociology taught by Professor Tomas Ivanov.",
+            "He took the course on political theory taught by Professor Mara Westbrook.",
+            "He took the course on cognitive psychology taught by Professor Kofi Rasmussen."
+          ],
+          "answer": "He took the course on sociology taught by Professor Tomas Ivanov.",
+          "correct": false
+        },
+        {
+          "id": "q_overview_02",
+          "question": "Summarize the information about fitness > team sports.",
+          "keywords": [
+            "Tidal Athletic Centre",
+            "Amber Athletic Centre",
+            "Copper Barbell Club"
+          ],
+          "gold_facts": [
+            "He practices ultimate frisbee at Tidal Athletic Centre.",
+            "He practices volleyball at Amber Athletic Centre.",
+            "He practices rowing at Copper Barbell Club."
+          ],
+          "answer": "He practices ultimate frisbee at Tidal Athletic Centre and volleyball at Amber Athletic Centre.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "check": "flat",
+      "size": 50,
+      "questions_sha": "1c62caa1cabc7db55835620c8dc3b7642cce5dc8aefb44149eb6bb9cc04cff36",
+      "n": 40,
+      "correct": 40,
+      "rate": 1.0,
+      "threshold": 0.9,
+      "passed": true,
+      "failures": []
+    }
+  ],
+  "passed": true
+}
