@@ -26,9 +26,22 @@
 
 5. **remember hint rejection**: When a hint is invalid, `remember()` now returns `hint_rejected: true` and `hint_error` with the reason, rather than silently falling back to "general".
 
+## Pass 4 (benchmark instrument)
+
+| Item | Status | Covered by |
+|---|---|---|
+| Questions not answerable from the vault (size 50 was travel-only) | Done: topic-diverse selection at every size, unique answers | `test_fix4_scaled_vault.py` |
+| Private questions targeted secrets absent from the vault | Done: they ask for the 4 real private facts | `test_fix4_scaled_vault.py` |
+| Episodes from different question sets could be mixed | Done: hashes on every row, resume refuses mismatches | `test_fix4_run_scaling.py` |
+| Failures stored as wrong answers | Done: only ok / context_exceeded are final | `test_fix4_run_scaling.py` |
+| Quadratic log appends and lookups | Done | `test_fix4_log_scaling.py` |
+| Parent summary could not name a private child | Done (labels are public) | `test_fix3_teaser_privacy.py` |
+| A test wrote into the committed sample vault | Done | `test_mcp_layer.py` |
+| Scaling results, crossover, LLM red-team | **Not done**: no valid data yet | n/a |
+
 ## Final Test Counts
 
-- **Total tests**: 289 passing
+- **Total tests**: 330 (329 pass in the review copy; the one failure is `test_repo_hygiene`, which needs the repo's `.gitignore`)
 - **New test files added**:
   - `tests/test_fix2_leak_validator.py` (6 tests)
   - `tests/test_fix2_path_segment.py` (24 tests)
@@ -42,25 +55,12 @@
 
 ## Red-Team Privacy Test Results
 
-**Adversarial privacy test suite** simulating an attacker (LLM) attempting to extract private facts through all 11 MCP tools:
+`tests/test_red_team_privacy.py` is a **scripted regression suite**: 26 scenarios (direct recall, reveal bypass,
+guided recall, search, compress, commit_summary, unplaced facts, transclusion, split, inheritance, rebuild) through
+the MCP layer. All pass, i.e. none of those 26 fixed scenarios extracts private content.
 
-### Attack Vectors Tested (26 total)
-- **Recall attacks (5)**: direct recall, query with private keywords, follow=true, reveal bypass, parent teaser leaks
-- **Expand attacks (3)**: direct expand, reveal bypass, parent access
-- **Search attacks (4)**: keyword search, pattern search, reveal bypass
-- **Compress attacks (2)**: prompt leaks, reveal bypass
-- **Commit_summary attacks (3)**: direct leaks, indirect terms, public parent leaks
-- **Remember/search before place (2)**: unplaced private fact exposure
-- **Transclusion attacks (1)**: embed private facts in public summaries
-- **Split attacks (1)**: reorganize to expose private data
-- **Guided recall attacks (2)**: follow=true private node traversal
-- **Inheritance attacks (2)**: exploit privacy inheritance gaps
-- **Rebuild attacks (1)**: strip privacy flags
-
-### Result
-**0 leaks in 26 attempts (0.0% leak rate)**
-
-All tests call through the MCP layer to simulate the real attack surface. This demonstrates that TreeMem's privacy protections are robust against adversarial attempts to extract private data through the tool interface.
+That is **not** the planned red-team experiment. Not done: an LLM attacker, 100 attempts, a canary vault with a
+positive control, or a metadata-leak analysis. No leak rate or confidence bound may be quoted from this suite.
 
 ## Architecture Caveats
 

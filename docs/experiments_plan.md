@@ -232,9 +232,9 @@ EOF
 )"
 ```
 
-## Time Projection
+## Time projection
 
-Based on smoke test:
-- Total episodes: 4000
-- Projected time: 0.9 hours
-- Projected tokens: 4,135,000
+The runner prints a projection after its smoke test. It is a LOWER BOUND: it multiplies the smoke-test
+latency by the number of episodes and ignores rate-limit waits, retries and pacing. The earlier figure of
+"0.9 hours" in this file was exactly that and is not a prediction. Provider limits decide the real duration.
+

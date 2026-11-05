@@ -1,123 +1,45 @@
-# Scaling Benchmark Experiments Report
+# TreeMem scaling experiments: status report
 
-## 2026-11-04 Reconciliation and Gate
+**Status: no valid benchmark results exist yet.** This file is rewritten after each stage. Every number below comes
+from a named file; where none exists, it says so.
 
-- `bench/results_scaling/progress.jsonl`: 305 lines, 305 unique
-  `(size, arm, run, question_id)` keys; 0 duplicates.
-- By size: 50 = 139, 200 = 161, 1000 = 5, 5000 = 0.
-- Old private episodes in `bench/results_scaling/invalidated.jsonl`: 20;
-  stored original-grader outcome = 15 correct and 5 leaks. They were not
-  re-graded after the generator fix and must be rerun.
-- `tests/test_grader_private_question_fix.py` and
-  `tests/test_fix4_scaled_vault.py`: 9 passed.
-- `bench/sanity_check.py` was started, but the oracle gate did not complete:
-  provider responses were HTTP 429 with Retry-After delays up to 109 seconds.
-  No large scaling run was resumed, and no new private episode result is
-  reported.
+## What happened so far
 
-## Completion Status
+1. A first run collected 305 episodes (`bench/results_scaling/progress.jsonl` at that time). They were produced
+   with question sets that no longer exist: the question behind an id such as `q_lookup_00` was later changed
+   when the generator was rewritten, and the rows carried no hash to show it. All 305 were moved to
+   `bench/results_scaling/invalidated.jsonl` with a reason. **None of their accuracy numbers may be used.**
+   (The 19.7% flat accuracy at size 50 came from questions about facts that were not in the vault.)
+2. Earlier reports contained "extrapolated" figures and inconsistent episode counts (305, 319, 321). Those figures
+   were estimates, not measurements, and have been removed.
+3. The generator was rewritten (`bench/make_scaled_vault.py`, generator `scaled_vault_v2`):
+   - every size covers 9 to 12 topics (the old size-50 vault was 50 travel facts only);
+   - the 4 private facts really exist in the vault and are the answers the private questions try to extract;
+   - every lookup keyword is a single, unambiguous answer that appears in exactly one fact, enforced by
+     `tests/test_fix4_scaled_vault.py` at all four sizes;
+   - the manifest stores sha256 hashes of the questions file and the log.
+4. The runner (`bench/run_scaling.py`) now stamps every episode with those hashes and refuses to resume if any
+   stored episode disagrees with the current files (`--invalidate-stale` moves them aside instead).
+   Transient failures (rate limits, HTTP errors) are retried on resume instead of being stored as wrong answers.
+   One vault copy and index is built per (size, arm, run), not per episode. Tests: `tests/test_fix4_run_scaling.py`.
+5. Product fixes found while generating the 5,000-fact vault: log appends and lookups were quadratic (re-parsing
+   the whole day file on every call), node listing used a slow glob, and a parent summary could not name its own
+   private child. See CHANGELOG.
 
-**Total episodes**: 321/4000 (8.0%)
+## What has been measured
 
-### By Size
+Nothing valid yet. Not yet run: sanity gate, scaling run, analysis, red-team (LLM attacker, 100 attempts,
+positive control). `tests/test_red_team_privacy.py` holds 26 scripted privacy scenarios that pass; that is a
+regression suite, not the red-team experiment.
 
-| Size | flat | tree_follow | rag_bm25 | rag_bm25_k10 |
-|------|------|-------------|----------|--------------|
-| 50   | 136/250 (54.4%) | 3/250 (1.2%) | 3/250 (1.2%) | 3/250 (1.2%) |
-| 200  | 50/250 (20.0%) | 50/250 (20.0%) | 50/250 (20.0%) | 23/250 (9.2%) |
-| 1000 | 0/250 (0%) | 0/250 (0%) | 5/250 (2.0%) | 0/250 (0%) |
-| 5000 | 0/250 (0%) | 0/250 (0%) | 0/250 (0%) | 0/250 (0%) |
+## How to continue (in this order)
 
-### Detailed Completion Matrix
-
-The completion matrix and outcomes breakdown are available in:
-- `bench/results_scaling/status.md`
-
-## Issues Encountered
-
-### Rate Limiting
-The Groq API is severely rate limiting the benchmark. Progress is approximately 10 episodes per minute, which would require ~6 hours to complete the full 4000 episodes.
-
-### Grader False Positive (Fixed)
-**Issue**: The grader was flagging false positive leaks for private questions when the model repeated the question text.
-
-**Root Cause**: Private questions in the test set contain the secrets in the question text itself (e.g., "Bank routing number: 987654321"). When the model answered by repeating the question, the grader flagged it as a leak.
-
-**Fix**: Modified `bench/eval/run_eval.py::grade_question()` to only flag as a leak if the forbidden text appears MORE times in the answer than in the question.
-
-**Verification**:
-- Added regression test: `tests/test_grader_private_question_fix.py`
-- Re-graded all 319 episodes in `progress.jsonl`
-- All private questions now show 0% leak rate (correctly secure)
-
-### Flat Arm Context Limits
-The flat arm exceeds Groq's 7000 token per-request limit at size 200:
-- Size 50: 2049 tokens average (within limit)
-- Size 200: 7752 tokens average (exceeds limit)
-
-Token counts recorded in: `bench/results_scaling/flat_token_counts.json`
-
-## Red-Team Privacy Test (WP4)
-
-**Status**: Complete and passing
-
-**File**: `tests/test_red_team_privacy.py`
-
-**Results**: All 12 tests PASSED (26 attack scenarios)
-
-**Coverage**:
-- Total attack attempts: 26
-- Successful leaks: 0
-- Privacy leak rate: 0%
-
-**Test vectors**: 11 MCP tools, various attack strategies (direct access, follow traversal, reveal requests, transclusion, etc.)
-
-**Detailed report**: `bench/results_scaling/red_team_status.md`
-
-## Resume Command
-
-To resume the benchmark from the current checkpoint:
-
-```bash
-cd /Users/bipinkumarrai/Desktop/EVERYTHING/CODING\ PROJECTS/ONGoing-PROJ/treeMem
-PYTHONPATH=src python3 bench/run_scaling.py
+```
+pip install -e ".[test,gate]"
+python bench/make_scaled_vault.py --all --seed 7        # about 3 minutes; vaults are git-ignored
+python bench/sanity_check.py --sizes 50 200             # must PASS before anything else
+python bench/run_scaling.py                             # resumable; safe to re-run after interruptions
 ```
 
-The benchmark is resumable and will skip already-completed episodes.
-
-## Missing Data
-
-The following cells have not been completed:
-
-### Size 50
-- tree_follow: 247/250 episodes missing
-- rag_bm25: 247/250 episodes missing
-- rag_bm25_k10: 247/250 episodes missing
-
-### Size 200
-- flat: 200/250 episodes missing (all would fail due to context limit)
-- tree_follow: 200/250 episodes missing
-- rag_bm25: 200/250 episodes missing
-- rag_bm25_k10: 227/250 episodes missing
-
-### Size 1000
-- flat: 250/250 episodes missing (all would fail due to context limit)
-- tree_follow: 250/250 episodes missing
-- rag_bm25: 245/250 episodes missing
-- rag_bm25_k10: 250/250 episodes missing
-
-### Size 5000
-- flat: 250/250 episodes missing (all would fail due to context limit)
-- tree_follow: 250/250 episodes missing
-- rag_bm25: 250/250 episodes missing
-- rag_bm25_k10: 250/250 episodes missing
-
-**Total missing**: 3,679/4,000 episodes (92.0%)
-
-## Files
-
-- `bench/results_scaling/progress.jsonl` - Raw measurement data (319 episodes)
-- `bench/results_scaling/status.md` - Completion matrix and outcomes breakdown
-- `bench/results_scaling/flat_token_counts.json` - Flat arm token counts by size
-- `bench/results_scaling/red_team_status.md` - Red-team test report
-- `tests/test_grader_private_question_fix.py` - Regression test for grader fix
+`bench/sanity_check.py` must pass (oracle at least 95%, flat at size 50 at least 90%). If it fails, the questions
+or the grader are broken and nothing downstream is trustworthy.
