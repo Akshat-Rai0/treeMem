@@ -208,6 +208,7 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=10)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--root", type=str, default=None)
+    ap.add_argument("--vault-root", type=str, default=str(VAULT_ROOT))
     ap.add_argument("--protocol", choices=["v1", "v2"], default="v1")
     ap.add_argument("--questions-file", type=str, default=None)
     args = ap.parse_args()
@@ -218,6 +219,7 @@ def main() -> None:
     qfile = Path(args.questions_file) if args.questions_file else None
 
     m = make(args.size, args.arms, args.batch_size, seed, root,
+             vault_root=Path(args.vault_root),
              protocol=protocol, questions_file=qfile)
     print(f"Prepared {len(args.arms)} arms x {-(-m['question_count'] // args.batch_size)} batches under {root / f'size_{args.size}'}")
 

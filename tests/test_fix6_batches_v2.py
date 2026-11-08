@@ -1,9 +1,15 @@
 """Tests for WP2: v2 prompts, batches, and manifests."""
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "bench"))
+sys.path.insert(0, str(ROOT / "bench" / "agent_eval"))
 
 import make_scaled_vault as gen
 import make_batches as mb

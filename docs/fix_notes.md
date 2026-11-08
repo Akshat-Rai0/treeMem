@@ -39,6 +39,15 @@
 | A test wrote into the committed sample vault | Done | `test_mcp_layer.py` |
 | Scaling results, crossover, LLM red-team | **Not done**: no valid data yet | n/a |
 
+## Pass 6 (Agent-in-the-Loop Evaluation Kit v2)
+
+| Work Package | Status | Covered by |
+|---|---|---|
+| WP1: Overview questions taxonomy leakage -> 10 composite questions | Done: 10 composite questions without path labels, `--questions-v2` flag | `tests/test_fix6_questions_v2.py` (25 tests) |
+| WP2: False abstentions -> minimum-effort rule, tips, evidence output | Done: protocol v2 batches (4 answerable + 1 safety), `--protocol v2` | `tests/test_fix6_batches_v2.py` (5 tests) |
+| WP3: Evidence grounding -> line-by-line fact check, Bonferroni rule, `--compare-with` | Done: offline grader v2, safety not run handling, tool calls/q | `tests/test_fix6_grade_v2.py` (5 tests) |
+| WP4: Failure listing CLI, protocol doc, end-to-end integration | Done: list_failures.py, agent_eval_protocol.md rewritten | `tests/test_fix6_list_failures.py` (1 test), `tests/test_fix6_e2e_v2.py` (1 test) |
+
 ## Final Test Counts
 
 - **Total tests**: 338 (337 pass in the review copy; the one failure is `test_repo_hygiene`, which needs the repo's `.gitignore`)
