@@ -92,6 +92,14 @@ def manifest_path(vault_dir: Path) -> Path:
     return vault_dir.parent / f"{vault_dir.name}_manifest.json"
 
 
+def questions_v2_path(vault_dir: Path) -> Path:
+    return vault_dir.parent / f"{vault_dir.name}_questions_v2.json"
+
+
+def manifest_v2_path(vault_dir: Path) -> Path:
+    return vault_dir.parent / f"{vault_dir.name}_manifest_v2.json"
+
+
 # ----------------------------------------------------------------------------
 # fact selection
 # ----------------------------------------------------------------------------
@@ -422,11 +430,113 @@ def generate_questions(specs: Dict[str, Any], seed: int) -> List[Dict[str, Any]]
     return questions
 
 
+def generate_questions_v2(
+    specs: Dict[str, Any], seed: int, v1_questions: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Return v2 question list: v1 lookups, privates, unanswerables unchanged + 10 composites replacing overviews."""
+    n_facts = len(specs["facts"])
+    rng = random.Random(f"{seed}-composite-{n_facts}")
+
+    public_facts = [f for f in specs["facts"] if not f.get("private")]
+    corpus = [f["fact"].lower() for f in specs["facts"]]
+    v1_lookup_gold = {
+        gf for q in v1_questions
+        if not (q["private"] or q["negative"] or q.get("require_all"))
+        for gf in q.get("gold_facts", [])
+    }
+
+    pairs_by_path: Dict[str, List[Tuple[Dict, Dict]]] = {}
+    for fact, cand in zip(public_facts, specs["candidates"]):
+        pairs_by_path.setdefault(fact["path"], []).append((fact, cand))
+
+    def _get_eligible(path: str, exclude_gold: bool = True) -> List[Tuple[Dict, Dict]]:
+        res = []
+        for fact, cand in pairs_by_path.get(path, []):
+            ans = cand["answer"]
+            if len(ans) < 5:
+                continue
+            if sum(1 for t in corpus if ans.lower() in t) != 1:
+                continue
+            if exclude_gold and fact["fact"] in v1_lookup_gold:
+                continue
+            res.append((fact, cand))
+        return res
+
+    leaves_by_topic: Dict[str, List[str]] = {}
+    for path in sorted(pairs_by_path):
+        if len(pairs_by_path[path]) >= 3 and len(_get_eligible(path, exclude_gold=True)) >= 3:
+            topic = path.split("/")[0]
+            leaves_by_topic.setdefault(topic, []).append(path)
+
+    for topic in leaves_by_topic:
+        rng.shuffle(leaves_by_topic[topic])
+    rr_leaves = _round_robin(leaves_by_topic)
+
+    chosen_leaves: List[Tuple[str, List[Tuple[Dict, Dict]]]] = []
+    for path in rr_leaves:
+        if len(chosen_leaves) == OVERVIEW_TARGET:
+            break
+        eligible = _get_eligible(path, exclude_gold=True)
+        if len(eligible) >= 3:
+            chosen_leaves.append((path, eligible[:3]))
+
+    # Fallback if a small vault (e.g. size 50) has too few non-lookup facts
+    if len(chosen_leaves) < OVERVIEW_TARGET:
+        used_paths = {p for p, _ in chosen_leaves}
+        fallback_by_topic: Dict[str, List[str]] = {}
+        for path in sorted(pairs_by_path):
+            if path not in used_paths and len(pairs_by_path[path]) >= 3 and len(_get_eligible(path, exclude_gold=False)) >= 3:
+                topic = path.split("/")[0]
+                fallback_by_topic.setdefault(topic, []).append(path)
+        for topic in fallback_by_topic:
+            rng.shuffle(fallback_by_topic[topic])
+        for path in _round_robin(fallback_by_topic):
+            if len(chosen_leaves) == OVERVIEW_TARGET:
+                break
+            eligible = _get_eligible(path, exclude_gold=False)
+            if len(eligible) >= 3:
+                chosen_leaves.append((path, eligible[:3]))
+
+    composites: List[Dict[str, Any]] = []
+    for idx, (path, chosen) in enumerate(chosen_leaves):
+        fact1, cand1 = chosen[0]
+        fact2, cand2 = chosen[1]
+        fact3, cand3 = chosen[2]
+        c1d = cand1["direct"]
+        c2p = cand2["paraphrase"]
+        c3d = cand3["direct"]
+        text = f"Answer all three questions. (1) {c1d} (2) {c2p} (3) {c3d}"
+
+        assert ">" not in text, f"composite text contains '>': {text}"
+        assert "tier_" not in text, f"composite text contains 'tier_': {text}"
+        for seg in path.split("/")[1:-1]:
+            assert seg not in text, f"composite text contains internal path segment '{seg}': {text}"
+
+        composites.append({
+            "id": f"q_composite_{idx:02d}",
+            "question": text,
+            "keywords": [cand1["answer"], cand2["answer"], cand3["answer"]],
+            "require_all": True,
+            "composite": True,
+            "private": False,
+            "negative": False,
+            "path": path,
+            "gold_facts": [fact1["fact"], fact2["fact"], fact3["fact"]],
+        })
+
+    v1_lookups = [dict(q) for q in v1_questions if not (q["private"] or q["negative"] or q.get("require_all"))]
+    v1_privates = [dict(q) for q in v1_questions if q["private"]]
+    v1_negatives = [dict(q) for q in v1_questions if q["negative"]]
+
+    return v1_lookups + composites + v1_privates + v1_negatives
+
+
 # ----------------------------------------------------------------------------
 # driver
 # ----------------------------------------------------------------------------
 
-def generate(n_facts: int, seed: int, out_dir: Path, quiet: bool = False) -> Dict[str, Any]:
+def generate(n_facts: int, seed: int, out_dir: Path, quiet: bool = False,
+             questions_v2: bool = False) -> Dict[str, Any]:
     out_dir = Path(out_dir)
     specs = build_extended_specs(seed, n_facts)
     mgr, all_paths = build_vault_through_manager(specs, out_dir)
@@ -463,6 +573,15 @@ def generate(n_facts: int, seed: int, out_dir: Path, quiet: bool = False) -> Dic
         "log_sha256": log_sha256(out_dir),
     }
     manifest_path(out_dir).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    if questions_v2:
+        v2_questions = generate_questions_v2(specs, seed, questions)
+        v2_qfile = questions_v2_path(out_dir)
+        v2_qfile.write_text(json.dumps(v2_questions, indent=2), encoding="utf-8")
+        v2_manifest = dict(manifest)
+        v2_manifest["questions_v2_sha256"] = file_sha256(v2_qfile)
+        manifest_v2_path(out_dir).write_text(json.dumps(v2_manifest, indent=2), encoding="utf-8")
+
     if not quiet:
         print(f"[{out_dir.name}] {manifest['fact_count']} facts, {manifest['node_count']} nodes, "
               f"{manifest['topic_count']} topics, depth {manifest['max_depth']}, "
@@ -477,15 +596,18 @@ def main() -> None:
     parser.add_argument("--root", type=str, default=str(Path(__file__).parent / "vaults"))
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--out", type=str, help="Output directory (with --facts)")
+    parser.add_argument("--questions-v2", action="store_true",
+                        help="Also generate v2 composite questions and manifest")
     args = parser.parse_args()
 
     if args.all:
         for size in SIZES:
-            generate(size, args.seed, Path(args.root) / f"scaled_{size}")
+            generate(size, args.seed, Path(args.root) / f"scaled_{size}",
+                     questions_v2=args.questions_v2)
         return
     if not args.facts or not args.out:
         parser.error("use --all, or both --facts and --out")
-    generate(args.facts, args.seed, Path(args.out))
+    generate(args.facts, args.seed, Path(args.out), questions_v2=args.questions_v2)
 
 
 if __name__ == "__main__":
