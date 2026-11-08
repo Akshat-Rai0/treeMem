@@ -21,3 +21,4 @@ bench/vaults/*/.events/
 bench/vaults/scaled_*/
 *.lock
 bench/agent_eval/runs/
+bench/agent_eval/runs_v2/
