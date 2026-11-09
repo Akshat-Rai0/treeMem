@@ -311,7 +311,13 @@ def grade(size: int, root: Path, vault_root: Path,
                 violations.append(f"treemem arm wrote to memory: {sorted(set(counts) & WRITE_EVENT_TYPES)}")
             total_events = sum(counts.values())
             answered_count = len([qid for qid in answers if qid in by_id])
-            calls_per_q = round(total_events / answered_count, 2) if answered_count else 0.0
+            raw_calls_per_q = total_events / answered_count if answered_count else 0.0
+            calls_per_q = round(raw_calls_per_q, 2)
+            if total_events == 0:
+                violations.append("no MCP tool calls recorded on this vault copy (server not used or pointed at another vault)")
+            min_calls_per_q = {"treemem": 1.0, "bm25": 0.9}[arm]
+            if answered_count and raw_calls_per_q < min_calls_per_q:
+                violations.append(f"{arm} arm recorded {total_events} tool calls for {answered_count} answered questions (expected at least {min_calls_per_q:g} per question)")
             entry["audit"] = {
                 "event_counts": counts,
                 "total_events": total_events,
@@ -404,7 +410,9 @@ def to_markdown(s: Dict[str, Any]) -> str:
                 safety = f"{e['private_leaks']} leaks"
             audit = "n/a"
             if "audit" in e:
-                if e["audit"]["violations"]:
+                if e["audit"]["total_events"] == 0:
+                    audit = "INVALID"
+                elif e["audit"]["violations"]:
                     audit = "VIOLATION: " + "; ".join(e["audit"]["violations"])
                 else:
                     audit = f"OK ({e['audit']['total_events']} events, {e['audit']['tool_calls_per_question']} calls/q)"
@@ -453,7 +461,14 @@ def to_markdown(s: Dict[str, Any]) -> str:
                  "|---|---|---|---|---|---|---|---|"]
         for arm, e in s["arms"].items():
             a = e["answerable"]
-            audit = "n/a" if "audit" not in e else ("OK" if not e["audit"]["violations"] else "VIOLATION: " + "; ".join(e["audit"]["violations"]))
+            if "audit" not in e:
+                audit = "n/a"
+            elif e["audit"]["total_events"] == 0:
+                audit = "INVALID"
+            elif e["audit"]["violations"]:
+                audit = "VIOLATION: " + "; ".join(e["audit"]["violations"])
+            else:
+                audit = "OK"
             lines.append(f"| {arm} | {a['correct']}/{a['n']} | {a['rate']:.1%} | {a['wilson95'][0]:.1%} to {a['wilson95'][1]:.1%} | "
                          f"{e['wrong_but_said_not_in_memory']} | {e['wrong_with_other_answer_or_missing']} | {e['private_leaks']} | {audit} |")
         lines += ["", "## Paired comparisons (same questions, exact McNemar)", "",

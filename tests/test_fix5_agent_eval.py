@@ -97,6 +97,20 @@ def _write_answers(root, vault_root, arm, answer_fn):
         (root / "size_50" / arm / f"answers_batch_{n + 1:02d}.json").write_text("```json\n" + json.dumps(payload) + "\n```")
 
 
+def _correct_answer(q):
+    if q["private"]:
+        return mb.PRIVATE_ANSWER
+    if q["negative"]:
+        return mb.NOT_IN_MEMORY
+    return " and ".join(q["keywords"])
+
+
+def _write_events(root, arm, event_types):
+    ev = root / "size_50" / "vaults" / arm / ".events"
+    ev.mkdir(parents=True, exist_ok=True)
+    (ev / "2026-01-01.jsonl").write_text("".join(json.dumps({"type": t}) + "\n" for t in event_types))
+
+
 def test_grading_end_to_end_with_audit_and_paired_test(prepared):
     root, vault_root = prepared
 
@@ -116,7 +130,10 @@ def test_grading_end_to_end_with_audit_and_paired_test(prepared):
 
     _write_answers(root, vault_root, "treemem", perfect)
     _write_answers(root, vault_root, "bm25", poor)
-    # bm25 arm touched a non-search tool and the grep arm is absent from the audit
+    # treemem used one allowed read tool per answered question; bm25 touched a non-search tool
+    tev = root / "size_50" / "vaults" / "treemem" / ".events"
+    tev.mkdir(exist_ok=True)
+    (tev / "2026-01-01.jsonl").write_text("".join(json.dumps({"type": "search"}) + "\n" for _ in range(50)))
     ev = root / "size_50" / "vaults" / "bm25" / ".events"
     ev.mkdir(exist_ok=True)
     (ev / "2026-01-01.jsonl").write_text(json.dumps({"type": "search"}) + "\n" + json.dumps({"type": "recall"}) + "\n")
@@ -134,6 +151,69 @@ def test_grading_end_to_end_with_audit_and_paired_test(prepared):
     g = s["arms"]["grep"]
     assert g["answerable"]["correct"] == 0 and g["answerable"]["n"] == 40 and g["missing_answers"] == 50
     assert "| treemem |" in gr.to_markdown(s)
+
+
+def test_mcp_audit_zero_events_marks_arm_invalid(prepared, tmp_path):
+    _, vault_root = prepared
+    root = tmp_path / "runs_zero_events"
+    mb.make(50, ["treemem", "bm25"], 10, 7, root, vault_root)
+    for arm in ("treemem", "bm25"):
+        _write_answers(root, vault_root, arm, _correct_answer)
+
+    s = gr.grade(50, root, vault_root)
+    for arm in ("treemem", "bm25"):
+        audit = s["arms"][arm]["audit"]
+        assert audit["total_events"] == 0
+        assert any("no MCP tool calls recorded on this vault copy" in v for v in audit["violations"])
+
+    md = gr.to_markdown(s)
+    for arm in ("treemem", "bm25"):
+        row = next(line for line in md.splitlines() if line.startswith(f"| {arm} |"))
+        assert "INVALID" in row
+
+
+def test_mcp_audit_normal_counts_have_no_violations(prepared, tmp_path):
+    _, vault_root = prepared
+    root = tmp_path / "runs_normal_counts"
+    mb.make(50, ["treemem", "bm25"], 10, 7, root, vault_root)
+    for arm in ("treemem", "bm25"):
+        _write_answers(root, vault_root, arm, _correct_answer)
+        _write_events(root, arm, ["search"] * 50)
+
+    s = gr.grade(50, root, vault_root)
+    assert s["protocol"] == "v1"
+    for arm in ("treemem", "bm25"):
+        audit = s["arms"][arm]["audit"]
+        assert audit["total_events"] == 50
+        assert audit["tool_calls_per_question"] == 1.0
+        assert audit["violations"] == []
+
+    md = gr.to_markdown(s)
+    assert "Protocol v2" not in md
+    for arm in ("treemem", "bm25"):
+        row = next(line for line in md.splitlines() if line.startswith(f"| {arm} |"))
+        assert "| OK |" in row
+        assert "INVALID" not in row and "VIOLATION" not in row
+
+
+def test_mcp_audit_low_call_counts_violate(prepared, tmp_path):
+    _, vault_root = prepared
+    root = tmp_path / "runs_low_counts"
+    mb.make(50, ["treemem", "bm25"], 10, 7, root, vault_root)
+    _write_answers(root, vault_root, "treemem", _correct_answer)
+    _write_events(root, "treemem", ["search"] * 49)
+    _write_answers(root, vault_root, "bm25", _correct_answer)
+    _write_events(root, "bm25", ["search"] * 44)
+
+    s = gr.grade(50, root, vault_root)
+    assert any("expected at least 1 per question" in v for v in s["arms"]["treemem"]["audit"]["violations"])
+    assert any("expected at least 0.9 per question" in v for v in s["arms"]["bm25"]["audit"]["violations"])
+
+    md = gr.to_markdown(s)
+    for arm in ("treemem", "bm25"):
+        row = next(line for line in md.splitlines() if line.startswith(f"| {arm} |"))
+        assert "VIOLATION" in row
+        assert "INVALID" not in row
 
 
 def test_grading_refuses_when_questions_changed(prepared):
