@@ -2,7 +2,7 @@
 
 Hierarchical, agent-writable memory for LLM agents, exposed as an MCP server, stored as a plain folder of markdown, with a local web dashboard that visualizes every recall.
 
-Status: pre-implementation. Owner: Akshat Rai. Last updated: 2026-10-22.
+Status: implemented v0.1.x; this document remains the product definition and decision record. Owner: Akshat Rai. Last updated: 2026-11-10.
 
 ## 1. One-line pitch
 
@@ -25,15 +25,15 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 5. Staleness handling via a dirty flag propagated to ancestors.
 6. Per-node sensitivity tag so a parent can say "has private details" without leaking them.
 7. Plain-folder storage, Obsidian-compatible format (frontmatter, wikilinks, daily-note log).
-8. Local read-only web dashboard: live graph, recall path highlighting, replay.
+8. Local web dashboard: live graph, recall path highlighting, replay, plus guarded summary-edit and compression actions.
 9. Measurable results: tokens per recall vs flat dump, answer accuracy on a long-term-memory benchmark subset, parent-stop rate.
 
 ## 4. Non-goals (v1)
 
 - Multi-user, auth beyond a local token, cloud sync.
 - Embedding or vector search (lexical fallback only).
-- Editing nodes from the dashboard.
-- Server-side LLM calls.
+- General node editing from the dashboard (only summary edit and per-node compression are supported).
+- Mandatory server-side LLM hosting (the optional AutoCompressor can use an external provider when configured).
 - Transclusion (v1.5).
 - Canvas, Dataview-style queries.
 
@@ -50,7 +50,7 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 | Style | Product-style (plug-in memory layer), not research-only | User choice |
 | Summarizer | Agent writes summaries (Option A) | Harness-agnostic, no API key or model hosting |
 | Storage | Folder of markdown, folder = tree | Inspectable, diffable, graceful fallback |
-| UI | Local web dashboard served by the memory server, read-only v1 | Zero install, best demo surface |
+| UI | Local web dashboard served by the memory server, read-mostly with two guarded write actions | Zero install, best demo surface |
 | Ground truth | Append-only log (daily-note files) | Tree can always be rebuilt |
 
 ## 7. Open decisions
@@ -61,7 +61,7 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 | Graph library | Cytoscape.js or D3 tree layout | Cytoscape.js |
 | Token counting | tiktoken-style approximation or per-model tokenizer | One fixed tokenizer, documented, used consistently |
 | Search fallback | Simple BM25 or regex | BM25 over the log |
-| MCP support in Antigravity/Devin | Unverified | Verify in roadmap Phase 0 |
+| MCP support in Antigravity/Devin | Harness-dependent | Use stdio MCP configuration where supported; otherwise use the instruction-file fallback |
 
 ## 8. Success metrics (targets to measure, not claims)
 
@@ -90,7 +90,7 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 
 ## 10. Definition of done (v1)
 
-- Five MCP tools working against a real folder, tested.
+- Eleven MCP tools working against a real folder, tested.
 - Dashboard shows live recall paths and replay.
 - Benchmark script produces the three metrics, with raw results committed.
 - README with install in under five minutes, GIF demo, limitations.

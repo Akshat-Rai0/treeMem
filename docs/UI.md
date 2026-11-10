@@ -1,6 +1,6 @@
 # UI spec: memory x-ray dashboard
 
-Local web page served by the memory server. Read-only in v1. Purpose: show exactly what an agent read to answer, live, and let a viewer replay it.
+Local web page served by the memory server. It is read-mostly: inspection and replay are read-only, while summary editing and per-node compression are explicit write actions. Its purpose is to show exactly what an agent read to answer, live, and let a viewer replay it.
 
 ## 1. Principles
 

@@ -20,7 +20,7 @@ How the pieces connect. Language-agnostic; lean is Python (see project_difinatio
 +----------------------------------------------|-----------------------+
                                                | HTTP + SSE, 127.0.0.1
                                                v
-                                     Browser dashboard (read-only)
+                                     Browser dashboard (read-mostly)
 
  Disk:  memory/  (tree folders + log/)      <- the only persistent state
 ```
@@ -38,7 +38,7 @@ One process owns all writes. No other component writes to disk.
 | `index` | BM25 over log entries and leaves; rebuilt on start, updated incrementally on write | store, log_writer |
 | `tokenizer` | One fixed tokenizer for all `tokens` fields | none |
 | `event_bus` | In-process pub/sub of events (section 4) | none |
-| `dashboard_server` | Static assets, JSON endpoints, SSE stream, token check | event_bus, store (read-only) |
+| `dashboard_server` | Static assets, JSON endpoints, SSE stream, token check, summary/compress writes | event_bus, store |
 | `health` | Scan for invariant violations (section 7) | store |
 | `cli` | `treemem serve`, `treemem rebuild`, `treemem check`, `treemem init` | all |
 
@@ -172,7 +172,7 @@ treemem/
 1. MCP (preferred): configure the server command in the harness's MCP settings.
 2. Instruction-file fallback: paste `examples/AGENTS_md_block.md` into the agent's rules file; the agent uses `ls`/`cat` on `memory/` and appends to the log by hand. Reduced guarantees (no dirty tracking, no validation).
 
-Verification of MCP support in each daily harness is roadmap Phase 0.
+MCP availability and configuration remain harness-dependent; validate the selected harness's stdio configuration separately and use the fallback when MCP is unavailable.
 
 ## 11. Testing strategy
 

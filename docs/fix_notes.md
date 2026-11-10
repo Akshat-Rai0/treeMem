@@ -11,7 +11,7 @@
 | WP-E: Misleading search note | Done | `tests/test_fix2_search_note.py` (7 tests) | Separate withheld_private and withheld_unplaced counts, index includes sensitivity |
 | WP-F: In-process dashboard coverage | Done | `tests/test_fix2_dashboard_integration.py` (1 test) | End-to-end test with uvicorn thread, Bearer token auth, /api/events verification |
 | WP-G: Missing tests from first pass | Done | `tests/test_fix2_missing_tests.py` (5 tests) | Dashboard privacy masks, guided recall never enters private, rebuild corrupt journal handling |
-| WP-H: Documentation | Partial | N/A | README updated with test count (260), tool table (11 tools), path names section, .dashboard_url documented, benchmark numbers fixed to match JSON |
+| WP-H: Documentation | Updated | N/A | README and supporting docs track the 11-tool surface, path rules, guarded dashboard writes, `.dashboard_url`, benchmark provenance, and the current 378-test suite |
 | Red-Team Privacy Test | Done | `tests/test_red_team_privacy.py` (12 tests) | Adversarial test with 26 attack vectors through all 11 MCP tools: **0 leaks in 26 attempts (0.0% leak rate)** |
 
 ## Behavior Changes That May Surprise Users
@@ -50,7 +50,7 @@
 
 ## Final Test Counts
 
-- **Total tests**: 338 (337 pass in the review copy; the one failure is `test_repo_hygiene`, which needs the repo's `.gitignore`)
+- **Total tests**: 378 collected and passing in the current repository.
 - **New test files added**:
   - `tests/test_fix2_leak_validator.py` (6 tests)
   - `tests/test_fix2_path_segment.py` (24 tests)
@@ -96,4 +96,4 @@ All work packages have been verified by running:
 PYTHONPATH=src python -m pytest tests -q
 ```
 
-Final result: **289 passed in 25.74s**
+Final result for the current repository: **378 passed in 30.01s**

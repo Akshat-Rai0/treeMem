@@ -112,7 +112,7 @@ agent needs info about X
   if nothing matches after depth limit -> search(query)
 ```
 
-- The server never decides to stop for the agent in v1; the agent decides. (A learned gate is a v2 research item.)
+- The server can evaluate a heuristic descent gate when `query` is provided. With `follow=true`, it can perform bounded, read-only guided descent in one call; the agent still receives the stop reason and remains responsible for deciding whether the answer is sufficient.
 - Server logs `{query_id, nodes_read, stopped_at, tokens_total}` per recall chain for the dashboard and benchmark. A chain is the set of calls sharing a `query_id` (agent-supplied optional parameter) or, if absent, calls within 10 s of each other from the same session.
 
 ## 5. Staleness and compression

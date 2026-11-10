@@ -15,7 +15,7 @@
 ## 2. Resume Bullet Points
 
 ### Single-Bullet Summary (General Software Engineering / AI)
-> *"Architected **TreeMem**, an open-source MCP memory server implementing hierarchical parent-first topic descent for LLM agents; cut memory payload tokens by **82.8%** with 100.0% accuracy across 12-question benchmark suites and enforced 8 structural invariants with crash-resilient atomic file operations."*
+> *"Architected **TreeMem**, an open-source MCP memory server implementing hierarchical parent-first topic descent for LLM agents; cut memory payload tokens by **82.45%** with 100.0% accuracy in a 12-question benchmark and enforced 8 structural invariants with crash-resilient atomic file operations."*
 
 ### 3-Bullet Deep-Dive (AI Infrastructure / Systems Engineering)
 > - *"Engineered a hierarchical memory MCP server in Python for autonomous LLM agents, organizing knowledge into rebuildable topic trees with append-only daily logs, and measured memory payload against a flat-dump baseline on a real LLM agent benchmark (results and limitations in the generated table above)."*
@@ -36,8 +36,7 @@
 | **Mean Latency** | flat 0.81s / tree 19.36s | same run |
 | **Scaling Payload Savings** | 94.61% - 99.36% | synthetic vault, scripted descent (`bench/results/flat_vs_tree_tokens.json`) |
 | **Descent Plumbing Latency** | p50 = 2.29 ms, p95 = 2.87 ms | in-memory traversal only (`bench/results/smoke_test_results.json`) |
-| **Rate-Limit Failover** | 0 calls across 0 keys | Groq key rotation in the eval harness |
-| **Test Suite** | 191 passing | `pytest tests` (concurrency, property, crash recovery, privacy) |
+| **Test Suite** | 378 passing | `python3 -m pytest -q` (concurrency, property, crash recovery, privacy) |
 <!-- BENCHMARK_TABLE_PORTFOLIO_END -->
 
 ---

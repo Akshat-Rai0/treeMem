@@ -1,6 +1,6 @@
 # Roadmap
 
-Time is ample, so phases are ordered by dependency and gated by exit criteria, not dates. Do not start a phase until the previous exit criteria pass.
+Phases are ordered by dependency and gated by exit criteria, not dates. Phases 0 through 5 and v1.5 are complete; the v2 items below record implemented capabilities and remaining evaluation work.
 
 Sizes: S = a few days, M = about a week, L = multiple weeks (rough, for relative planning only).
 
@@ -40,7 +40,7 @@ Exit: an agent in a real harness stores facts, recalls via descent, and compress
 ## Phase 3: Events and dashboard (M-L)
 
 - [ ] `event_bus`, event files, SSE.
-- [ ] Dashboard server with token and loopback binding, the read-only API.
+- [x] Dashboard server with token and loopback binding, the read-mostly API, summary editing, and per-node compression.
 - [ ] Graph canvas with the node/edge encoding from UI.md.
 - [ ] Recall list, inspector, token meter, replay bar, health indicator.
 - [ ] Demo mode and scripted sequence.
@@ -97,3 +97,4 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 |---|---|---|
 | 2026-10-22 | Pre-0 | Five docs written; stack decisions pending Phase 0 |
 | 2026-11-04 | Hardening | Three review passes: log escaping, path validation, privacy inheritance and teaser sanitization, placement journal, in-process dashboard, incremental index, case-collision guard. See docs/fix_notes.md |
+| 2026-11-10 | Documentation | Reconciled documentation with the implemented CLI/MCP surface, 378-test suite, guarded dashboard writes, and current benchmark status. |

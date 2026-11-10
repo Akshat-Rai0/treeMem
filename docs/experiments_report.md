@@ -1,7 +1,7 @@
 # TreeMem scaling experiments: status report
 
-**Status: no valid benchmark results exist yet.** This file is rewritten after each stage. Every number below comes
-from a named file; where none exists, it says so.
+**Status: partial scaling run; no complete, valid cross-size comparison exists yet.** This file is rewritten after
+each stage. Every number below comes from a named file; where none exists, it says so.
 
 ## What happened so far
 
@@ -28,9 +28,11 @@ from a named file; where none exists, it says so.
 
 ## What has been measured
 
-Nothing valid yet. Not yet run: sanity gate, scaling run, analysis, red-team (LLM attacker, 100 attempts,
-positive control). `tests/test_red_team_privacy.py` holds 26 scripted privacy scenarios that pass; that is a
-regression suite, not the red-team experiment.
+The current progress file contains 57 successful episodes, all at size 50: 48 flat, 3 guided TreeMem, 3 BM25,
+and 3 BM25 top-10 episodes for each recorded run. This is not enough for a cross-size conclusion. The complete
+sanity gate, scaling run, analysis, and red-team (LLM attacker, 100 attempts, positive control) are still pending.
+`tests/test_red_team_privacy.py` holds scripted privacy scenarios that pass; that is a regression suite, not the
+red-team experiment.
 
 ## How to continue (in this order)
 
