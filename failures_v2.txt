@@ -1,0 +1,18 @@
+================================================================================
+FAILURE REPORT FOR AGENT EVALUATION (Size: 1000, Protocol: v2)
+================================================================================
+
+Arm: TREEMEM | Total Wrong Answerable: 0
+--------------------------------------------------------------------------------
+  No failures found for this arm!
+Summary for treemem: Abstained: 0, Other: 0
+
+Arm: BM25 | Total Wrong Answerable: 0
+--------------------------------------------------------------------------------
+  No failures found for this arm!
+Summary for bm25: Abstained: 0, Other: 0
+
+Arm: GREP | Total Wrong Answerable: 0
+--------------------------------------------------------------------------------
+  No failures found for this arm!
+Summary for grep: Abstained: 0, Other: 0

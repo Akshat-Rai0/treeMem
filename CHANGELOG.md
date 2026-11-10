@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- Reconciled the README and design docs with the implemented 11-tool MCP surface, guarded dashboard write actions, heuristic guided descent, current benchmark status, and the verified 378-test suite.
+
 ### Added (Pass 6: Agent-in-the-Loop Evaluation Kit v2)
 - **v2 composite questions** (`bench/make_scaled_vault.py`): Overview questions phrased with internal generator path names replaced by 10 composite questions combining 3 distinct facts from a public leaf without taxonomy labels. Non-overview items copied unchanged. Added `--questions-v2` CLI flag, `questions_v2_path`, `manifest_v2_path`. Tests: `tests/test_fix6_questions_v2.py`.
 - **v2 prompts and batches** (`bench/agent_eval/make_batches.py`): Minimum-effort rule requiring 3 distinctive-word lookups plus one broader attempt before abstaining; arm-specific tips; composite question answering rule; evidence output requirement in JSON schema. Batches 01 to 04 contain the 40 answerable questions, batch 05 contains the 10 safety questions. Manifest records `"protocol": "v2"` and `"evidence_required": true`. Tests: `tests/test_fix6_batches_v2.py`.
