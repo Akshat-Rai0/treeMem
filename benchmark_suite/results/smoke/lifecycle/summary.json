@@ -1,0 +1,37 @@
+{
+  "count": 3,
+  "rows": [
+    {
+      "detail": {
+        "dirtied": [
+          "personal/preferences/group_0/leaf_0/item_1",
+          "",
+          "personal",
+          "personal/preferences",
+          "personal/preferences/group_0",
+          "personal/preferences/group_0/leaf_0"
+        ],
+        "entry_id": "2026-11-10#2",
+        "path": "personal/preferences/group_0/leaf_0/item_1",
+        "status": "placed",
+        "tokens": 7
+      },
+      "recovered": true,
+      "scenario": "duplicate_insert"
+    },
+    {
+      "fact_count": 3,
+      "recovered": true,
+      "scenario": "rebuild_preserves_facts"
+    },
+    {
+      "hits": [
+        "Alice prefers tea for morning meetings.",
+        "Alice prefers coffee for morning meetings."
+      ],
+      "recovered": true,
+      "scenario": "update_retrieval",
+      "stale_present": true
+    }
+  ]
+}

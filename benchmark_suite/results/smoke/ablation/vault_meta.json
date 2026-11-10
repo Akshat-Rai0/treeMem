@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 1009.681623079814,
+    "place_ms": 862.2762481099926,
+    "remember_ms": 511.14162313751876
+  },
+  "vault": "benchmark_suite/results/smoke/ablation/vault"
+}

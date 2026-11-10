@@ -1,0 +1,10 @@
+{
+  "experiment": "retrieval",
+  "dataset": "benchmark_suite/datasets/smoke_100_v2",
+  "out": "benchmark_suite/results/smoke/retrieval",
+  "arms": ["bm25", "treemem_guided", "treemem_search", "treemem_manual"],
+  "split": "test",
+  "k": 10,
+  "limit": 40,
+  "repetitions": 1
+}

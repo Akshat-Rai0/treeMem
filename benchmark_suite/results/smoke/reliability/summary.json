@@ -1,0 +1,32 @@
+{
+  "count": 3,
+  "rows": [
+    {
+      "corruption": false,
+      "data_loss": false,
+      "duplicate_reconstruction": false,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "scenario": "crash_recovery_0",
+      "stray_tmp_detected": true
+    },
+    {
+      "corruption": false,
+      "data_loss": false,
+      "duplicate_reconstruction": false,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "scenario": "crash_recovery_1",
+      "stray_tmp_detected": true
+    },
+    {
+      "corruption": false,
+      "data_loss": false,
+      "duplicate_reconstruction": false,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "scenario": "crash_recovery_2",
+      "stray_tmp_detected": true
+    }
+  ]
+}

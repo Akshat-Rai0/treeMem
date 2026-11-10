@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+results/**/vault/
+results/model_cache/
+datasets/scale_50000/
+datasets/scale_10000/

@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 955.3355342359282,
+    "place_ms": 866.2505438551307,
+    "remember_ms": 529.606216296088
+  },
+  "vault": "benchmark_suite/results/smoke/e2e/vault"
+}

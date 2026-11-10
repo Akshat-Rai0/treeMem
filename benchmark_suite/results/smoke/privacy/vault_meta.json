@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 926.7305950052105,
+    "place_ms": 862.4417949467897,
+    "remember_ms": 530.3230800200254
+  },
+  "vault": "benchmark_suite/results/smoke/privacy/vault"
+}

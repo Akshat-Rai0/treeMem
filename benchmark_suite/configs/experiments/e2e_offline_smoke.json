@@ -1,0 +1,10 @@
+{
+  "experiment": "e2e",
+  "dataset": "benchmark_suite/datasets/smoke_100_v2",
+  "out": "benchmark_suite/results/smoke/e2e",
+  "arms": ["bm25", "treemem_guided", "treemem_search"],
+  "split": "test",
+  "k": 5,
+  "limit": 60,
+  "model": "offline_extractive"
+}

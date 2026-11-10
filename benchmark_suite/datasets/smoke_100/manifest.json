@@ -1,0 +1,79 @@
+{
+  "categories": {
+    "ambiguous": 17,
+    "broad": 5,
+    "direct": 18,
+    "hierarchical": 5,
+    "long_context": 17,
+    "multi_entity": 5,
+    "multi_hop": 5,
+    "negative": 17,
+    "private": 4,
+    "semantic": 17,
+    "temporal": 5,
+    "update": 5
+  },
+  "generator_version": "benchmark_suite_v1",
+  "include_llm_augmented": false,
+  "memories_file": "memories.jsonl",
+  "memories_sha256": "117cdf9be7ef658a5667ac868c6ab424b623274ae0d344c7a1b4f2c0cc48bd46",
+  "memory_stats": {
+    "categories": {
+      "entities": 16,
+      "finance": 6,
+      "history": 17,
+      "mixed": 9,
+      "personal": 10,
+      "preferences": 16,
+      "private": 4,
+      "projects": 6,
+      "technical": 26
+    },
+    "memories_written": 110,
+    "privacy_modes": {
+      "private": 4,
+      "public": 106
+    },
+    "private_count": 4,
+    "revision_groups": 8,
+    "scale_requested": 100
+  },
+  "queries_file": "queries.jsonl",
+  "queries_sha256": "58c1f44f9f6257c48a627f9bc2dd19696ba9ab18c10be0e7b6b2b95ff70a2083",
+  "query_count": 120,
+  "query_stats": {
+    "abstain_expected": 17,
+    "categories": {
+      "ambiguous": 17,
+      "broad": 5,
+      "direct": 18,
+      "hierarchical": 5,
+      "long_context": 17,
+      "multi_entity": 5,
+      "multi_hop": 5,
+      "negative": 17,
+      "private": 4,
+      "semantic": 17,
+      "temporal": 5,
+      "update": 5
+    },
+    "privacy_expected": {
+      "private": 4,
+      "public": 116
+    },
+    "queries_written": 120,
+    "splits": {
+      "dev": 21,
+      "test": 76,
+      "val": 23
+    }
+  },
+  "scale": 100,
+  "schema_version": "1.0.0",
+  "seed": 7,
+  "splits": {
+    "dev": 21,
+    "test": 76,
+    "val": 23
+  }
+}

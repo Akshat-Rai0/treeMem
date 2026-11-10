@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 967.1308773104101,
+    "place_ms": 918.2464616606012,
+    "remember_ms": 559.1565411887132
+  },
+  "vault": "benchmark_suite/results/smoke/retrieval_manual_v3/vault"
+}

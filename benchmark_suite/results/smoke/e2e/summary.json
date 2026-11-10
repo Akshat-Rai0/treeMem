@@ -1,0 +1,218 @@
+{
+  "arms": {
+    "bm25": {
+      "by_category": {
+        "ambiguous": {
+          "context_tokens": 147.4,
+          "count": 10
+        },
+        "broad": {
+          "context_tokens": 150.0,
+          "count": 6
+        },
+        "direct": {
+          "context_tokens": 164.2,
+          "count": 10
+        },
+        "hierarchical": {
+          "context_tokens": 159.83333333333334,
+          "count": 6
+        },
+        "long_context": {
+          "context_tokens": 174.77777777777777,
+          "count": 9
+        },
+        "multi_entity": {
+          "context_tokens": 156.33333333333334,
+          "count": 3
+        },
+        "multi_hop": {
+          "context_tokens": 164.33333333333334,
+          "count": 3
+        },
+        "semantic": {
+          "context_tokens": 159.6,
+          "count": 10
+        },
+        "temporal": {
+          "context_tokens": 153.5,
+          "count": 2
+        },
+        "update": {
+          "context_tokens": 130.0,
+          "count": 1
+        }
+      },
+      "context_tokens": {
+        "count": 60,
+        "max": 181.0,
+        "mean": 159.05,
+        "median": 161.0,
+        "min": 121.0,
+        "p90": 176.0,
+        "p95": 178.0,
+        "p99": 180.41,
+        "std": 15.083299778343923
+      },
+      "errors": 0,
+      "latency_ms": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "median": null,
+        "min": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "std": null
+      },
+      "overall": {
+        "context_tokens": 159.05,
+        "count": 60
+      }
+    },
+    "treemem_guided": {
+      "by_category": {
+        "ambiguous": {
+          "context_tokens": 133.7,
+          "count": 10
+        },
+        "broad": {
+          "context_tokens": 75.83333333333333,
+          "count": 6
+        },
+        "direct": {
+          "context_tokens": 144.2,
+          "count": 10
+        },
+        "hierarchical": {
+          "context_tokens": 17.5,
+          "count": 6
+        },
+        "long_context": {
+          "context_tokens": 174.66666666666666,
+          "count": 9
+        },
+        "multi_entity": {
+          "context_tokens": 156.33333333333334,
+          "count": 3
+        },
+        "multi_hop": {
+          "context_tokens": 81.33333333333333,
+          "count": 3
+        },
+        "semantic": {
+          "context_tokens": 149.5,
+          "count": 10
+        },
+        "temporal": {
+          "context_tokens": 38.0,
+          "count": 2
+        },
+        "update": {
+          "context_tokens": 130.0,
+          "count": 1
+        }
+      },
+      "context_tokens": {
+        "count": 60,
+        "max": 183.0,
+        "mean": 122.08333333333333,
+        "median": 159.0,
+        "min": 0.0,
+        "p90": 174.1,
+        "p95": 176.1,
+        "p99": 180.64,
+        "std": 64.39583407587547
+      },
+      "errors": 0,
+      "latency_ms": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "median": null,
+        "min": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "std": null
+      },
+      "overall": {
+        "context_tokens": 122.08333333333333,
+        "count": 60
+      }
+    },
+    "treemem_search": {
+      "by_category": {
+        "ambiguous": {
+          "context_tokens": 151.6,
+          "count": 10
+        },
+        "broad": {
+          "context_tokens": 75.83333333333333,
+          "count": 6
+        },
+        "direct": {
+          "context_tokens": 157.4,
+          "count": 10
+        },
+        "hierarchical": {
+          "context_tokens": 159.83333333333334,
+          "count": 6
+        },
+        "long_context": {
+          "context_tokens": 174.66666666666666,
+          "count": 9
+        },
+        "multi_entity": {
+          "context_tokens": 156.33333333333334,
+          "count": 3
+        },
+        "multi_hop": {
+          "context_tokens": 164.33333333333334,
+          "count": 3
+        },
+        "semantic": {
+          "context_tokens": 161.7,
+          "count": 10
+        },
+        "temporal": {
+          "context_tokens": 154.0,
+          "count": 2
+        },
+        "update": {
+          "context_tokens": 130.0,
+          "count": 1
+        }
+      },
+      "context_tokens": {
+        "count": 60,
+        "max": 183.0,
+        "mean": 151.55,
+        "median": 161.5,
+        "min": 0.0,
+        "p90": 176.0,
+        "p95": 178.0,
+        "p99": 180.64,
+        "std": 36.354387980321285
+      },
+      "errors": 0,
+      "latency_ms": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "median": null,
+        "min": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "std": null
+      },
+      "overall": {
+        "context_tokens": 151.55,
+        "count": 60
+      }
+    }
+  },
+  "count": 180
+}
