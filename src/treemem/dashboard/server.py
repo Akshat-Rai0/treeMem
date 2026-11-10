@@ -261,7 +261,7 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Node '{clean_path or '/'}' not found.")
 
         try:
-            from treemem.auto_compress import AutoCompressor
+            from treemem.auto_compress import AutoCompressor, GroqSummarizerClient
             import os as _os
 
             groq_key = _os.environ.get("GROQ_API_KEY_1") or _os.environ.get("GROQ_API_KEY")
@@ -271,9 +271,10 @@ def create_app(tree_manager: TreeManager, token: str) -> FastAPI:
                     detail="No GROQ_API_KEY_1 or GROQ_API_KEY set. AutoCompressor requires a Groq key.",
                 )
 
+            summarizer = GroqSummarizerClient(keys=[groq_key])
             compressor = AutoCompressor(
                 tree_manager=tree_manager,
-                api_key=groq_key,
+                llm_caller=summarizer.generate,
             )
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
