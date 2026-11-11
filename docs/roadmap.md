@@ -98,3 +98,4 @@ Exit: a stranger can install and see their first recall in the dashboard in unde
 | 2026-10-22 | Pre-0 | Five docs written; stack decisions pending Phase 0 |
 | 2026-11-04 | Hardening | Three review passes: log escaping, path validation, privacy inheritance and teaser sanitization, placement journal, in-process dashboard, incremental index, case-collision guard. See docs/fix_notes.md |
 | 2026-11-10 | Documentation | Reconciled documentation with the implemented CLI/MCP surface, 378-test suite, guarded dashboard writes, and current benchmark status. |
+| 2026-11-11 | Evaluation | Added `benchmark_suite/` comprehensive harness and staged `full_suite` runner; completed non-50k steps through scale 10k plus scale-100 lifecycle/reliability/ablation/E2E. 50k attempted but incomplete (killed/OOM). See `benchmark_suite/README.md` and `benchmark_suite/reports/full_suite/final_report.md`. |

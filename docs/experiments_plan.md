@@ -1,5 +1,10 @@
 # TreeMem Experiments Plan
 
+> **Update (2026-11-11):** A separate reproducible `benchmark_suite/` harness now exists for comprehensive
+> retrieval/context/scaling/lifecycle/privacy/reliability/ablation/offline-E2E evaluation at 100/1k/10k/50k.
+> This file remains the plan for the older `bench/` LLM scaling/red-team experiments; see
+> `benchmark_suite/README.md` and `docs/experiments_report.md` for the new suite's status and commands.
+
 ## Research Questions
 
 ### Q1: Crossover Point for TreeMem vs Flat Dump

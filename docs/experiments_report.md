@@ -45,3 +45,21 @@ python bench/run_scaling.py                             # resumable; safe to re-
 
 `bench/sanity_check.py` must pass (oracle at least 95%, flat at size 50 at least 90%). If it fails, the questions
 or the grader are broken and nothing downstream is trustworthy.
+
+## Comprehensive benchmark_suite run (2026-11-11)
+
+A separate reproducible harness now lives in `benchmark_suite/` (not `bench/`). It covers deterministic dataset
+generation, pure BM25/TF-IDF/dense/hybrid/RRF/cross-encoder baselines, TreeMem manual/guided/search arms,
+ranking/token/latency/privacy metrics, scaling, lifecycle, reliability, ablation, and offline E2E extraction.
+Commands and current status are documented in `benchmark_suite/README.md`.
+
+Status: the staged `benchmark_suite.runners.full_suite` run completed dataset generation for 100/1k/10k/50k and
+all non-50k experiment steps through scale 10k plus scale-100 lifecycle/reliability/ablation/E2E. The 50k scale was
+attempted but is **incomplete**: core retrieval was killed mid-run and neural previously failed `-9` (likely OOM).
+Committed report: `benchmark_suite/reports/full_suite/final_report.md`; raw artifacts remain local under
+`benchmark_suite/results/full_suite/` and are gitignored.
+
+Headline measured retrieval snapshot (test split, k=10): BM25 remained strongest overall (R@5 0.814/0.696/0.596 at
+100/1k/10k), hybrid rerank was close at small scale, dense degraded at 10k, and TreeMem guided/search arms were
+extremely context-frugal but had very low recall in this harness. Treat TreeMem numbers as harness measurements,
+not production claims; scale-10000 TreeMem core episode counts were uneven and should be rerun cleanly.

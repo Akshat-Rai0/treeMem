@@ -160,6 +160,10 @@ treemem/
     smoke_test.py
     eval/
     results/ (committed raw outputs)
+  benchmark_suite/
+    README.md  cli.py  schemas.py  common.py
+    dataset_tools/  adapters/  metrics/  runners/  reporting/  tests/
+    datasets/  results/  reports/  configs/
   docs/
     project_difination.md  how_it_should_work.md  system-wiring.md  UI.md  roadmap.md
   examples/
@@ -190,7 +194,7 @@ MCP availability and configuration remain harness-dependent; validate the select
 
 ## Reveal policy and evaluation wiring
 
-`mcp_layer.expand` / `mcp_layer.search` -> `reveal_policy.resolve_reveal(reveal)` -> `TreeManager.expand/search(reveal=effective)`; on denial the result gets `reveal_denied` and `reveal_note`. `bench/eval/run_eval.py` -> `execute_tool` applies the same `resolve_reveal`, runs `TreeManager.recall(follow=...)` for the guided arm, and `run_evaluation` writes per-run JSON, `llm_eval_aggregate.json` and the legacy `llm_eval_results.json`. `bench/make_readme_tables.py` turns those JSON files into the README and portfolio tables.
+`mcp_layer.expand` / `mcp_layer.search` -> `reveal_policy.resolve_reveal(reveal)` -> `TreeManager.expand/search(reveal=effective)`; on denial the result gets `reveal_denied` and `reveal_note`. `bench/eval/run_eval.py` -> `execute_tool` applies the same `resolve_reveal`, runs `TreeManager.recall(follow=...)` for the guided arm, and `run_evaluation` writes per-run JSON, `llm_eval_aggregate.json` and the legacy `llm_eval_results.json`. `bench/make_readme_tables.py` turns those JSON files into the README and portfolio tables. `benchmark_suite/` is a separate harness: `benchmark_suite/adapters/treemem.py` wraps `TreeManager.remember/place/recall/expand/search` for manual, guided, no-fallback, and search arms while preserving privacy semantics; `benchmark_suite/runners/full_suite.py` orchestrates resumable staged experiments.
 
 
 ## Index maintenance (incremental updates)

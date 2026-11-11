@@ -39,6 +39,14 @@
 | **Test Suite** | 378 passing | `python3 -m pytest -q` (concurrency, property, crash recovery, privacy) |
 <!-- BENCHMARK_TABLE_PORTFOLIO_END -->
 
+### Comprehensive benchmark suite (mixed results)
+
+`benchmark_suite/` adds a reproducible multi-arm harness (pure BM25, TF-IDF, dense, hybrid/RRF, cross-encoder rerank,
+TreeMem manual/guided/search) over deterministic 100/1k/10k/50k datasets. Measured test-split Recall@5: BM25
+0.814/0.696/0.596 and TreeMem guided 0.061/0.019/0.008 at 100/1k/10k; TreeMem uses far fewer context tokens but trails
+baselines in this harness. The 50k scale was attempted but is incomplete (killed/OOM). Details:
+`benchmark_suite/README.md` and `benchmark_suite/reports/full_suite/final_report.md`.
+
 ---
 
 ## 4. Key Architectural Highlights & Interview Talking Points

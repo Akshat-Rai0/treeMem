@@ -48,6 +48,14 @@
 | WP3: Evidence grounding -> line-by-line fact check, Bonferroni rule, `--compare-with` | Done: offline grader v2, safety not run handling, tool calls/q | `tests/test_fix6_grade_v2.py` (5 tests) |
 | WP4: Failure listing CLI, protocol doc, end-to-end integration | Done: list_failures.py, agent_eval_protocol.md rewritten | `tests/test_fix6_list_failures.py` (1 test), `tests/test_fix6_e2e_v2.py` (1 test) |
 
+## Pass 7 (comprehensive benchmark suite)
+
+| Item | Status | Covered by |
+|---|---|---|
+| Dashboard compress `AutoCompressor(api_key=...)` blocker | Done: endpoint builds `GroqSummarizerClient(keys=[groq_key])` and passes `summarizer.generate` as `llm_caller` | `tests/test_dashboard_compress.py` |
+| `benchmark_suite/` package | Done: schemas, deterministic dataset generation/validation, lexical/neural/TreeMem adapters, metrics, resumable runners, reporting, CLI | `benchmark_suite/tests/test_benchmark_suite.py` |
+| Full staged run | Partial: completed through scale 10k plus scale-100 lifecycle/reliability/ablation/E2E; 50k attempted but incomplete (killed/OOM) | `benchmark_suite/results/full_suite/status.json`, `benchmark_suite/reports/full_suite/final_report.md` |
+
 ## Final Test Counts
 
 - **Total tests**: 378 collected and passing in the current repository.

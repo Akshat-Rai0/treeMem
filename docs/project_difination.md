@@ -70,6 +70,7 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 - Parent-stop rate and correctness of those stops.
 - Recall latency (p50, p95).
 - Staleness: fraction of recalls that hit a dirty node.
+- Comprehensive retrieval/context/scaling/privacy/lifecycle/reliability/ablation benchmark via `benchmark_suite/` at 100/1k/10k/50k (50k attempted; report incomplete if resource-limited).
 
 ## 9. Risk register
 
@@ -92,6 +93,6 @@ Analogy: a library. The catalog card is the parent, the shelf summary is a child
 
 - Eleven MCP tools working against a real folder, tested.
 - Dashboard shows live recall paths and replay.
-- Benchmark script produces the three metrics, with raw results committed.
+- Benchmark scripts (`bench/` and `benchmark_suite/`) produce the required metrics, with raw results committed or explicitly gitignored when large.
 - README with install in under five minutes, GIF demo, limitations.
 - Works under at least one daily-use harness (Antigravity or Devin) or via the instruction-file fallback.
