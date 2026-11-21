@@ -1,7 +1,7 @@
 ---
 name: root
 aliases: [root, vault]
-dirty: false
+dirty: true
 updated: '2026-10-23T13:44:25.383383+00:00'
 tokens: 17
 sensitivity: normal

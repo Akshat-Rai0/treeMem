@@ -56,10 +56,71 @@ def aggregate_retrieval(episodes_path: Path, out_dir: Path) -> Dict[str, Any]:
     return summary
 
 
+def _metrics_rows(rs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    metrics_rows = []
+    for r in rs:
+        m = dict(r.get("metrics", {}))
+        m["query_id"] = r.get("query_id")
+        m["category"] = r.get("query_category") or r.get("category")
+        m["tokens_used"] = r.get("tokens_used", r.get("context_tokens"))
+        m["latency_ms"] = r.get("latency_ms")
+        metrics_rows.append(m)
+    return metrics_rows
+
+
+def _cell(rs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    metrics_rows = _metrics_rows(rs)
+    return {
+        "overall": aggregate_rankings(metrics_rows),
+        "by_category": group_metrics(metrics_rows, "category"),
+        "tokens_used": summarize_values([r.get("tokens_used", r.get("context_tokens")) for r in rs]),
+        "utilization": summarize_values([r.get("utilization") for r in rs]),
+        "errors": sum(1 for r in rs if r.get("error")),
+    }
+
+
+def aggregate_budget(episodes_path: Path, out_dir: Path) -> Dict[str, Any]:
+    rows = _rows(episodes_path)
+    cells: Dict[tuple, List[Dict[str, Any]]] = defaultdict(list)
+    arm_rows: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    budgets = set()
+    for r in rows:
+        arm = r.get("arm", "unknown")
+        budget = r.get("budget")
+        budgets.add(budget)
+        cells[(arm, budget)].append(r)
+        arm_rows[arm].append(r)
+    arms: Dict[str, Any] = {}
+    for arm, rs in sorted(arm_rows.items()):
+        by_budget = {
+            str(b): _cell(cells[(arm, b)])
+            for (a, b) in sorted(cells, key=lambda kv: (str(kv[0]), kv[1] if kv[1] is not None else -1))
+            if a == arm
+        }
+        arms[arm] = {"by_budget": by_budget, "overall": _cell(rs)["overall"]}
+    summary = {
+        "experiment": "budget",
+        "count": len(rows),
+        "budgets": sorted(b for b in budgets if b is not None),
+        "arms": arms,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_dump(out_dir / "summary.json", summary)
+    return summary
+
+
 def aggregate_experiment(out_dir: Path) -> Dict[str, Any]:
     out_dir = Path(out_dir)
     episodes = out_dir / "episodes.jsonl"
     if episodes.exists():
+        first = None
+        with episodes.open(encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    first = json.loads(line)
+                    break
+        if first and first.get("experiment") == "budget":
+            return aggregate_budget(episodes, out_dir)
         return aggregate_retrieval(episodes, out_dir)
     for name in ("cases.jsonl", "events.jsonl"):
         p = out_dir / name
@@ -74,6 +135,33 @@ def aggregate_experiment(out_dir: Path) -> Dict[str, Any]:
 def make_tables(summary: Dict[str, Any]) -> str:
     lines = ["# Benchmark Tables", ""]
     arms = summary.get("arms", {})
+    if arms and any("by_budget" in a for a in arms.values()):
+        budgets = summary.get("budgets") or sorted(
+            {int(b) for a in arms.values() for b in a.get("by_budget", {})},
+        )
+        budgets = [str(b) for b in budgets]
+        for metric, label in [("recall_budget", "Recall@Budget"), ("recall@5", "Recall@5"), ("mrr", "MRR")]:
+            lines.append(f"## Table — {label} by Token Budget")
+            lines.append("| System | " + " | ".join(f"B={b}" for b in budgets) + " |")
+            lines.append("|---|" + "---:|" * len(budgets))
+            for arm in arms:
+                cells = []
+                for b in budgets:
+                    cell = arms[arm].get("by_budget", {}).get(b, {}).get("overall", {})
+                    cells.append(f"{cell.get(metric, 0):.3f}")
+                lines.append(f"| {arm} | " + " | ".join(cells) + " |")
+            lines.append("")
+        lines.append("## Table — Mean Tokens Used by Token Budget")
+        lines.append("| System | " + " | ".join(f"B={b}" for b in budgets) + " |")
+        lines.append("|---|" + "---:|" * len(budgets))
+        for arm in arms:
+            cells = []
+            for b in budgets:
+                cell = arms[arm].get("by_budget", {}).get(b, {}).get("tokens_used", {})
+                cells.append(f"{cell.get('mean') or 0:.0f}")
+            lines.append(f"| {arm} | " + " | ".join(cells) + " |")
+        lines.append("")
+        return "\n".join(lines)
     if arms:
         lines.append("## Table A — Retrieval Quality")
         lines.append("| System | P@5 | R@5 | F1@5 | MRR | MAP | NDCG@10 |")
@@ -110,6 +198,33 @@ def make_plots(summary: Dict[str, Any], out_dir: Path) -> List[str]:
     arms = summary.get("arms", {})
     if not arms:
         return []
+    if any("by_budget" in a for a in arms.values()):
+        budgets = sorted({int(b) for a in arms.values() for b in a.get("by_budget", {})})
+        names = list(arms)
+        fig, ax = plt.subplots(figsize=(9, 5))
+        for name in names:
+            ys = [arms[name].get("by_budget", {}).get(str(b), {}).get("overall", {}).get("recall_budget", 0.0) for b in budgets]
+            ax.plot(budgets, ys, marker="o", label=name)
+        ax.set_xscale("log")
+        ax.set_xlabel("context token budget")
+        ax.set_ylabel("recall@budget")
+        ax.set_title("Recall vs context budget")
+        ax.legend(fontsize=8)
+        p1 = out_dir / "recall_vs_budget.png"
+        fig.tight_layout(); fig.savefig(p1, dpi=150); plt.close(fig)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for name in names:
+            ys = [arms[name].get("by_budget", {}).get(str(b), {}).get("utilization", {}).get("mean") or 0.0 for b in budgets]
+            ax.plot(budgets, ys, marker="o", label=name)
+        ax.set_xscale("log")
+        ax.set_xlabel("context token budget")
+        ax.set_ylabel("mean budget utilization")
+        ax.set_title("Budget utilization vs context budget")
+        ax.legend(fontsize=8)
+        p2 = out_dir / "budget_utilization.png"
+        fig.tight_layout(); fig.savefig(p2, dpi=150); plt.close(fig)
+        return [str(p1), str(p2)]
     names = list(arms)
     metrics = ["recall@5", "precision@5", "mrr", "ndcg@10"]
     vals = [[arms[a].get("overall", {}).get(m, 0) for a in names] for m in metrics]

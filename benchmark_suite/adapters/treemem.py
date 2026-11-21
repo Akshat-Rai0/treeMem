@@ -303,8 +303,38 @@ class TreeMemGuidedRetriever:
             "final_path": payload.get("path"),
             "withheld": payload.get("withheld", False),
             "disable_fallback": self.disable_fallback,
+            "payload_tokens_final": payload.get("tokens"),
         }
+        meta["budget_units"] = self._budget_units(payload)
         return finalize_result(self.name, qid, items[:k], timings, meta)
+
+    def _budget_units(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Ordered context units matching what the guided payload returns.
+
+        Order mirrors ``TreeManager._guided_recall`` token accounting: node
+        summary + child teasers first, then leaf facts, then bounded search
+        hits. Used by the budget-constrained experiment so the full returned
+        payload (not just mapped facts) is charged against the token budget.
+        """
+        units: List[Dict[str, Any]] = []
+        preamble_lines = [payload.get("summary", "") or ""]
+        for child in payload.get("children", []) or []:
+            preamble_lines.append(f"{child.get('label', '')}: {child.get('teaser', '')}")
+        units.append({
+            "text": "\n".join(preamble_lines),
+            "memory_ids": [],
+            "kind": "preamble",
+        })
+        for fact in payload.get("facts", []) or []:
+            text = fact.get("fact", "") if isinstance(fact, dict) else str(fact)
+            mid = self.vault.memory_for_entry(fact.get("entry_id") if isinstance(fact, dict) else None, text)
+            units.append({"text": text, "memory_ids": [mid] if mid else [], "kind": "fact"})
+        search_result = payload.get("search") or payload.get("search_result") or payload.get("fallback") or {}
+        hits = search_result.get("hits", []) if isinstance(search_result, dict) else []
+        for hit in hits or []:
+            mid = self.vault.memory_for_entry(hit.get("entry_id"), hit.get("text"))
+            units.append({"text": hit.get("text", ""), "memory_ids": [mid] if mid else [], "kind": "search_hit"})
+        return units
 
 
 class TreeMemSearchRetriever:

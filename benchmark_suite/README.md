@@ -33,6 +33,28 @@ Dense and reranked arms require local model weights (`all-MiniLM-L6-v2`, `ms-mar
 - Ablation: guided default/shallow/deep, manual, fallback on/off.
 - Offline E2E: extractive answer pipeline validation only — **not** LLM quality.
 
+## Budget-constrained retrieval (equal-budget recall)
+
+The `budget` experiment answers the "strawman baseline" critique directly: instead of comparing TreeMem's ~1.5k-token descent payload against a full-corpus dump, every arm's retrieved context is decomposed into ordered units and **greedily packed under a strict token budget**. Recall is then measured on the memory ids that actually fit — an equal-budget knapsack comparison.
+
+- Units: flat arms contribute one unit per retrieved item in rank order; `treemem_guided`/`treemem_guided_no_fallback` additionally emit `budget_units` metadata (navigational preamble, leaf facts, bounded search hits) so the **full returned payload** is charged, not just mapped facts.
+- Packer (`benchmark_suite/budgeting.py`, `budget_packer_v1`): id-bearing units pack first in emission order, zero-id units (preamble) fill leftover budget; oversized units are truncated to the remaining budget; `tokens_used` never exceeds the budget. Greedy first-fit — not optimal 0/1 knapsack.
+- Budgets default to `256 512 1024 1465 2048 4096` — 1,465 anchors the historical TreeMem descent-payload figure.
+- Accounting is **final-payload only**: cumulative traversal/wire tokens are not charged (disclosed limitation; wire tokens are reported separately in `docs/portfolio.md`).
+- Retrieval runs once per query at `--candidate-k` (default 200); packing is post-hoc per budget, so budgets do not multiply retrieval cost.
+
+```bash
+python3 -m benchmark_suite.cli run budget \
+  --dataset benchmark_suite/datasets/scale_1000 \
+  --out benchmark_suite/results/budget/scale_1000 \
+  --arms flat_all bm25 dense hybrid hybrid_rerank treemem_guided treemem_guided_no_fallback treemem_search treemem_manual \
+  --split test
+
+python3 -m benchmark_suite.cli analyze --experiment-dir benchmark_suite/results/budget/scale_1000
+```
+
+Aggregation produces `summary.json` with per-(arm, budget) `recall_budget`, `recall@5`, `mrr`, `tokens_used`, and `utilization`, plus `recall_vs_budget.png` / `budget_utilization.png` plots and arm × budget pivot tables.
+
 ## Quick start (smoke)
 
 ```bash

@@ -94,6 +94,20 @@ def evaluate_ranking(retrieved: Sequence[str], query: Dict[str, Any], ks=(1, 3, 
     return out
 
 
+def evaluate_budget_ranking(retrieved: Sequence[str], query: Dict[str, Any], ks=(1, 3, 5, 10)) -> Dict[str, float]:
+    """Ranking metrics for a budget-packed retrieved set.
+
+    ``recall_budget`` is the fraction of relevant memory ids present anywhere
+    in the packed context (equivalent to recall@len(retrieved)).
+    """
+    out = evaluate_ranking(retrieved, query, ks=ks)
+    relevant = query.get("relevant_memory_ids", [])
+    graded = query.get("graded_relevance") or None
+    out["recall_budget"] = recall_at_k(retrieved, relevant, graded, k=max(1, len(list(retrieved))))
+    out["items_in_budget"] = float(len(list(retrieved)))
+    return out
+
+
 def aggregate_rankings(rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     rows = list(rows)
     if not rows:

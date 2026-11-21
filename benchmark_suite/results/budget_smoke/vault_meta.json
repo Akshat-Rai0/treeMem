@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 1862.1059879951645,
+    "place_ms": 1834.289872116642,
+    "remember_ms": 970.9552139684092
+  },
+  "vault": "benchmark_suite/results/budget_smoke/vault"
+}

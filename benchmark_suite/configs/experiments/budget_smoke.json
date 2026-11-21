@@ -1,0 +1,11 @@
+{
+  "experiment": "budget",
+  "dataset": "benchmark_suite/datasets/smoke_100_v2",
+  "out": "benchmark_suite/results/smoke/budget",
+  "arms": ["bm25", "dense", "hybrid", "treemem_guided", "treemem_guided_no_fallback", "treemem_search", "treemem_manual", "flat_all"],
+  "budgets": [256, 1024, 4096],
+  "split": "test",
+  "candidate_k": 200,
+  "limit": 60,
+  "repetitions": 1
+}
