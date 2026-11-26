@@ -37,9 +37,12 @@ Dense and reranked arms require local model weights (`all-MiniLM-L6-v2`, `ms-mar
 
 The `budget` experiment answers the "strawman baseline" critique directly: instead of comparing TreeMem's ~1.5k-token descent payload against a full-corpus dump, every arm's retrieved context is decomposed into ordered units and **greedily packed under a strict token budget**. Recall is then measured on the memory ids that actually fit — an equal-budget knapsack comparison.
 
-- Units: flat arms contribute one unit per retrieved item in rank order; `treemem_guided`/`treemem_guided_no_fallback` additionally emit `budget_units` metadata (navigational preamble, leaf facts, bounded search hits) so the **full returned payload** is charged, not just mapped facts.
+- Units: flat arms contribute one unit per retrieved item in rank order; `treemem_guided`/`treemem_guided_no_fallback` additionally emit `budget_units` metadata (navigational preamble, leaf facts, bounded search hits) so the **full returned payload** is charged, not just mapped facts. `treemem_beam` emits fact units plus a bounded search fallback so parent-level false negatives are measured rather than hidden.
 - Packer (`benchmark_suite/budgeting.py`, `budget_packer_v1`): id-bearing units pack first in emission order, zero-id units (preamble) fill leftover budget; oversized units are truncated to the remaining budget; `tokens_used` never exceeds the budget. Greedy first-fit — not optimal 0/1 knapsack.
+- Aggregation reports `recall_budget_ci95` bootstrap intervals per arm/budget so small query counts are not oversold.
 - Budgets default to `256 512 1024 1465 2048 4096` — 1,465 anchors the historical TreeMem descent-payload figure.
+- `--answers` additionally grades an offline **extractive** answer per (arm, query, budget) — pipeline validation only, not an LLM quality measurement. Aggregation reports `answer_f1_ci95` / `answer_correct_ci95` per cell and answer tables in reports.
+- `treemem_guided_plus_global` unions guided descent with a bounded global `search` (`plus_global_limit`, default 20 hits) — the parent-bypass safety-net arm.
 - Accounting is **final-payload only**: cumulative traversal/wire tokens are not charged (disclosed limitation; wire tokens are reported separately in `docs/portfolio.md`).
 - Retrieval runs once per query at `--candidate-k` (default 200); packing is post-hoc per budget, so budgets do not multiply retrieval cost.
 
@@ -54,6 +57,26 @@ python3 -m benchmark_suite.cli analyze --experiment-dir benchmark_suite/results/
 ```
 
 Aggregation produces `summary.json` with per-(arm, budget) `recall_budget`, `recall@5`, `mrr`, `tokens_used`, and `utilization`, plus `recall_vs_budget.png` / `budget_utilization.png` plots and arm × budget pivot tables.
+
+## Retrieval diagnostics (`diagnose` experiment)
+
+When an arm's recall is suspiciously low, `run diagnose` pinpoints *which stage* loses the relevant memories instead of guessing. Per query it records stage-level funnels:
+
+- `treemem_search`: raw `index.query` hits → post-`is_private` visible hits → `memory_for_entry` mapped ids → recall of mapped ids vs `relevant_memory_ids`.
+- `treemem_guided`/`treemem_guided_no_fallback`: `stopped_reason` distribution, steps, `final_path` vs `expected_path`, gate `parent_score`/`child_score`, facts/search-hit counts, payload tokens, recall.
+- `treemem_manual`: `final_path` vs `expected_path`, tool calls, visited nodes, recall.
+- Vault audit (once): entry_docs vs placement coverage, leaf/fact totals, private nodes, health-check violations, BM25 fitted.
+- Teaser coverage: fraction of query content words present in root child teasers — quantifies whether summaries carry enough signal for the gate/manual policy.
+- Contamination check: `treemem_search` hit counts on the shared vault manager vs a fresh `TreeManager` on the same vault — detects shared-state bugs between arms (this caught the `guided_no_fallback` search monkeypatch that emptied hits for `treemem_search` and guided fallback in earlier runs; **pre-fix `treemem_search`/guided-fallback numbers in `results/full_suite` and early `results/budget` runs are corrupted**).
+
+```bash
+python3 -m benchmark_suite.cli run diagnose \
+  --dataset benchmark_suite/datasets/scale_1000 \
+  --out benchmark_suite/results/diagnose/scale_1000 \
+  --split test
+
+python3 -m benchmark_suite.cli analyze --experiment-dir benchmark_suite/results/diagnose/scale_1000
+```
 
 ## Quick start (smoke)
 
@@ -75,6 +98,45 @@ python3 -m benchmark_suite.cli run retrieval \
 python3 -m benchmark_suite.cli analyze --experiment-dir benchmark_suite/results/smoke/retrieval
 python3 -m benchmark_suite.cli report --results-root benchmark_suite/results/smoke --reports-root benchmark_suite/reports/smoke
 ```
+
+## Public benchmark import
+
+LoCoMo and LongMemEval can be normalized into the same `memories.jsonl` / `queries.jsonl` contract, then evaluated with the existing budget/retrieval runners.
+
+```bash
+# LoCoMo (expects locomo10.json; see upstream repo for download/license)
+python3 -m benchmark_suite.cli import-public --kind locomo \
+  --input benchmark_suite/datasets/raw/locomo10.json \
+  --out benchmark_suite/datasets/locomo --validate
+
+# LongMemEval (expects longmemeval_s.json / _m / _oracle)
+python3 -m benchmark_suite.cli import-public --kind longmemeval \
+  --input benchmark_suite/datasets/raw/longmemeval_s.json \
+  --out benchmark_suite/datasets/longmemeval_s --limit 100 --validate
+
+# Equal-budget comparison on the imported dataset
+python3 -m benchmark_suite.cli run budget \
+  --dataset benchmark_suite/datasets/locomo \
+  --out benchmark_suite/results/budget/locomo \
+  --arms flat_all bm25 dense hybrid hybrid_rerank treemem_guided treemem_guided_no_fallback treemem_search treemem_beam treemem_manual \
+  --budgets 256 512 1024 1465 2048 4096
+```
+
+`treemem_beam` is a beam-search TreeMem arm: it keeps the top-k child branches per depth and unions results with a bounded `search` fallback, so it measures whether broader traversal fixes parent-summary false negatives instead of assuming the single-path gate is sufficient.
+
+### LoCoMo smoke result (300 test queries, budgets 512/1465/4096)
+
+`recall_budget` mean (95% bootstrap CI) at budget 1465, after content-rich leaf teasers and `treemem_beam` (`beam_width=6`, beam-prior + search union):
+
+| arm | recall@budget | mean tokens |
+|---|---:|---:|
+| bm25 | 0.377 (0.323–0.423) | 1422.1 |
+| treemem_beam | 0.375 (0.324–0.423) | 1432.2 |
+| treemem_search | 0.367 (0.315–0.416) | 1428.2 |
+| treemem_guided | 0.246 (0.199–0.292) | 186.7 |
+| flat_all | 0.000 | 1425.0 |
+
+At budget 4096, `treemem_beam` reaches **0.446** vs BM25 **0.431** and `treemem_search` **0.427**. Interpretation: richer leaf teasers plus wider beam traversal moved TreeMem from near-zero to matching BM25 at 1465 and beating it at 4096 on this slice. Single-path `guided` remains far more token-frugal but lower recall; it needs better stop/descend calibration before it can compete.
 
 ## Full staged run
 

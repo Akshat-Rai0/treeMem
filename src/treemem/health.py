@@ -76,6 +76,17 @@ class HealthChecker:
                         })
                     expected_line += 1
 
+        # Invariant 9: supersedes/retracts targets must reference existing log entries
+        for e in all_entries:
+            for field in ("supersedes", "retracts"):
+                target = e.get(field) or ""
+                if target and target not in entry_ids:
+                    violations.append({
+                        "invariant": 9,
+                        "path": f"log entry {e.get('entry_id')}",
+                        "message": f"Entry '{e.get('entry_id')}' {field} target '{target}' does not exist in log",
+                    })
+
         # Scan all directories in the tree (excluding .events, .locks, log)
         total_nodes = 0
         total_facts = 0

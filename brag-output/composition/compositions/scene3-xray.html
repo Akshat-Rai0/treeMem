@@ -1,0 +1,772 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      background: #090d16;
+      overflow: hidden;
+      font-family: "Inter", sans-serif;
+    }
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
+    .a-exit {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .dash {
+      position: absolute;
+      left: 48px;
+      top: 48px;
+      width: 1824px;
+      height: 984px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+    }
+    /* ── header ── */
+    .dh {
+      height: 56px;
+      flex-shrink: 0;
+      border-bottom: 1px solid #1e293b;
+      background: #131d33;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 16px;
+    }
+    .dh-left,
+    .dh-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #14b8a6;
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #134e4a;
+      color: #2dd4bf;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 5px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #2dd4bf;
+    }
+    .sess-tag {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      background: #1e293b;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .search-box {
+      width: 250px;
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 6px 30px 6px 12px;
+      border-radius: 7px;
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      color: #f1f5f9;
+      font-size: 13px;
+      font-family: "Inter", sans-serif;
+    }
+    .search-box .kbd {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: #8b9bb8;
+      background: #1e293b;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .meter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .meter strong {
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+    .meter .bar {
+      width: 110px;
+      height: 9px;
+      background: #1e293b;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .meter .fill {
+      height: 100%;
+      width: 0%;
+      background: #14b8a6;
+      border-radius: 5px;
+    }
+    /* ── body ── */
+    .dbody {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+    .lp {
+      width: 280px;
+      flex-shrink: 0;
+      border-right: 1px solid #1e293b;
+      background: #131d33;
+      display: flex;
+      flex-direction: column;
+    }
+    .lp-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid #1e293b;
+      background: #0f172a;
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #f1f5f9;
+    }
+    .lp-head select {
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 5px;
+      border: 1px solid #1e293b;
+      background: #131d33;
+      color: #94a3b8;
+    }
+    .rlist {
+      position: relative;
+      flex: 1;
+      padding: 8px;
+    }
+    .ritem {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      opacity: 0;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #0f172a;
+    }
+    .ritem.a {
+      top: 8px;
+    }
+    .ritem.b {
+      top: 148px;
+    }
+    .ritem.active {
+      border-left: 3px solid #14b8a6;
+      background: #134e4a22;
+    }
+    .ri-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .ri-time {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #8b9bb8;
+    }
+    .ri-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+    .ri-tag.ps {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .ri-path {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .ri-meta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #8b9bb8;
+      font-family: "JetBrains Mono", monospace;
+    }
+    /* ── canvas ── */
+    .cv {
+      flex: 1;
+      position: relative;
+      background: #0f172a;
+      min-width: 0;
+    }
+    .a-glow {
+      position: absolute;
+      left: 90px;
+      top: 130px;
+      width: 1040px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(20, 184, 166, 0.16) 0%, rgba(20, 184, 166, 0) 65%);
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .graph-zoom {
+      z-index: 1;
+    }
+    .graph-zoom {
+      position: absolute;
+      left: 0;
+      top: 46px;
+      width: 1204px;
+      height: 660px;
+      transform-origin: 50% 42%;
+    }
+    .edges {
+      position: absolute;
+      inset: 0;
+      width: 1204px;
+      height: 660px;
+    }
+    .edge {
+      stroke: #2b3a55;
+      stroke-width: 1.6;
+      fill: none;
+    }
+    .edge.lit {
+      stroke: #14b8a6;
+      stroke-width: 2.6;
+    }
+    .gnode {
+      position: absolute;
+      width: 0;
+      height: 0;
+    }
+    .gdisc {
+      position: absolute;
+      left: 0;
+      top: 0;
+      border-radius: 50%;
+      background: #475569;
+      border: 1.5px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f1f5f9;
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+    }
+    .gnode.root .gdisc {
+      width: 76px;
+      height: 76px;
+      margin-left: -38px;
+      margin-top: -38px;
+      font-size: 26px;
+      background: #3f4c63;
+    }
+    .gnode.topic .gdisc {
+      width: 62px;
+      height: 62px;
+      margin-left: -31px;
+      margin-top: -31px;
+      font-size: 20px;
+    }
+    .gnode.leaf .gdisc {
+      width: 48px;
+      height: 48px;
+      margin-left: -24px;
+      margin-top: -24px;
+      font-size: 15px;
+      background: #3a4763;
+    }
+    .gnode.dirty .gdisc {
+      border-style: dashed;
+      border-color: #f59e0b;
+      border-width: 2.5px;
+    }
+    .gnode.priv .gdisc {
+      border-color: #a855f7;
+      border-width: 2.5px;
+    }
+    .glabel {
+      position: absolute;
+      left: 0;
+      transform: translateX(-50%);
+      font-size: 14px;
+      font-weight: 500;
+      color: #94a3b8;
+      white-space: nowrap;
+      font-family: "Inter", sans-serif;
+    }
+    .gnode.topic .glabel { top: 44px; }
+    .gnode.leaf .glabel { top: 34px; font-size: 12.5px; color: #94a3b8; }
+    .gnode.root .glabel { top: 52px; font-size: 15px; color: #cbd5e1; }
+    .gnode.lit .glabel { color: #2dd4bf; }
+    /* query chips */
+    .chip {
+      position: absolute;
+      left: 50%;
+      top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #131d33;
+      border: 1px solid #1e293b;
+      border-radius: 9px;
+      padding: 9px 16px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 17px;
+      color: #f1f5f9;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+    }
+    .chip .qp {
+      color: #2dd4bf;
+    }
+    .chip .qt {
+      color: #94a3b8;
+    }
+    .chip2 {
+      opacity: 0;
+    }
+    /* ── inspector ── */
+    .rp {
+      width: 320px;
+      flex-shrink: 0;
+      border-left: 1px solid #1e293b;
+      background: #131d33;
+      overflow-y: auto;
+    }
+    .isec {
+      padding: 13px 15px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .isec-t {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #8b9bb8;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .insp-states {
+      position: relative;
+      min-height: 620px;
+    }
+    .istate {
+      position: absolute;
+      inset: 0;
+    }
+    .istate:not(.s-empty) {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ipath {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      word-break: break-all;
+    }
+    .isum {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 7px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+    }
+    .imet {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 7px 14px;
+      font-size: 12.5px;
+    }
+    .imet .k {
+      color: #8b9bb8;
+    }
+    .imet .v {
+      font-family: "JetBrains Mono", monospace;
+      color: #cbd5e1;
+    }
+    .ichildren {
+      list-style: none;
+    }
+    .ichildren li {
+      padding: 6px 0;
+      border-bottom: 1px dashed #1e293b;
+      font-size: 13px;
+    }
+    .ichildren .cl {
+      color: #14b8a6;
+      font-weight: 600;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12.5px;
+    }
+    .ichildren .ct {
+      color: #8b9bb8;
+      font-size: 11.5px;
+      margin-left: 8px;
+    }
+    .leaf-note {
+      font-size: 12.5px;
+      color: #8b9bb8;
+      font-style: italic;
+    }
+    /* ── footer ── */
+    .df {
+      height: 44px;
+      flex-shrink: 0;
+      border-top: 1px solid #1e293b;
+      background: #131d33;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .replay {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .rbtn {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    .rsel {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      color: #94a3b8;
+    }
+    .rstatus {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #8b9bb8;
+      margin-left: 10px;
+    }
+    .health {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: #94a3b8;
+      padding: 5px 12px;
+      border-radius: 7px;
+      border: 1px solid #1e293b;
+      background: #0f172a;
+    }
+    .hdot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+  </style>
+
+  <div id="root" data-composition-id="scene3-xray" data-width="1920" data-height="1080">
+    <div class="clip" data-start="0" data-duration="8" data-track-index="0" id="scene3-xray-clip1">
+      <div class="a-dash">
+        <div class="dash">
+          <header class="dh" data-layout-ignore>
+            <div class="dh-left">
+              <div class="brand">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="5" r="3"></circle>
+                  <line x1="12" y1="8" x2="12" y2="14"></line>
+                  <circle cx="6" cy="19" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="12" y1="14" x2="6" y2="16"></line>
+                  <line x1="12" y1="14" x2="18" y2="16"></line>
+                </svg>
+                TreeMem
+              </div>
+              <div class="live-badge"><span class="live-dot"></span>live</div>
+              <span class="sess-tag">session: agent</span>
+            </div>
+            <div class="search-box">
+              <input value="Search nodes..." readonly />
+              <span class="kbd">/</span>
+            </div>
+            <div class="dh-right">
+              <div class="meter">
+                <span>Tokens: <strong class="mono" id="tm-cur">0</strong> / <span class="mono" id="tm-base">227,941</span></span>
+                <div class="bar"><div class="fill" id="tm-fill"></div></div>
+              </div>
+            </div>
+          </header>
+
+          <div class="dbody">
+            <aside class="lp" data-layout-ignore>
+              <div class="lp-head">
+                <span>Recall history</span>
+                <select><option>All</option></select>
+              </div>
+              <div class="rlist" data-layout-ignore>
+                <div class="ritem a" id="ritem1">
+                  <div class="ri-top">
+                    <span class="ri-time mono">14:22:08</span>
+                    <span class="ri-tag ps">parent-stop</span>
+                  </div>
+                  <div class="ri-path mono">/</div>
+                  <div class="ri-meta mono">depth 0 · 85 tokens · 1 hop</div>
+                </div>
+                <div class="ritem b" id="ritem2">
+                  <div class="ri-top">
+                    <span class="ri-time mono">14:22:31</span>
+                    <span class="ri-tag">depth 2</span>
+                  </div>
+                  <div class="ri-path mono">/identity/age</div>
+                  <div class="ri-meta mono">118 tokens · 3 hops</div>
+                </div>
+              </div>
+            </aside>
+
+            <main class="cv">
+              <div class="a-glow" id="cv-glow"></div>
+              <div class="a-chip1 chip" data-layout-ignore>
+                <span class="qp">recall("/")</span>
+                <span class="qt">"What's my name?"</span>
+              </div>
+              <div class="a-chip2 chip chip2" data-layout-ignore>
+                <span class="qp">expand("identity/age")</span>
+                <span class="qt">"What's my age?"</span>
+              </div>
+              <div class="graph-zoom" id="graph-zoom" data-layout-ignore>
+                <svg class="edges" viewBox="0 0 1204 660">
+                  <path class="edge" id="ed-r-i" d="M602 118 L80 196" />
+                  <path class="edge" id="ed-r-e" d="M602 118 L254 196" />
+                  <path class="edge" id="ed-r-c" d="M602 118 L428 196" />
+                  <path class="edge" id="ed-r-p" d="M602 118 L602 196" />
+                  <path class="edge" id="ed-r-pr" d="M602 118 L776 196" />
+                  <path class="edge" id="ed-r-h" d="M602 118 L950 196" />
+                  <path class="edge" id="ed-r-f" d="M602 118 L1124 196" />
+                  <path class="edge" id="ed-i-a" d="M80 262 L40 388" />
+                  <path class="edge" id="ed-i-b" d="M80 262 L120 423" />
+                  <path class="edge" id="ed-e-d" d="M254 262 L254 388" />
+                  <path class="edge" id="ed-p-t" d="M602 262 L545 388" />
+                  <path class="edge" id="ed-p-ar" d="M602 262 L602 428" />
+                  <path class="edge" id="ed-p-co" d="M602 262 L650 388" />
+                  <path class="edge" id="ed-f-b" d="M1124 262 L1090 388" />
+                  <path class="edge" id="ed-f-in" d="M1124 262 L1160 428" />
+                </svg>
+
+                <div class="gnode root" id="gn-root" style="left:602px;top:80px"><div class="gdisc">/</div><div class="glabel">root</div></div>
+                <div class="gnode topic" id="gn-identity" style="left:80px;top:230px"><div class="gdisc">i</div><div class="glabel">identity</div></div>
+                <div class="gnode topic dirty" id="gn-education" style="left:254px;top:230px"><div class="gdisc">e</div><div class="glabel">education</div></div>
+                <div class="gnode topic" id="gn-career" style="left:428px;top:230px"><div class="gdisc">c</div><div class="glabel">career</div></div>
+                <div class="gnode topic" id="gn-projects" style="left:602px;top:230px"><div class="gdisc">p</div><div class="glabel">projects</div></div>
+                <div class="gnode topic" id="gn-preferences" style="left:776px;top:230px"><div class="gdisc">pr</div><div class="glabel">preferences</div></div>
+                <div class="gnode topic" id="gn-hobbies" style="left:950px;top:230px"><div class="gdisc">h</div><div class="glabel">hobbies</div></div>
+                <div class="gnode topic priv" id="gn-finance" style="left:1124px;top:230px"><div class="gdisc">f</div><div class="glabel">finance</div></div>
+                <div class="gnode leaf" id="gn-age" style="left:40px;top:415px"><div class="gdisc">a</div><div class="glabel">age</div></div>
+                <div class="gnode leaf" id="gn-bio" style="left:120px;top:450px"><div class="gdisc">b</div><div class="glabel">bio</div></div>
+                <div class="gnode leaf" id="gn-degree" style="left:254px;top:415px"><div class="gdisc">d</div><div class="glabel">degree</div></div>
+                <div class="gnode leaf" id="gn-treemem" style="left:545px;top:415px"><div class="gdisc">t</div><div class="glabel">treemem</div></div>
+                <div class="gnode leaf" id="gn-agentrt" style="left:602px;top:455px"><div class="gdisc">ar</div><div class="glabel">agent_runtime</div></div>
+                <div class="gnode leaf" id="gn-compiler" style="left:650px;top:415px"><div class="gdisc">co</div><div class="glabel">compiler</div></div>
+                <div class="gnode leaf priv" id="gn-banking" style="left:1090px;top:415px"><div class="gdisc">bk</div><div class="glabel">banking</div></div>
+                <div class="gnode leaf" id="gn-inv" style="left:1160px;top:450px"><div class="gdisc">inv</div><div class="glabel">investments</div></div>
+              </div>
+            </main>
+
+            <aside class="rp" data-layout-ignore>
+              <div class="isec">
+                <div class="isec-t">Selected Node</div>
+                <div class="insp-states" id="insp-states" data-layout-ignore>
+                  <div class="istate s-empty" id="insp-empty">
+                    <div class="ipath mono" style="color:#64748b">/</div>
+                    <div class="leaf-note" style="margin-top:8px">Select a node to inspect summary.</div>
+                  </div>
+                  <div class="istate s-root" id="insp-root">
+                    <div class="ipath mono">/</div>
+                    <div style="margin-top:12px"></div>
+                    <div class="isum">Personal memory vault for Alex Mercer, 28-year-old software engineer in Metropolis.</div>
+                    <div class="imet" style="margin-top:12px">
+                      <span class="k">Tokens:</span><span class="v">17</span>
+                      <span class="k">Dirty:</span><span class="v">false</span>
+                      <span class="k">Sensitivity:</span><span class="v">normal</span>
+                      <span class="k">Updated:</span><span class="v">2026-10-23</span>
+                    </div>
+                    <div style="margin-top:14px"><div class="isec-t">Children</div>
+                      <ul class="ichildren">
+                        <li><span class="cl">identity</span><span class="ct">Personal bio and contact</span></li>
+                        <li><span class="cl">education</span><span class="ct">University and coursework</span></li>
+                        <li><span class="cl">career</span><span class="ct">Work history and achievements</span></li>
+                        <li><span class="cl">projects</span><span class="ct">Technical projects and code</span></li>
+                        <li><span class="cl">preferences</span><span class="ct">Engineering and music preferences</span></li>
+                        <li><span class="cl">hobbies</span><span class="ct">Fitness and travel</span></li>
+                        <li><span class="cl">finance</span><span class="ct">Financial records</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="istate s-age" id="insp-age">
+                    <div class="ipath mono">/identity/age</div>
+                    <div style="margin-top:12px"></div>
+                    <div class="isum">User age is 28 (log: 2026-10-23#2)</div>
+                    <div class="imet" style="margin-top:12px">
+                      <span class="k">Tokens:</span><span class="v">5</span>
+                      <span class="k">Dirty:</span><span class="v">false</span>
+                      <span class="k">Sensitivity:</span><span class="v">normal</span>
+                      <span class="k">Updated:</span><span class="v">2026-10-23</span>
+                    </div>
+                    <div style="margin-top:14px"><div class="isec-t">Children</div>
+                      <div class="leaf-note">No children (leaf node).</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <footer class="df" data-layout-ignore>
+            <div class="replay">
+              <button class="rbtn">|&lt;</button>
+              <button class="rbtn">&lt;</button>
+              <button class="rbtn">▶</button>
+              <button class="rbtn">&gt;</button>
+              <button class="rbtn">&gt;|</button>
+              <select class="rsel"><option>1x</option></select>
+              <span class="rstatus mono">Replay: ready</span>
+            </div>
+            <div class="health">
+              <span class="hdot"></span>
+              <span>Health: 2 dirty</span>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="8" data-track-index="1" id="scene3-xray-clip2">
+      <div class="a-exit"></div>
+    </div>
+  </div>
+
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    // Dashboard entrance
+    tl.fromTo(".a-dash", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0);
+
+    // Query chips — GSAP-managed centering (xPercent) so y tweens don't break layout
+    gsap.set(".a-chip1", { xPercent: -50 });
+    gsap.set(".a-chip2", { xPercent: -50 });
+    tl.fromTo(".a-chip1", { opacity: 0, y: -12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.55);
+
+    // recall item 1 + inspector root state
+    tl.fromTo("#ritem1", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, 1.9);
+    tl.fromTo("#insp-root", { opacity: 0 }, { opacity: 1, duration: 0.01 }, 1.95);
+    tl.to("#insp-empty", { opacity: 0, duration: 0.01 }, 1.95);
+
+    // Token meter -> 85
+    const m1 = document.getElementById("tm-cur");
+    const m1f = document.getElementById("tm-fill");
+    const s1 = { v: 0 };
+    tl.to(s1, {
+      v: 85,
+      duration: 0.5,
+      ease: "power2.out",
+      onUpdate: () => {
+        m1.textContent = Math.round(s1.v).toLocaleString("en-US");
+        m1f.style.width = Math.max(2, (s1.v / 227941) * 100 * 40) + "px";
+      },
+    }, 2.0);
+
+    // Parent-stop ignition at abs 8.74 (local 1.74) — beat-locked
+    ignite("#gn-root", "#3f4c63", 1.74);
+
+    // Query chip 2 swap
+    tl.to(".a-chip1", { opacity: 0, y: -10, duration: 0.22, ease: "power2.in" }, 2.5);
+    tl.fromTo(".a-chip2", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 2.62);
+
+    // Descent: root -> identity (abs 10.37 beat = local 3.37) — beat-grid
+    tl.to("#ed-r-i", { stroke: "#14b8a6", strokeWidth: 2.6, duration: 0.3, ease: "power1.inOut" }, 3.3);
+    ignite("#gn-identity", "#475569", 3.42);
+    // identity -> age (abs 10.93 beat = local 3.93)
+    tl.to("#ed-i-a", { stroke: "#14b8a6", strokeWidth: 2.6, duration: 0.3, ease: "power1.inOut" }, 3.85);
+    ignite("#gn-age", "#3a4763", 3.97);
+
+    // Inspector -> age, recall item 2, meter -> 118
+    tl.fromTo("#insp-age", { opacity: 0 }, { opacity: 1, duration: 0.01 }, 4.15);
+    tl.to("#insp-root", { opacity: 0, duration: 0.01 }, 4.15);
+    tl.fromTo("#ritem2", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, 4.2);
+    const m2 = document.getElementById("tm-cur");
+    const s2 = { v: 85 };
+    tl.to(s2, {
+      v: 118,
+      duration: 0.5,
+      ease: "power2.out",
+      onUpdate: () => {
+        m2.textContent = Math.round(s2.v).toLocaleString("en-US");
+      },
+    }, 4.35);
+
+    // Slow push-in on the graph for the hold
+    tl.to("#graph-zoom", { scale: 1.055, x: -14, duration: 3.6, ease: "sine.inOut" }, 4.4);
+
+    // Audio-reactive: canvas glow breathes with music bass (build-time envelope, 0.25s steps)
+    const EN3 = [[0.0,0.013],[0.25,0.184],[0.5,0.04],[0.75,0.019],[1.0,0.024],[1.25,0.007],[1.5,0.04],[1.75,0.616],[2.0,0.518],[2.25,0.623],[2.5,0.47],[2.75,0.612],[3.0,0.503],[3.25,0.564],[3.5,0.359],[3.75,0.601],[4.0,0.36],[4.25,0.41],[4.5,0.425],[4.75,0.441],[5.0,0.617],[5.25,0.391],[5.5,0.577],[5.75,0.354],[6.0,0.602],[6.25,0.477],[6.5,0.696],[6.75,0.479],[7.0,0.606],[7.25,0.46],[7.5,0.429],[7.75,0.559]];
+    EN3.forEach(function (p) {
+      tl.to("#cv-glow", { opacity: 0.045 + p[1] * 0.1, duration: 0.22, ease: "sine.inOut" }, Math.max(0.6, p[0]));
+    });
+
+    // Exit fade to black
+    tl.to(".a-exit", { opacity: 1, duration: 0.5, ease: "power1.in" }, 7.5);
+
+    function ignite(sel, fromBg, t) {
+      tl.fromTo(
+        sel + " .gdisc",
+        { backgroundColor: fromBg, borderColor: "#334155", color: "#f1f5f9", boxShadow: "0 0 0 rgba(45,212,191,0)", scale: 1 },
+        { backgroundColor: "#0d9488", borderColor: "#14b8a6", color: "#032121", boxShadow: "0 0 30px rgba(45,212,191,0.55)", scale: 1.14, duration: 0.18, ease: "power2.out" },
+        t,
+      );
+      tl.to(sel + " .gdisc", { scale: 1, duration: 0.32, ease: "power2.inOut" }, t + 0.18);
+      tl.fromTo(sel + " .glabel", { color: "#94a3b8" }, { color: "#2dd4bf", duration: 0.3, ease: "power1.out" }, t + 0.05);
+    }
+
+    window.__timelines["scene3-xray"] = tl;
+  </script>
+</template>

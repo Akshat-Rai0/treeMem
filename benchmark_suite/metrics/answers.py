@@ -84,6 +84,27 @@ def grade_answer(answer: str, query: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def answer_token_f1(predicted: str, expected: Optional[str]) -> Optional[float]:
+    """Token-overlap F1 between a predicted answer and the expected answer.
+
+    Returns None when there is no expected answer to score against.
+    """
+    if expected is None:
+        return None
+    pred_tokens = set(normalize_text(predicted).split())
+    exp_tokens = set(normalize_text(str(expected)).split())
+    if not exp_tokens:
+        return None
+    if not pred_tokens:
+        return 0.0
+    overlap = len(pred_tokens & exp_tokens)
+    if overlap == 0:
+        return 0.0
+    precision = overlap / len(pred_tokens)
+    recall = overlap / len(exp_tokens)
+    return 2 * precision * recall / (precision + recall)
+
+
 def grade_retrieval_context(query: Dict[str, Any], context_text: str) -> Dict[str, Any]:
     " ""Check forbidden values do not appear in retrieved context."""
     forbidden = query.get("forbidden_values") or []

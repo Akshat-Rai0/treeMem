@@ -12,6 +12,18 @@ from typing import Tuple, Any, Dict, List, Optional
 
 _LOG_LOCK = threading.Lock()
 
+
+def _fsync_dir(path: Path) -> None:
+    """Best-effort fsync of a directory so appends/renames are durable."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except Exception:
+        pass
+
 # Line-break characters flattened to a single space so each record stays one line.
 _LINEBREAKS = dict.fromkeys(map(ord, "\r\n\u2028\u2029\x0b\x0c\x85"), " ")
 
@@ -123,7 +135,7 @@ class LogWriter:
             self._file_cache[date_str] = (key, entries, max_line)
         return entries, max_line
 
-    def append(self, fact: str, hint: str = "", session: str = "", sensitivity: str = "normal") -> str:
+    def append(self, fact: str, hint: str = "", session: str = "", sensitivity: str = "normal", supersedes: str = "", retracts: str = "", valid_from: str = "", valid_to: str = "") -> str:
         """Append a fact to today's log file atomically and return entry_id (date#line)."""
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d")
@@ -150,12 +162,21 @@ class LogWriter:
                         entry_line += f" | hint: {hint_esc}"
                     if sens == "private":
                         entry_line += " | sens: private"
+                    if supersedes:
+                        entry_line += f" | supersedes: {_escape_field(supersedes)}"
+                    if retracts:
+                        entry_line += f" | retracts: {_escape_field(retracts)}"
+                    if valid_from:
+                        entry_line += f" | valid_from: {_escape_field(valid_from)}"
+                    if valid_to:
+                        entry_line += f" | valid_to: {_escape_field(valid_to)}"
                     entry_line += "\n"
 
                     with open(log_file, "a", encoding="utf-8") as f:
                         f.write(entry_line)
                         f.flush()
                         os.fsync(f.fileno())
+                    _fsync_dir(self.log_dir)
 
                     self._remember_appended(log_file, date_str, entry_line)
                     return f"{date_str}#{line_num}"
@@ -249,6 +270,10 @@ class LogWriter:
         fact = ""
         hint = ""
         sensitivity = "normal"
+        supersedes = ""
+        retracts = ""
+        valid_from = ""
+        valid_to = ""
 
         for p in parts[2:]:
             s = p.strip()
@@ -260,6 +285,14 @@ class LogWriter:
                 hint = _field_value(p, "hint:")
             elif s.startswith("sens:"):
                 sensitivity = _field_value(p, "sens:").strip() or "normal"
+            elif s.startswith("supersedes:"):
+                supersedes = _unescape_field(_field_value(p, "supersedes:")).strip()
+            elif s.startswith("retracts:"):
+                retracts = _unescape_field(_field_value(p, "retracts:")).strip()
+            elif s.startswith("valid_from:"):
+                valid_from = _unescape_field(_field_value(p, "valid_from:")).strip()
+            elif s.startswith("valid_to:"):
+                valid_to = _unescape_field(_field_value(p, "valid_to:")).strip()
 
         if not fact and len(parts) >= 4:
             fact = _unescape_field(parts[3].strip())
@@ -273,5 +306,9 @@ class LogWriter:
             "fact": fact,
             "hint": hint,
             "sensitivity": sensitivity,
+            "supersedes": supersedes,
+            "retracts": retracts,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
             "raw": line.strip() if not line[:1].isspace() else line.lstrip(),
         }

@@ -1,0 +1,208 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      background: #090d16;
+      overflow: hidden;
+      font-family: "Inter", sans-serif;
+    }
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
+    .glow-c {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 1200px;
+      height: 1200px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.09) 0%, rgba(20, 184, 166, 0) 60%);
+      pointer-events: none;
+    }
+    .brand-col {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .logo-wrap {
+      margin-top: 205px;
+      width: 96px;
+      height: 96px;
+      color: #14b8a6;
+    }
+    .logo-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .logo-line {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+    }
+    .wordmark {
+      margin-top: 26px;
+      font-size: 106px;
+      font-weight: 900;
+      letter-spacing: -0.045em;
+      color: #f1f5f9;
+      line-height: 1;
+    }
+    .tagline {
+      margin-top: 22px;
+      font-size: 40px;
+      font-weight: 500;
+      color: #94a3b8;
+      letter-spacing: -0.01em;
+    }
+    .badges {
+      margin-top: 44px;
+      display: flex;
+      gap: 18px;
+    }
+    .badge {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      color: #94a3b8;
+      background: #131d33;
+      border: 1px solid #1e293b;
+      border-radius: 999px;
+      padding: 10px 22px;
+      white-space: nowrap;
+    }
+    .badge .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #14b8a6;
+      margin-right: 10px;
+      vertical-align: 1px;
+    }
+    .minitree {
+      position: absolute;
+      left: 1330px;
+      top: 300px;
+      width: 480px;
+      height: 460px;
+    }
+    .mt-edge {
+      stroke: #26314d;
+      stroke-width: 2;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+    }
+    .mt-node {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border-radius: 50%;
+      background: #14b8a6;
+      box-shadow: 0 0 14px rgba(20, 184, 166, 0.55);
+    }
+    .mt-node.leaf {
+      width: 11px;
+      height: 11px;
+      margin: -5.5px 0 0 -5.5px;
+      background: #0d9488;
+      box-shadow: 0 0 10px rgba(13, 148, 136, 0.45);
+    }
+  </style>
+
+  <div id="root" data-composition-id="scene2-reveal" data-width="1920" data-height="1080">
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="0" id="scene2-reveal-clip1">
+      <div class="a-bg">
+        <div class="glow-c"></div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="1" id="scene2-reveal-clip2">
+      <div class="a-logo logo-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="3" fill="currentColor" stroke="none" class="logo-dot" />
+          <line class="logo-line" x1="12" y1="8" x2="12" y2="14" pathLength="1" />
+          <circle cx="6" cy="19" r="3" fill="currentColor" stroke="none" class="logo-dot" />
+          <circle cx="18" cy="19" r="3" fill="currentColor" stroke="none" class="logo-dot" />
+          <line class="logo-line" x1="12" y1="14" x2="6" y2="16" pathLength="1" />
+          <line class="logo-line" x1="12" y1="14" x2="18" y2="16" pathLength="1" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="1" id="scene2-reveal-clip3">
+      <div class="brand-col">
+        <div class="a-word wordmark">TreeMem</div>
+        <div class="a-tag tagline">Hierarchical memory for LLM agents</div>
+        <div class="a-badges badges">
+          <div class="badge b1"><span class="dot"></span>MCP server</div>
+          <div class="badge b2"><span class="dot"></span>Markdown vault</div>
+          <div class="badge b3"><span class="dot"></span>X-Ray dashboard</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="1" id="scene2-reveal-clip4">
+      <div class="a-tree minitree" id="minitree">
+        <svg width="480" height="460" viewBox="0 0 480 460" style="position:absolute;inset:0">
+          <line class="mt-edge" id="e0" x1="240" y1="60" x2="120" y2="170" pathLength="1" />
+          <line class="mt-edge" id="e1" x1="240" y1="60" x2="240" y2="170" pathLength="1" />
+          <line class="mt-edge" id="e2" x1="240" y1="60" x2="360" y2="170" pathLength="1" />
+          <line class="mt-edge" id="e3" x1="120" y1="170" x2="70" y2="280" pathLength="1" />
+          <line class="mt-edge" id="e4" x1="120" y1="170" x2="170" y2="280" pathLength="1" />
+          <line class="mt-edge" id="e5" x1="240" y1="170" x2="190" y2="280" pathLength="1" />
+          <line class="mt-edge" id="e6" x1="240" y1="170" x2="290" y2="280" pathLength="1" />
+          <line class="mt-edge" id="e7" x1="360" y1="170" x2="330" y2="280" pathLength="1" />
+          <line class="mt-edge" id="e8" x1="360" y1="170" x2="410" y2="280" pathLength="1" />
+        </svg>
+        <div class="mt-node" id="n0" style="left:240px;top:60px"></div>
+        <div class="mt-node" id="n1" style="left:120px;top:170px"></div>
+        <div class="mt-node" id="n2" style="left:240px;top:170px"></div>
+        <div class="mt-node" id="n3" style="left:360px;top:170px"></div>
+        <div class="mt-node leaf" id="n4" style="left:70px;top:280px"></div>
+        <div class="mt-node leaf" id="n5" style="left:170px;top:280px"></div>
+        <div class="mt-node leaf" id="n6" style="left:190px;top:280px"></div>
+        <div class="mt-node leaf" id="n7" style="left:290px;top:280px"></div>
+        <div class="mt-node leaf" id="n8" style="left:330px;top:280px"></div>
+        <div class="mt-node leaf" id="n9" style="left:410px;top:280px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo(".a-bg", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power1.out" }, 0);
+
+    // Logo draw-on
+    tl.fromTo(".logo-dot", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)", stagger: 0.08 }, 0.3);
+    tl.fromTo(".logo-line", { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.45, ease: "power2.inOut", stagger: 0.1 }, 0.38);
+
+    // Wordmark — blur to sharp, per motion craft
+    tl.fromTo(".a-word", { opacity: 0, y: 26, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, ease: "power4.out" }, 0.9);
+
+    tl.fromTo(".a-tag", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 1.45);
+
+    tl.fromTo(".b1", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 1.7);
+    tl.fromTo(".b2", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 1.85);
+    tl.fromTo(".b3", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 2.0);
+
+    // Mini tree grows: edges draw then nodes pop
+    const treeTimes = [1.55, 1.62, 1.69, 1.76, 1.83, 1.9, 1.97, 2.04, 2.11];
+    ["e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"].forEach((id, i) => {
+      tl.fromTo("#" + id, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.3, ease: "power1.inOut" }, treeTimes[i]);
+    });
+    for (let i = 0; i <= 9; i++) {
+      tl.fromTo("#n" + i, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.28, ease: "back.out(2.2)" }, 1.6 + i * 0.14);
+    }
+
+    window.__timelines["scene2-reveal"] = tl;
+  </script>
+</template>

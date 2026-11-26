@@ -187,6 +187,59 @@ def test_run_budget_smoke_and_resume(tmp_path):
     assert len(rows2) == 4
 
 
+def test_run_budget_with_answers(tmp_path):
+    ds = _tiny_dataset(tmp_path)
+    out = tmp_path / "out_answers"
+    res = run_budget(ds, out, arms=["bm25"], budgets=[256], split="test", answers=True)
+    assert res["completed"] == 2
+    rows = [json.loads(l) for l in (out / "episodes.jsonl").read_text().splitlines() if l.strip()]
+    assert len(rows) == 2
+    for r in rows:
+        assert "answer" in r
+        assert "answer_grade" in r
+        assert "answer_f1" in r
+        assert r["answer_f1"] is None or 0.0 <= r["answer_f1"] <= 1.0
+    # q1 expects "tea"; bm25 should retrieve m1 whose text contains "tea".
+    q1 = next(r for r in rows if r["query_id"] == "q1")
+    assert q1["answer_grade"]["correct"] is True
+    # Aggregation surfaces answer metrics.
+    summary = aggregate_budget(out / "episodes.jsonl", out)
+    cell = summary["arms"]["bm25"]["by_budget"]["256"]
+    assert "answer_f1_ci95" in cell
+    assert "answer_correct_ci95" in cell
+
+
+def test_run_budget_without_answers_has_no_answer_fields(tmp_path):
+    ds = _tiny_dataset(tmp_path)
+    out = tmp_path / "out_no_answers"
+    run_budget(ds, out, arms=["bm25"], budgets=[256], split="test")
+    rows = [json.loads(l) for l in (out / "episodes.jsonl").read_text().splitlines() if l.strip()]
+    assert all("answer" not in r and "answer_f1" not in r for r in rows)
+    summary = aggregate_budget(out / "episodes.jsonl", out)
+    assert "answer_f1_ci95" not in summary["arms"]["bm25"]["by_budget"]["256"]
+
+
+def test_answer_token_f1():
+    from benchmark_suite.metrics.answers import answer_token_f1
+    # pred {alice,prefers,tea} vs exp {tea}: P=1/3, R=1 -> F1=0.5
+    assert answer_token_f1("Alice prefers tea", "tea") == pytest.approx(0.5)
+    assert answer_token_f1("completely unrelated words", "tea") == 0.0
+    assert answer_token_f1("anything", None) is None
+
+
+def test_run_budget_guided_plus_global_arm(tmp_path):
+    ds = _tiny_dataset(tmp_path)
+    out = tmp_path / "out_plus_global"
+    res = run_budget(ds, out, arms=["treemem_guided_plus_global"], budgets=[256], split="test")
+    assert res["completed"] == 2
+    rows = [json.loads(l) for l in (out / "episodes.jsonl").read_text().splitlines() if l.strip()]
+    for r in rows:
+        meta = r.get("metadata") or {}
+        assert meta.get("global_search_limit") == 20
+        assert r["experiment"] == "budget"
+        assert r["tokens_used"] <= r["budget"]
+
+
 def test_aggregate_budget(tmp_path):
     ep = tmp_path / "episodes.jsonl"
     rows = []

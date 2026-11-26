@@ -7,9 +7,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from ..common import ROOT, environment_manifest, json_dump, jsonl_load
+from ..common import ROOT, environment_manifest, json_dump, json_load, jsonl_load
 from ..metrics.latency import summarize_values
-from ..metrics.ranking import aggregate_rankings, group_metrics
+from ..metrics.ranking import aggregate_rankings, bootstrap_mean_ci, group_metrics
 
 
 def _rows(path: Path) -> List[Dict[str, Any]]:
@@ -70,13 +70,24 @@ def _metrics_rows(rs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def _cell(rs: List[Dict[str, Any]]) -> Dict[str, Any]:
     metrics_rows = _metrics_rows(rs)
-    return {
+    recall_budget_values = [m.get("recall_budget") for m in metrics_rows if m.get("recall_budget") is not None]
+    answer_f1_values = [r.get("answer_f1") for r in rs if r.get("answer_f1") is not None]
+    answer_correct_values = [
+        1.0 if (r.get("answer_grade") or {}).get("correct") else 0.0
+        for r in rs if r.get("answer_grade") is not None
+    ]
+    cell = {
         "overall": aggregate_rankings(metrics_rows),
         "by_category": group_metrics(metrics_rows, "category"),
+        "recall_budget_ci95": bootstrap_mean_ci(recall_budget_values),
         "tokens_used": summarize_values([r.get("tokens_used", r.get("context_tokens")) for r in rs]),
         "utilization": summarize_values([r.get("utilization") for r in rs]),
         "errors": sum(1 for r in rs if r.get("error")),
     }
+    if answer_f1_values:
+        cell["answer_f1_ci95"] = bootstrap_mean_ci(answer_f1_values)
+        cell["answer_correct_ci95"] = bootstrap_mean_ci(answer_correct_values)
+    return cell
 
 
 def aggregate_budget(episodes_path: Path, out_dir: Path) -> Dict[str, Any]:
@@ -121,6 +132,10 @@ def aggregate_experiment(out_dir: Path) -> Dict[str, Any]:
                     break
         if first and first.get("experiment") == "budget":
             return aggregate_budget(episodes, out_dir)
+        if first and first.get("experiment") == "diagnose":
+            from ..runners.diagnose import _aggregate_diagnose
+            manifest = json_load(out_dir / "manifest.json", {}) or {}
+            return _aggregate_diagnose(out_dir, manifest.get("vault_audit", {}), manifest.get("contamination", {}))
         return aggregate_retrieval(episodes, out_dir)
     for name in ("cases.jsonl", "events.jsonl"):
         p = out_dir / name
@@ -135,6 +150,49 @@ def aggregate_experiment(out_dir: Path) -> Dict[str, Any]:
 def make_tables(summary: Dict[str, Any]) -> str:
     lines = ["# Benchmark Tables", ""]
     arms = summary.get("arms", {})
+    if summary.get("experiment") == "diagnose" or any("search_raw_hits" in a for a in arms.values()):
+        rate_fields = [
+            "retrieval_recall", "search_recall", "guided_recall",
+            "search_raw_hits", "search_visible_hits", "search_mapped_hits",
+            "guided_steps", "guided_parent_score", "guided_child_score",
+            "guided_facts", "guided_search_hits", "guided_payload_tokens",
+            "manual_tool_calls", "teaser_coverage_root",
+        ]
+        present = [f for f in rate_fields if any(f in a for a in arms.values())]
+        lines.append("## Table — Diagnose Stage Metrics")
+        lines.append("| Arm | n | errors | " + " | ".join(present) + " |")
+        lines.append("|---|---:|---:|" + "---:|" * len(present))
+        for arm, data in arms.items():
+            cells = []
+            for f in present:
+                v = data.get(f)
+                cells.append(f"{v:.3f}" if isinstance(v, (int, float)) else "-")
+            lines.append(f"| {arm} | {data.get('count', 0)} | {data.get('errors', 0)} | " + " | ".join(cells) + " |")
+        lines.append("")
+        for dist_field in ("dist_guided_stopped_reason", "dist_guided_path_match", "dist_manual_path_match"):
+            if any(dist_field in a for a in arms.values()):
+                lines.append(f"## Table — {dist_field.replace('dist_', '')}")
+                lines.append("| Arm | " + " | ".join(sorted({k for a in arms.values() for k in a.get(dist_field, {})})) + " |")
+                lines.append("|---|" + "---:|" * len({k for a in arms.values() for k in a.get(dist_field, {})}))
+                for arm, data in arms.items():
+                    dist = data.get(dist_field, {})
+                    lines.append(f"| {arm} | " + " | ".join(str(dist.get(k, 0)) for k in sorted(dist)) + " |")
+                lines.append("")
+        va = summary.get("vault_audit") or {}
+        if va:
+            lines.append("## Table — Vault Audit")
+            lines.append("| Metric | Value |")
+            lines.append("|---|---:|")
+            for k, v in va.items():
+                lines.append(f"| {k} | {v} |")
+            lines.append("")
+        cc = summary.get("contamination") or {}
+        if cc and not cc.get("skipped"):
+            lines.append("## Table — Arm Contamination Check")
+            lines.append(f"- sample_k: {cc.get('sample_k')}, count_mismatches: {cc.get('count_mismatches')}, contaminated: {cc.get('contaminated')}")
+            lines.append(f"- shared_zero_rate: {cc.get('shared_zero_rate')}, fresh_zero_rate: {cc.get('fresh_zero_rate')}")
+            lines.append("")
+        return "\n".join(lines)
     if arms and any("by_budget" in a for a in arms.values()):
         budgets = summary.get("budgets") or sorted(
             {int(b) for a in arms.values() for b in a.get("by_budget", {})},
@@ -161,6 +219,24 @@ def make_tables(summary: Dict[str, Any]) -> str:
                 cells.append(f"{cell.get('mean') or 0:.0f}")
             lines.append(f"| {arm} | " + " | ".join(cells) + " |")
         lines.append("")
+        if any("answer_f1_ci95" in arms[a].get("by_budget", {}).get(b, {})
+               for a in arms for b in arms[a].get("by_budget", {})):
+            for metric, key, label in [
+                ("answer_f1", "answer_f1_ci95", "Extractive Answer F1 by Token Budget"),
+                ("answer_correct", "answer_correct_ci95", "Extractive Answer Accuracy by Token Budget"),
+            ]:
+                lines.append(f"## Table — {label}")
+                lines.append("| System | " + " | ".join(f"B={b}" for b in budgets) + " |")
+                lines.append("|---|" + "---:|" * len(budgets))
+                for arm in arms:
+                    cells = []
+                    for b in budgets:
+                        ci = arms[arm].get("by_budget", {}).get(b, {}).get(key) or {}
+                        cells.append(f"{ci.get('mean', 0.0):.3f}" if ci else "-")
+                    lines.append(f"| {arm} | " + " | ".join(cells) + " |")
+                lines.append("")
+            lines.append("> Extractive answers are produced by a deterministic offline answerer over the packed context — pipeline validation only, **not** an LLM quality measurement.")
+            lines.append("")
         return "\n".join(lines)
     if arms:
         lines.append("## Table A — Retrieval Quality")
@@ -198,6 +274,34 @@ def make_plots(summary: Dict[str, Any], out_dir: Path) -> List[str]:
     arms = summary.get("arms", {})
     if not arms:
         return []
+    if summary.get("experiment") == "diagnose" or any("search_raw_hits" in a for a in arms.values()):
+        names = list(arms)
+        metric = "guided_recall" if any("guided_recall" in a for a in arms.values()) else "retrieval_recall"
+        fig, ax = plt.subplots(figsize=(9, 5))
+        vals = [arms[n].get(metric) or 0.0 for n in names]
+        ax.bar(names, vals)
+        ax.set_ylabel(metric)
+        ax.set_title("Diagnose recall by arm")
+        plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
+        p1 = out_dir / "diagnose_recall.png"
+        fig.tight_layout(); fig.savefig(p1, dpi=150); plt.close(fig)
+        # Stopped-reason distribution for guided arms.
+        dist_field = "dist_guided_stopped_reason"
+        if any(dist_field in a for a in arms.values()):
+            reasons = sorted({k for a in arms.values() for k in a.get(dist_field, {})})
+            fig, ax = plt.subplots(figsize=(9, 5))
+            width = 0.8 / max(1, len(names))
+            x = range(len(reasons))
+            for i, name in enumerate(names):
+                dist = arms[name].get(dist_field, {})
+                total = sum(dist.values()) or 1
+                ax.bar([xi + i * width for xi in x], [dist.get(r, 0) / total for r in reasons], width, label=name)
+            ax.set_xticks([xi + width * len(names) / 2 for xi in x]); ax.set_xticklabels(reasons, rotation=20, ha="right")
+            ax.set_ylabel("fraction of queries"); ax.set_title("Guided stopped_reason distribution"); ax.legend(fontsize=8)
+            p2 = out_dir / "diagnose_stopped_reasons.png"
+            fig.tight_layout(); fig.savefig(p2, dpi=150); plt.close(fig)
+            return [str(p1), str(p2)]
+        return [str(p1)]
     if any("by_budget" in a for a in arms.values()):
         budgets = sorted({int(b) for a in arms.values() for b in a.get("by_budget", {})})
         names = list(arms)

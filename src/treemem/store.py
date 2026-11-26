@@ -51,6 +51,18 @@ class NodeData:
 _YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)  # libyaml when available (about 10x faster)
 
 
+def _fsync_dir(path: Path) -> None:
+    """Best-effort fsync of a directory so renames/appends are durable."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except Exception:
+        pass
+
+
 class Store:
     """Manages the disk store of node markdown files, locks, and atomic operations."""
 
@@ -288,6 +300,7 @@ class Store:
             os.fsync(f.fileno())
 
         os.replace(tmp_file, sfile)
+        _fsync_dir(ndir)
 
     @contextmanager
     def lock_paths(self, paths: List[str], timeout: float = 5.0):

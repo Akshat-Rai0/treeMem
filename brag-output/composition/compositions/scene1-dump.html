@@ -1,0 +1,232 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      background: #090d16;
+      overflow: hidden;
+      font-family: "Inter", sans-serif;
+    }
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
+    .glow-tr {
+      position: absolute;
+      right: -320px;
+      top: -260px;
+      width: 1100px;
+      height: 1100px;
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.10) 0%, rgba(20, 184, 166, 0) 62%);
+      pointer-events: none;
+    }
+    .s1-label {
+      position: absolute;
+      left: 88px;
+      top: 72px;
+    }
+    .s1-label .k {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      letter-spacing: 0.22em;
+      color: #8b9bb8;
+      text-transform: uppercase;
+    }
+    .s1-label .v {
+      margin-top: 10px;
+      font-size: 30px;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: -0.01em;
+    }
+    .ledger-wrap {
+      position: absolute;
+      left: 88px;
+      top: 210px;
+      width: 960px;
+      height: 730px;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 90px, black calc(100% - 90px), transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, black 90px, black calc(100% - 90px), transparent 100%);
+    }
+    .ledger {
+      will-change: transform;
+    }
+    .lrow {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 18.5px;
+      line-height: 1.85;
+      color: #7488a8;
+      white-space: nowrap;
+    }
+    .lrow.bright {
+      color: #9db0cc;
+    }
+    .lrow.hot {
+      color: #b6c4da;
+    }
+    .lrow .dim {
+      color: #6d81a3;
+    }
+    .counter-block {
+      position: absolute;
+      right: 96px;
+      top: 300px;
+      width: 640px;
+      text-align: right;
+    }
+    .counter-k {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      letter-spacing: 0.24em;
+      color: #8b9bb8;
+      text-transform: uppercase;
+    }
+    .counter-num {
+      margin-top: 18px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 124px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .counter-sub {
+      margin-top: 20px;
+      font-size: 28px;
+      font-weight: 500;
+      color: #94a3b8;
+    }
+    .vs-block {
+      position: absolute;
+      right: 96px;
+      top: 640px;
+      width: 640px;
+      text-align: right;
+    }
+    .vs-k {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      letter-spacing: 0.2em;
+      color: #8b9bb8;
+      text-transform: uppercase;
+    }
+    .vs-num {
+      margin-top: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 44px;
+      font-weight: 700;
+      color: #2dd4bf;
+      font-variant-numeric: tabular-nums;
+    }
+    .vs-sub {
+      margin-top: 6px;
+      font-size: 28px;
+      color: #8b9bb8;
+    }
+  </style>
+
+  <div id="root" data-composition-id="scene1-dump" data-width="1920" data-height="1080">
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="0" id="scene1-dump-clip1">
+      <div class="a-bg">
+        <div class="glow-tr"></div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="1" id="scene1-dump-clip2">
+      <div class="a-label s1-label">
+        <div class="k">flat memory dump</div>
+        <div class="v">every recall re-reads everything</div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="3.5" data-track-index="1" id="scene1-dump-clip3">
+      <div class="a-ledger ledger-wrap">
+        <div class="ledger" id="ledger" data-layout-ignore>
+          <div class="lrow">- 001 <span class="dim">|</span> 09:14:02Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: User prefers dark mode <span class="dim">|</span> hint: preferences/ui</div>
+          <div class="lrow bright">- 002 <span class="dim">|</span> 09:14:31Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Favorite editor is Neovim <span class="dim">|</span> hint: preferences/coding</div>
+          <div class="lrow">- 003 <span class="dim">|</span> 09:15:10Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Learning Rust on weekends <span class="dim">|</span> hint: skills/rust</div>
+          <div class="lrow bright">- 004 <span class="dim">|</span> 09:16:44Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Dog named Pixel, corgi mix <span class="dim">|</span> hint: identity/pets</div>
+          <div class="lrow">- 005 <span class="dim">|</span> 09:17:02Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Works at Northwind Labs <span class="dim">|</span> hint: career/current_job</div>
+          <div class="lrow">- 006 <span class="dim">|</span> 09:18:19Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Title: backend engineer <span class="dim">|</span> hint: career/current_job</div>
+          <div class="lrow bright">- 007 <span class="dim">|</span> 09:19:55Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Building TreeMem MCP server <span class="dim">|</span> hint: projects/treemem</div>
+          <div class="lrow">- 008 <span class="dim">|</span> 09:20:41Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: TreeMem uses markdown vault <span class="dim">|</span> hint: projects/treemem</div>
+          <div class="lrow">- 009 <span class="dim">|</span> 09:21:17Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: B.Tech CSE, expected 2028 <span class="dim">|</span> hint: education/degree</div>
+          <div class="lrow bright">- 010 <span class="dim">|</span> 09:22:03Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: CGPA 7.85/10 <span class="dim">|</span> hint: education/university</div>
+          <div class="lrow">- 011 <span class="dim">|</span> 09:23:26Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Gym three mornings a week <span class="dim">|</span> hint: hobbies/fitness</div>
+          <div class="lrow">- 012 <span class="dim">|</span> 09:24:48Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Plans Kyoto trip in spring <span class="dim">|</span> hint: hobbies/travel</div>
+          <div class="lrow bright">- 013 <span class="dim">|</span> 09:25:12Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Reads Asimov and Le Guin <span class="dim">|</span> hint: preferences/reading</div>
+          <div class="lrow">- 014 <span class="dim">|</span> 09:26:39Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Listens to Khruangbin <span class="dim">|</span> hint: preferences/music</div>
+          <div class="lrow">- 015 <span class="dim">|</span> 09:27:55Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Savings account at First Bank <span class="dim">|</span> hint: finance/banking</div>
+          <div class="lrow bright">- 016 <span class="dim">|</span> 09:28:21Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Emergency fund target 6 months <span class="dim">|</span> hint: finance/banking</div>
+          <div class="lrow">- 017 <span class="dim">|</span> 09:29:44Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Allergic to shellfish <span class="dim">|</span> hint: identity/health</div>
+          <div class="lrow">- 018 <span class="dim">|</span> 09:30:16Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Lives in a third-floor walkup <span class="dim">|</span> hint: identity/location</div>
+          <div class="lrow bright">- 019 <span class="dim">|</span> 09:31:02Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Commute is 40 minutes by train <span class="dim">|</span> hint: identity/location</div>
+          <div class="lrow">- 020 <span class="dim">|</span> 09:32:28Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Side project: recipe CLI <span class="dim">|</span> hint: projects/recipe_cli</div>
+          <div class="lrow">- 021 <span class="dim">|</span> 09:33:51Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Prefers tabs over spaces <span class="dim">|</span> hint: preferences/coding</div>
+          <div class="lrow">- 022 <span class="dim">|</span> 09:34:09Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Coffee: oat milk flat white <span class="dim">|</span> hint: preferences/food</div>
+          <div class="lrow bright">- 023 <span class="dim">|</span> 09:35:47Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Reads papers on retrieval <span class="dim">|</span> hint: preferences/reading</div>
+          <div class="lrow">- 024 <span class="dim">|</span> 09:36:20Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Deck building for Q3 review <span class="dim">|</span> hint: career/current_job</div>
+          <div class="lrow">- 025 <span class="dim">|</span> 09:37:38Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Portfolio site uses Astro <span class="dim">|</span> hint: projects/portfolio</div>
+          <div class="lrow">- 026 <span class="dim">|</span> 09:38:54Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Knits badly but persistently <span class="dim">|</span> hint: hobbies/crafts</div>
+          <div class="lrow bright">- 027 <span class="dim">|</span> 09:39:27Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Rent due on the first <span class="dim">|</span> hint: finance/banking</div>
+          <div class="lrow">- 028 <span class="dim">|</span> 09:40:11Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Backup laptop is a ThinkPad <span class="dim">|</span> hint: identity/devices</div>
+          <div class="lrow">- 029 <span class="dim">|</span> 09:41:36Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Wants to ship three side projects <span class="dim">|</span> hint: projects/goals</div>
+          <div class="lrow">- 030 <span class="dim">|</span> 09:42:59Z <span class="dim">|</span> session=agent <span class="dim">|</span> fact: Screenshots folder is chaos <span class="dim">|</span> hint: preferences/files</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0.4" data-duration="3.1" data-track-index="2" id="scene1-dump-clip4">
+      <div class="a-counter counter-block">
+        <div class="counter-k">tokens per recall</div>
+        <div class="counter-num mono" id="tok-num">0</div>
+        <div class="counter-sub">10,000 memories · flat dump</div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="2.9" data-duration="0.6" data-track-index="2" id="scene1-dump-clip5">
+      <div class="a-vs vs-block">
+        <div class="vs-k">with treemem</div>
+        <div class="vs-num mono">≈ 1,465</div>
+        <div class="vs-sub">tokens for the same question</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo(".a-bg", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power1.out" }, 0);
+
+    tl.fromTo(".s1-label .v", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.15);
+
+    tl.fromTo(".a-ledger", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.out" }, 0.25);
+    tl.fromTo("#ledger", { y: 30 }, { y: -400, duration: 3.2, ease: "none" }, 0.3);
+
+    tl.fromTo(".a-counter", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.5);
+
+    const tokEl = document.getElementById("tok-num");
+    const tokState = { v: 0 };
+    tl.to(
+      tokState,
+      {
+        v: 227941,
+        duration: 2.25,
+        ease: "power3.out",
+        onUpdate: () => {
+          tokEl.textContent = Math.round(tokState.v).toLocaleString("en-US");
+        },
+      },
+      0.7,
+    );
+
+    tl.fromTo(".a-vs", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 2.95);
+
+    tl.to(".a-ledger", { opacity: 0.45, duration: 0.3, ease: "power1.in" }, 3.1);
+
+    window.__timelines["scene1-dump"] = tl;
+  </script>
+</template>

@@ -9,7 +9,9 @@ from typing import Optional
 from .common import ROOT, environment_manifest
 from .schemas import json_dump
 from .dataset_tools.generate import validate_dataset, write_dataset
+from .dataset_tools.import_public import import_locomo, import_longmemeval
 from .runners.budget import DEFAULT_BUDGETS, run_budget
+from .runners.diagnose import run_diagnose
 from .runners.experiments import run_ablation, run_e2e, run_lifecycle, run_privacy, run_reliability, run_scaling
 from .runners.retrieval import run_retrieval
 from .reporting.report import aggregate_experiment, generate_report, make_plots, make_tables
@@ -108,11 +110,24 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import_public(args: argparse.Namespace) -> int:
+    if args.kind == "locomo":
+        manifest = import_locomo(Path(args.input), Path(args.out), limit=args.limit)
+    else:
+        manifest = import_longmemeval(Path(args.input), Path(args.out), limit=args.limit)
+    print(json.dumps(manifest, indent=2))
+    if args.validate:
+        print(json.dumps(validate_dataset(Path(args.out)), indent=2))
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     if args.experiment == "retrieval":
         res = run_retrieval(Path(args.dataset), Path(args.out), args.arms, args.split, args.k, args.limit, args.repetitions, config={}, rebuild_vault=args.rebuild_vault)
     elif args.experiment == "budget":
-        res = run_budget(Path(args.dataset), Path(args.out), args.arms, args.budgets or list(DEFAULT_BUDGETS), args.split, candidate_k=args.candidate_k, limit=args.limit, repetitions=args.repetitions, config={}, rebuild_vault=args.rebuild_vault)
+        res = run_budget(Path(args.dataset), Path(args.out), args.arms, args.budgets or list(DEFAULT_BUDGETS), args.split, candidate_k=args.candidate_k, limit=args.limit, repetitions=args.repetitions, config={}, rebuild_vault=args.rebuild_vault, answers=args.answers)
+    elif args.experiment == "diagnose":
+        res = run_diagnose(Path(args.dataset), Path(args.out), args.arms, args.split, limit=args.limit, candidate_k=args.candidate_k, check_contamination=not args.no_contamination_check, rebuild_vault=args.rebuild_vault)
     elif args.experiment == "scaling":
         res = run_scaling(Path(args.dataset), Path(args.out), args.arms, args.limit or 50, args.k)
     elif args.experiment == "lifecycle":
@@ -178,8 +193,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     p = sub.add_parser("validate"); p.set_defaults(func=cmd_validate)
     p.add_argument("--dataset", type=Path, required=True)
 
+    p = sub.add_parser("import-public"); p.set_defaults(func=cmd_import_public)
+    p.add_argument("--kind", choices=["locomo", "longmemeval"], required=True)
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--validate", action="store_true")
+
     p = sub.add_parser("run"); p.set_defaults(func=cmd_run)
-    p.add_argument("experiment", choices=["retrieval", "budget", "scaling", "lifecycle", "privacy", "reliability", "ablation", "e2e"])
+    p.add_argument("experiment", choices=["retrieval", "budget", "diagnose", "scaling", "lifecycle", "privacy", "reliability", "ablation", "e2e"])
     p.add_argument("--dataset", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--arms", nargs="+", default=["bm25", "treemem_guided", "treemem_search"])
@@ -190,6 +212,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--repetitions", type=int, default=1)
     p.add_argument("--rebuild-vault", action="store_true")
+    p.add_argument("--answers", action="store_true",
+                   help="budget experiment only: grade an offline extractive answer per packed budget")
+    p.add_argument("--no-contamination-check", action="store_true")
     p.add_argument("--model", default=None)
 
     p = sub.add_parser("analyze"); p.set_defaults(func=cmd_analyze)

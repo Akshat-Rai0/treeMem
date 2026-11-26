@@ -1,0 +1,182 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      background: #090d16;
+      overflow: hidden;
+      font-family: "Inter", sans-serif;
+    }
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
+    .a-exit {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .s4-head {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 168px;
+      text-align: center;
+    }
+    .s4-k {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      letter-spacing: 0.28em;
+      color: #8b9bb8;
+      text-transform: uppercase;
+    }
+    .s4-v {
+      margin-top: 14px;
+      font-size: 34px;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: -0.01em;
+    }
+    .cards {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 330px;
+      display: flex;
+      justify-content: center;
+      gap: 44px;
+    }
+    .card {
+      width: 470px;
+      height: 392px;
+      background: #131d33;
+      border: 1px solid #1e293b;
+      border-radius: 18px;
+      padding: 46px 44px;
+      display: flex;
+      flex-direction: column;
+    }
+    .card .num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 92px;
+      font-weight: 700;
+      color: #2dd4bf;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .card .lbl {
+      margin-top: 26px;
+      font-size: 30px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .card .sub {
+      margin-top: 14px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 28px;
+      color: #8b9bb8;
+      line-height: 1.5;
+    }
+    .card .rule {
+      margin-top: auto;
+      height: 3px;
+      width: 64px;
+      background: #14b8a6;
+      border-radius: 2px;
+    }
+    .glow-c {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      width: 1300px;
+      height: 1300px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.07) 0%, rgba(20, 184, 166, 0) 60%);
+      pointer-events: none;
+    }
+  </style>
+
+  <div id="root" data-composition-id="scene4-numbers" data-width="1920" data-height="1080">
+    <div class="clip" data-start="0" data-duration="5.5" data-track-index="0" id="scene4-numbers-clip1">
+      <div class="a-bg">
+        <div class="glow-c"></div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="5.5" data-track-index="1" id="scene4-numbers-clip2">
+      <div class="a-head s4-head">
+        <div class="s4-k">benchmarks</div>
+        <div class="s4-v">what the tree saves</div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="5.5" data-track-index="1" id="scene4-numbers-clip3">
+      <div class="cards">
+        <div class="card c1">
+          <div class="a-n1 num mono" id="n1">0</div>
+          <div class="a-l1 lbl">fewer tokens at<br />10,000 memories</div>
+          <div class="a-s1 sub">synthetic scaling study<br />flat vs tree descent</div>
+          <div class="a-r1 rule"></div>
+        </div>
+        <div class="card c2">
+          <div class="a-n2 num mono" id="n2">0</div>
+          <div class="a-l2 lbl">memory-payload<br />reduction</div>
+          <div class="a-s2 sub">real LLM eval<br />12 queries scored</div>
+          <div class="a-r2 rule"></div>
+        </div>
+        <div class="card c3">
+          <div class="a-n3 num mono" id="n3">0</div>
+          <div class="a-l3 lbl">tests passing</div>
+          <div class="a-s3 sub">8 system invariants<br />enforced live</div>
+          <div class="a-r3 rule"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="clip" data-start="0" data-duration="5.5" data-track-index="2" id="scene4-numbers-clip4">
+      <div class="a-exit"></div>
+    </div>
+  </div>
+
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo(".a-bg", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power1.out" }, 0);
+    tl.fromTo(".a-head", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.3);
+
+    // Stat cards arrive on beats (abs 16.38 / 17.47 / 18.56 → local 1.38 / 2.47 / 3.56)
+    const cards = [
+      { card: ".c1", num: "#n1", lbl: ".a-l1", sub: ".a-s1", rule: ".a-r1", at: 1.3, to: 99.36, dec: 2, suffix: "%" },
+      { card: ".c2", num: "#n2", lbl: ".a-l2", sub: ".a-s2", rule: ".a-r2", at: 2.35, to: 82.45, dec: 2, suffix: "%" },
+      { card: ".c3", num: "#n3", lbl: ".a-l3", sub: ".a-s3", rule: ".a-r3", at: 3.4, to: 378, dec: 0, suffix: "" },
+    ];
+
+    cards.forEach((c) => {
+      tl.fromTo(c.card, { opacity: 0, y: 34, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" }, c.at);
+      tl.fromTo(c.lbl, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, c.at + 0.18);
+      tl.fromTo(c.sub, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.out" }, c.at + 0.15);
+      tl.fromTo(c.rule, { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power3.out", transformOrigin: "0% 50%" }, c.at + 0.35);
+
+      const el = document.querySelector(c.num);
+      const st = { v: 0 };
+      tl.to(st, {
+        v: c.to,
+        duration: 0.8,
+        ease: "power3.out",
+        onUpdate: () => {
+          el.textContent = st.v.toFixed(c.dec) + c.suffix;
+        },
+      }, c.at + 0.12);
+    });
+
+    tl.to(".a-exit", { opacity: 1, duration: 0.45, ease: "power1.in" }, 4.55);
+
+    window.__timelines["scene4-numbers"] = tl;
+  </script>
+</template>

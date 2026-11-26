@@ -3,6 +3,7 @@
 import os
 import re
 import json
+import hashlib
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,27 @@ _MAX_PATH_DEPTH = 8
 
 
 PRIVATE_TEASER = "contains private details, expand to view"
+
+_TEASER_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "what", "when", "where",
+    "which", "does", "user", "has", "have", "are", "was", "were", "you", "your",
+    "about", "into", "over", "after", "before", "because", "would", "could", "should",
+    "yeah", "okay", "oh", "um", "uh", "like", "know", "think", "going", "gonna",
+    "want", "really", "very", "just", "also", "maybe", "right", "sure", "well",
+}
+
+
+def _teaser_from_fact(text: str, limit: int = 6) -> str:
+    words = [w.lower() for w in re.findall(r"\b\w+\b", text or "")]
+    picked = []
+    for w in words:
+        if len(w) < 4 or w in _TEASER_STOPWORDS or w.isdigit():
+            continue
+        if w not in picked:
+            picked.append(w)
+        if len(picked) >= limit:
+            break
+    return " ".join(picked)
 
 
 def validate_segment(segment: str) -> str:
@@ -166,9 +188,116 @@ class TreeManager:
         self.health_checker = HealthChecker(self.store, self.log_writer)
         self.transclusion_mgr = TransclusionManager(self.store, is_private_fn=self.is_private)
         self.descent_gate = DescentGate()
+        self._temporal_cache: Optional[Dict[str, Any]] = None
         self.init_tree()
         self.rebuild_index()
         self.transclusion_mgr.rebuild_index(self.health_checker.get_all_node_paths())
+
+    @staticmethod
+    def _parse_ts(value: str) -> Optional[datetime]:
+        """Parse an ISO-8601 timestamp ( tolerates trailing 'Z' ) to an aware datetime."""
+        if not value:
+            return None
+        try:
+            v = value.strip()
+            if v.endswith("Z"):
+                v = v[:-1] + "+00:00"
+            dt = datetime.fromisoformat(v)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            return None
+
+    def _entry_instant(self, entry: Dict[str, Any]) -> Optional[datetime]:
+        """Transaction instant of a log entry (its append date+time)."""
+        date_str = entry.get("date") or ""
+        time_str = entry.get("time") or ""
+        if not date_str:
+            return None
+        return self._parse_ts(f"{date_str}T{time_str or '00:00:00Z'}")
+
+    def _temporal_index(self) -> Dict[str, Any]:
+        """Scan the log once: hidden ids, retractor timestamps, and per-entry validity.
+
+        Returns {
+            "hidden": set(entry_ids superseded or retracted — hidden by default),
+            "superseded": set(entry_ids superseded only),
+            "retracted": set(entry_ids retracted only),
+            "validity": {entry_id: (valid_from_dt|None, valid_to_dt|None)},
+        }
+        """
+        if self._temporal_cache is not None:
+            return self._temporal_cache
+        hidden: Set[str] = set()
+        superseded: Set[str] = set()
+        retracted: Set[str] = set()
+        retractor_at: Dict[str, datetime] = {}
+        entries = self.log_writer.read_all_entries()
+        instants: Dict[str, datetime] = {}
+        for e in entries:
+            eid = e.get("entry_id")
+            if not eid:
+                continue
+            inst = self._entry_instant(e)
+            if inst is not None:
+                instants[eid] = inst
+            sup = e.get("supersedes") or ""
+            ret = e.get("retracts") or ""
+            if sup:
+                superseded.add(sup)
+                hidden.add(sup)
+                if inst is not None:
+                    retractor_at[sup] = inst
+            if ret:
+                retracted.add(ret)
+                hidden.add(ret)
+                if inst is not None:
+                    retractor_at[ret] = inst
+        validity: Dict[str, Tuple[Optional[datetime], Optional[datetime]]] = {}
+        for e in entries:
+            eid = e.get("entry_id")
+            if not eid:
+                continue
+            vf = self._parse_ts(e.get("valid_from") or "") or instants.get(eid)
+            vt = self._parse_ts(e.get("valid_to") or "") or retractor_at.get(eid)
+            validity[eid] = (vf, vt)
+        self._temporal_cache = {
+            "hidden": hidden,
+            "superseded": superseded,
+            "retracted": retracted,
+            "validity": validity,
+        }
+        return self._temporal_cache
+
+    def _superseded_ids(self) -> set:
+        """Entry ids hidden by default (superseded or retracted)."""
+        return self._temporal_index()["hidden"]
+
+    def _visible_at(self, entry_id: str, at: datetime) -> bool:
+        """True if the entry's effective [valid_from, valid_to) contains `at`."""
+        vf, vt = self._temporal_index()["validity"].get(entry_id, (None, None))
+        if vf is not None and at < vf:
+            return False
+        if vt is not None and at >= vt:
+            return False
+        return True
+
+    def _visible_facts(self, node: Any, include_history: bool = False, at: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Node facts filtered by supersession/retraction and optional valid-time."""
+        if not node.facts:
+            return []
+        if at:
+            at_dt = self._parse_ts(at)
+            if at_dt is None:
+                raise ValueError(f"Invalid 'at' timestamp: {at!r} (expected ISO-8601)")
+            return [f for f in node.facts if self._visible_at(f.get("entry_id", ""), at_dt)]
+        if include_history:
+            return list(node.facts)
+        hidden = self._superseded_ids()
+        if not hidden:
+            return list(node.facts)
+        return [f for f in node.facts if f.get("entry_id") not in hidden]
 
     def init_tree(self) -> None:
         """Initialize the root memory vault if not present."""
@@ -261,6 +390,10 @@ class TreeManager:
         hint: str = "",
         session: str = "default",
         sensitivity: str = "normal",
+        supersedes: str = "",
+        retracts: str = "",
+        valid_from: str = "",
+        valid_to: str = "",
     ) -> Dict[str, Any]:
         """
         Tool: remember(fact, hint?)
@@ -270,7 +403,32 @@ class TreeManager:
         """
         if sensitivity not in {"normal", "private"}:
             raise ValueError("sensitivity must be 'normal' or 'private'")
-        entry_id = self.log_writer.append(fact=fact, hint=hint, session=session, sensitivity=sensitivity)
+        if supersedes and retracts:
+            raise ValueError("supersedes and retracts are mutually exclusive")
+        link_target = supersedes or retracts
+        if link_target:
+            target = self.log_writer.get_entry(link_target)
+            if target is None:
+                raise ValueError(f"{'supersedes' if supersedes else 'retracts'} target '{link_target}' not found in log")
+        if valid_from and self._parse_ts(valid_from) is None:
+            raise ValueError(f"Invalid valid_from timestamp: {valid_from!r} (expected ISO-8601)")
+        if valid_to and self._parse_ts(valid_to) is None:
+            raise ValueError(f"Invalid valid_to timestamp: {valid_to!r} (expected ISO-8601)")
+        if valid_from and valid_to:
+            vf, vt = self._parse_ts(valid_from), self._parse_ts(valid_to)
+            if vf is not None and vt is not None and vt <= vf:
+                raise ValueError("valid_to must be after valid_from")
+        entry_id = self.log_writer.append(
+            fact=fact, hint=hint, session=session, sensitivity=sensitivity,
+            supersedes=supersedes, retracts=retracts,
+            valid_from=valid_from, valid_to=valid_to,
+        )
+        self._temporal_cache = None
+        # Tombstone entries are bookkeeping, not memories — do not index them.
+        if retracts:
+            return {"entry_id": entry_id, "retracted": retracts, "tombstone": True,
+                    "candidates": [], "create_option": {"suggested_path": "general"},
+                    "tokens": 0, "hint_rejected": False, "hint_error": None}
         self.index.add_entry(entry_id, fact, hint, sensitivity=sensitivity)
 
         all_node_paths = self.health_checker.get_all_node_paths()
@@ -302,7 +460,68 @@ class TreeManager:
             "hint_rejected": hint_rejected,
             "hint_error": hint_error,
         }
+        warning = self._contradiction_warning(fact, hint, entry_id)
+        if warning:
+            result["contradiction_warning"] = warning
         return result
+
+    def retract(self, entry_id: str, session: str = "default") -> Dict[str, Any]:
+        """
+        Tool: retract(entry_id)
+        Append a tombstone log line marking `entry_id` as deleted/invalidated.
+        The fact stays in the log and in leaf files but is hidden from
+        recall/expand/search/compress by default (include_history reveals it).
+        """
+        target = self.log_writer.get_entry(entry_id)
+        if target is None:
+            raise ValueError(f"retract target '{entry_id}' not found in log")
+        tomb_id = self.log_writer.append(
+            fact="[retracted memory]", hint=target.get("hint", ""),
+            session=session, sensitivity="normal", retracts=entry_id,
+        )
+        self._temporal_cache = None
+        self.event_bus.emit(
+            event_type="retract",
+            payload={"entry_id": entry_id, "tombstone_id": tomb_id},
+            session=session,
+        )
+        return {"ok": True, "retracted": entry_id, "tombstone_id": tomb_id}
+
+    def _contradiction_warning(self, fact: str, hint: str, entry_id: str) -> Optional[str]:
+        """Heuristic, non-blocking contradiction check.
+
+        Compares the new fact against the top same-hint/same-path index hits.
+        Warns only when token overlap is high but numeric values or negation
+        cues differ — a deliberately conservative signal, not a proof.
+        """
+        try:
+            hits = self.index.query(fact, limit=5)
+        except Exception:
+            return None
+        fact_nums = set(re.findall(r"\d+", fact))
+        fact_neg = bool(re.search(r"\b(not|no|never|isn't|don't|doesn't|won't)\b", fact.lower()))
+        fact_toks = {t for t in re.findall(r"\b\w+\b", fact.lower()) if len(t) > 3}
+        for hit in hits:
+            if not isinstance(hit, dict) or hit.get("entry_id") == entry_id:
+                continue
+            text = hit.get("text", "")
+            hit_nums = set(re.findall(r"\d+", text))
+            hit_neg = bool(re.search(r"\b(not|no|never|isn't|don't|doesn't|won't)\b", text.lower()))
+            hit_toks = {t for t in re.findall(r"\b\w+\b", text.lower()) if len(t) > 3}
+            overlap = len(fact_toks & hit_toks)
+            if overlap < 3:
+                continue
+            jaccard = overlap / max(1, len(fact_toks | hit_toks))
+            if jaccard < 0.4:
+                continue
+            differs = (fact_nums != hit_nums) or (fact_neg != hit_neg)
+            if differs:
+                return (
+                    f"Possible contradiction with existing fact '{hit.get('entry_id')}': "
+                    f"'{text[:120]}' — same topic, different values/negation. "
+                    "If this fact replaces it, pass supersedes=<entry_id>."
+                )
+        return None
 
     def place(
         self,
@@ -419,7 +638,7 @@ class TreeManager:
             if p_node:
                 child_labels = {c["label"] for c in p_node.children}
                 if leaf_name not in child_labels:
-                    teaser = "contains private details" if leaf_node.sensitivity == "private" else f"Details on {leaf_name}"
+                    teaser = "contains private details" if leaf_node.sensitivity == "private" else (_teaser_from_fact(fact_text) or f"Details on {leaf_name}")
                     p_node.children.append({"label": leaf_name, "teaser": teaser})
                 if leaf_parent not in embedding_parents:
                     p_node.dirty = True
@@ -464,16 +683,27 @@ class TreeManager:
             "tokens": count_tokens(fact_text),
         }
 
+    @staticmethod
+    def _journal_checksum(record: Dict[str, Any]) -> str:
+        payload = {k: v for k, v in record.items() if k != "sha256"}
+        return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
     def _append_placement(self, entry_id: str, path: str, sensitivity: str, volatile: bool) -> None:
         """Persist placement intent; the log remains the fact source of truth."""
         record = {
             "ts": datetime.now(timezone.utc).isoformat(), "entry_id": entry_id,
             "path": path, "sensitivity": sensitivity, "volatile": bool(volatile),
         }
+        record["sha256"] = self._journal_checksum(record)
         with open(self.placements_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, sort_keys=True) + "\n")
             f.flush()
             os.fsync(f.fileno())
+        try:
+            from treemem.store import _fsync_dir
+            _fsync_dir(self.root_dir)
+        except Exception:
+            pass
 
     def _placement_records(self) -> Dict[str, Dict[str, Any]]:
         """Read the append-only journal; last record for an entry wins."""
@@ -489,6 +719,9 @@ class TreeManager:
                     eid = record.get("entry_id")
                     if not eid:
                         raise ValueError("missing entry_id")
+                    expected = record.get("sha256")
+                    if expected is not None and expected != self._journal_checksum(record):
+                        raise ValueError("journal checksum mismatch")
                     record["path"] = norm_path(record.get("path", ""))
                     records[eid] = record
                 except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -515,6 +748,8 @@ class TreeManager:
         max_depth: int = 3,
         eager_descent: bool = False,
         reveal: bool = False,
+        include_history: bool = False,
+        at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Tool: recall(path="/", query=None, follow=False, max_depth=3)
@@ -532,6 +767,8 @@ class TreeManager:
                 max_depth=max_depth,
                 query_id=query_id,
                 session=session,
+                include_history=include_history,
+                at=at,
             )
         clean_path = norm_path(path)
         node = self.store.read_node(clean_path)
@@ -617,6 +854,8 @@ class TreeManager:
         max_depth: int = 3,
         query_id: Optional[str] = None,
         session: str = "default",
+        include_history: bool = False,
+        at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Read-only guided descent. Starting at `path`, repeatedly ask the descent gate
@@ -715,7 +954,7 @@ class TreeManager:
                 if self.is_private(current_path):
                     facts = [{"fact": "[Private details withheld. Pass reveal=true to expand]", "entry_id": ""}]
                 else:
-                    facts = list(leaf_node.facts)
+                    facts = self._visible_facts(leaf_node, include_history, at)
 
         result: Dict[str, Any] = dict(final_payload)
         result["final_path"] = current_path or "/"
@@ -765,6 +1004,8 @@ class TreeManager:
         reveal: bool = False,
         query_id: Optional[str] = None,
         session: str = "default",
+        include_history: bool = False,
+        at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Tool: expand(path)
@@ -797,7 +1038,7 @@ class TreeManager:
                 payload["facts"] = [{"fact": "[Private details withheld. Pass reveal=true to expand]", "entry_id": ""}]
                 payload["private"] = True
             else:
-                payload["facts"] = node.facts
+                payload["facts"] = self._visible_facts(node, include_history, at)
                 payload["private"] = self.is_private(clean_path)
             text_repr = "\n".join(f["fact"] for f in payload["facts"])
         else:
@@ -842,7 +1083,7 @@ class TreeManager:
 
         return payload
 
-    def compress(self, path: str, reveal: bool = False) -> Dict[str, Any]:
+    def compress(self, path: str, reveal: bool = False, include_history: bool = False, at: Optional[str] = None) -> Dict[str, Any]:
         """
         Tool: compress(path)
         Returns {prompt, inputs:[child summaries or facts], length_cap, required_sections}.
@@ -860,7 +1101,7 @@ class TreeManager:
         inputs: List[Dict[str, Any]] = []
 
         if is_leaf:
-            for f in node.facts:
+            for f in self._visible_facts(node, include_history, at):
                 inputs.append({"type": "fact", "text": f["fact"], "entry_id": f["entry_id"]})
         else:
             for ch in node.children:
@@ -1143,6 +1384,8 @@ class TreeManager:
         limit: int = 10,
         session: str = "default",
         reveal: bool = False,
+        include_history: bool = False,
+        at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Tool: search(query, limit=10, reveal=False)
@@ -1151,10 +1394,25 @@ class TreeManager:
         Unplaced facts with sensitivity 'private' are also withheld unless reveal=True.
         """
         raw_hits = self.index.query(query, limit=limit)
+        at_dt = self._parse_ts(at) if at else None
+        if at and at_dt is None:
+            raise ValueError(f"Invalid 'at' timestamp: {at!r} (expected ISO-8601)")
+        hidden = set() if (include_history or at_dt is not None) else self._superseded_ids()
         hits: List[Any] = []
         withheld_private = 0
         withheld_unplaced = 0
+        withheld_superseded = 0
+        withheld_temporal = 0
         for hit in raw_hits:
+            if isinstance(hit, dict):
+                eid = hit.get("entry_id")
+                if at_dt is not None:
+                    if not self._visible_at(eid, at_dt):
+                        withheld_temporal += 1
+                        continue
+                elif hidden and eid in hidden:
+                    withheld_superseded += 1
+                    continue
             hit_path = hit.get("path", "") if isinstance(hit, dict) else ""
             hit_sensitivity = hit.get("sensitivity", "normal") if isinstance(hit, dict) else "normal"
             
@@ -1187,6 +1445,12 @@ class TreeManager:
         if withheld_unplaced:
             result["withheld_unplaced"] = withheld_unplaced
             result["note_unplaced"] = f"{withheld_unplaced} unplaced matches have sensitivity 'private' and were withheld. Pass reveal=true to include them."
+        if withheld_superseded:
+            result["withheld_superseded"] = withheld_superseded
+            result["note_superseded"] = f"{withheld_superseded} matches were superseded by newer facts. Pass include_history=true to include them."
+        if withheld_temporal:
+            result["withheld_temporal"] = withheld_temporal
+            result["note_temporal"] = f"{withheld_temporal} matches were not valid at the requested time. Adjust 'at' or pass include_history=true."
         return result
 
     def split(self, path: str, groups: List[Dict[str, Any]]) -> Dict[str, Any]:

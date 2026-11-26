@@ -16,6 +16,7 @@ from ..adapters.base import RetrievalResult
 from ..adapters.treemem import TreeMemVault, build_arm
 from ..budgeting import PACKER_VERSION, pack_to_budget, units_from_result
 from ..common import environment_manifest, json_dump, jsonl_load
+from ..metrics.answers import answer_token_f1, extractive_answer, grade_answer
 from ..metrics.ranking import evaluate_budget_ranking
 from .retrieval import load_memories, load_queries
 
@@ -40,6 +41,7 @@ def run_budget(
     repetitions: int = 1,
     config: Optional[Dict[str, Any]] = None,
     rebuild_vault: bool = False,
+    answers: bool = False,
 ) -> Dict[str, Any]:
     config = config or {}
     dataset_dir = Path(dataset_dir)
@@ -51,7 +53,7 @@ def run_budget(
     memories = load_memories(dataset_dir / dataset_manifest.get("memories_file", "memories.jsonl"))
     queries = load_queries(dataset_dir / dataset_manifest.get("queries_file", "queries.jsonl"), split=split, limit=limit)
 
-    cfg_hash = str(abs(hash(json.dumps({"config": config, "budgets": budgets, "candidate_k": candidate_k, "packer": PACKER_VERSION}, sort_keys=True, default=str))))[:12]
+    cfg_hash = str(abs(hash(json.dumps({"config": config, "budgets": budgets, "candidate_k": candidate_k, "packer": PACKER_VERSION, "answers": answers}, sort_keys=True, default=str))))[:12]
     episodes_path = out_dir / "episodes.jsonl"
     done = {row.get("episode_key") for row in jsonl_load(episodes_path)}
 
@@ -88,6 +90,7 @@ def run_budget(
         "config": config,
         "config_hash": cfg_hash,
         "packer_version": PACKER_VERSION,
+        "answers": answers,
         "accounting": "final_payload_only",
         "vault_timings": vault_timings,
         "index_build_ms": index_timings,
@@ -123,6 +126,14 @@ def run_budget(
                         pack_ms = (time.perf_counter() - t_pack) * 1000
                         packed_ids = list(dict.fromkeys(packed.packed_memory_ids))
                         metrics = evaluate_budget_ranking(packed_ids, qdict)
+                        answer_fields: Dict[str, Any] = {}
+                        if answers:
+                            answer_text = extractive_answer(packed.context_text, query.expected_answer)
+                            answer_fields = {
+                                "answer": answer_text,
+                                "answer_grade": grade_answer(answer_text, qdict),
+                                "answer_f1": answer_token_f1(answer_text, query.expected_answer),
+                            }
                         forbidden = [v for v in (query.forbidden_values or []) if v]
                         row = {
                             "episode_key": key,
@@ -151,6 +162,7 @@ def run_budget(
                             "metadata": result_meta,
                             "error": result.error,
                             "metrics": metrics,
+                            **answer_fields,
                             "privacy_leak_context": any(v in packed.context_text for v in forbidden),
                         }
                         episodes_file.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
@@ -174,11 +186,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--repetitions", type=int, default=1)
     ap.add_argument("--rebuild-vault", action="store_true")
+    ap.add_argument("--answers", action="store_true",
+                    help="also extract and grade an offline extractive answer per packed budget (pipeline validation only, not an LLM)")
     args = ap.parse_args(argv)
     print(json.dumps(run_budget(
         args.dataset, args.out, args.arms, args.budgets, args.split,
         candidate_k=args.candidate_k, limit=args.limit, repetitions=args.repetitions,
-        rebuild_vault=args.rebuild_vault,
+        rebuild_vault=args.rebuild_vault, answers=args.answers,
     ), indent=2))
     return 0
 

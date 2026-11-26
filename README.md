@@ -188,6 +188,20 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 }
 ```
 
+#### Cursor (`.cursor/mcp.json`) / VS Code (`.vscode/mcp.json` or user settings):
+```json
+{
+  "servers": {
+    "treemem": {
+      "command": "treemem",
+      "args": ["serve", "/absolute/path/to/my_memory", "--mcp"]
+    }
+  }
+}
+```
+
+> With `pipx`/`uvx` installed, `"command": "uvx"` and `"args": ["--from", "git+https://github.com/Akshat-Rai0/treeMem", "treemem", "serve", "/absolute/path/to/my_memory", "--mcp"]` runs TreeMem without a local install.
+
 ### The 11 MCP Tools
 
 | Tool | Parameters | Description |

@@ -1,0 +1,9 @@
+{
+  "memory_count": 10040,
+  "timings_ms": {
+    "commit_ms": 72356.82887514122,
+    "place_ms": 84235.66996792215,
+    "remember_ms": 1017878.8430129061
+  },
+  "vault": "benchmark_suite/results/full_suite_rerun/scale_10000/vault"
+}

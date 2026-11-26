@@ -1,0 +1,9 @@
+{
+  "memory_count": 10040,
+  "timings_ms": {
+    "commit_ms": 54138.086657971144,
+    "place_ms": 88971.11669744481,
+    "remember_ms": 1015745.1738232921
+  },
+  "vault": "benchmark_suite/results/budget_iso/scale_10000/vault"
+}

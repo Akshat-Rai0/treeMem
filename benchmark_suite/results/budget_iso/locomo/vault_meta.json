@@ -1,0 +1,9 @@
+{
+  "memory_count": 5882,
+  "timings_ms": {
+    "commit_ms": 604.3216210091487,
+    "place_ms": 33120.5851273844,
+    "remember_ms": 33663.24983339291
+  },
+  "vault": "benchmark_suite/results/budget_iso/locomo/vault"
+}

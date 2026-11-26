@@ -1,0 +1,9 @@
+{
+  "memory_count": 110,
+  "timings_ms": {
+    "commit_ms": 984.2476289632032,
+    "place_ms": 882.6369219459593,
+    "remember_ms": 521.9953709893161
+  },
+  "vault": "benchmark_suite/results/budget_beam_smoke/vault"
+}

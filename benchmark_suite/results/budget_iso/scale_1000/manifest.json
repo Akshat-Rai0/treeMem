@@ -1,0 +1,165 @@
+{
+  "accounting": "final_payload_only",
+  "answers": true,
+  "arms": [
+    "flat_all",
+    "bm25",
+    "dense",
+    "hybrid",
+    "hybrid_rerank",
+    "treemem_guided",
+    "treemem_guided_no_fallback",
+    "treemem_guided_plus_global",
+    "treemem_beam",
+    "treemem_search",
+    "treemem_manual"
+  ],
+  "budgets": [
+    500,
+    1000,
+    1465,
+    2500
+  ],
+  "candidate_k": 200,
+  "config": {},
+  "config_hash": "285960355527",
+  "created_at": "2026-11-24T21:35:54Z",
+  "dataset_dir": "benchmark_suite/datasets/scale_1000",
+  "dataset_manifest": {
+    "categories": {
+      "ambiguous": 186,
+      "broad": 123,
+      "direct": 186,
+      "hierarchical": 123,
+      "long_context": 186,
+      "multi_entity": 35,
+      "multi_hop": 35,
+      "negative": 20,
+      "private": 45,
+      "semantic": 186,
+      "temporal": 20,
+      "update": 20
+    },
+    "generator_version": "benchmark_suite_v1",
+    "include_llm_augmented": false,
+    "memories_file": "memories.jsonl",
+    "memories_sha256": "92ae0b7b7d641f6a544fb35051fe186dd6cafe3aac3f04dbd0da9ef9bdf2f3fa",
+    "memory_stats": {
+      "categories": {
+        "entities": 146,
+        "finance": 57,
+        "history": 111,
+        "mixed": 113,
+        "personal": 122,
+        "preferences": 129,
+        "private": 45,
+        "projects": 53,
+        "technical": 264
+      },
+      "memories_written": 1040,
+      "privacy_modes": {
+        "private": 45,
+        "public": 995
+      },
+      "private_count": 45,
+      "revision_groups": 51,
+      "scale_requested": 1000
+    },
+    "queries_file": "queries.jsonl",
+    "queries_sha256": "848006026c0314db888f58f0d657871adb55d5e261fc1ff63eb25a9ec3b1f0f7",
+    "query_count": 2000,
+    "query_stats": {
+      "abstain_expected": 20,
+      "categories": {
+        "ambiguous": 186,
+        "broad": 123,
+        "direct": 186,
+        "hierarchical": 123,
+        "long_context": 186,
+        "multi_entity": 35,
+        "multi_hop": 35,
+        "negative": 20,
+        "private": 45,
+        "semantic": 186,
+        "temporal": 20,
+        "update": 20
+      },
+      "privacy_expected": {
+        "private": 45,
+        "public": 1120
+      },
+      "queries_written": 1165,
+      "splits": {
+        "dev": 231,
+        "test": 701,
+        "val": 233
+      }
+    },
+    "scale": 1000,
+    "schema_version": "1.0.0",
+    "seed": 7,
+    "splits": {
+      "dev": 231,
+      "test": 701,
+      "val": 233
+    }
+  },
+  "dependencies": {
+    "fastapi": "0.115.0",
+    "httpx": "0.27.2",
+    "matplotlib": "3.10.0",
+    "mcp": "1.26.0",
+    "numpy": "1.26.4",
+    "pandas": "3.0.5",
+    "pytest": "9.0.2",
+    "rank-bm25": "0.2.2",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.17.0",
+    "sentence-transformers": "5.4.1",
+    "tiktoken": "0.12.0",
+    "torch": "2.9.1",
+    "transformers": "4.57.3",
+    "treemem": "0.1.0",
+    "uvicorn": "0.54.0"
+  },
+  "env": {
+    "benchmark_llm_api_key_set": false,
+    "benchmark_llm_base_url_set": false,
+    "python": "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+    "treemem_allow_reveal": null,
+    "treemem_embedding_provider": null
+  },
+  "experiment": "budget",
+  "generator_version": "benchmark_suite_v1",
+  "git_revision": "a284527f5a9deb8ea4af2c85395fa99e909d4f1a",
+  "index_build_ms": {
+    "bm25": 5.013500020140782,
+    "dense": 0.5717500171158463,
+    "flat_all": 0.2692500129342079,
+    "hybrid": 5.217083991738036,
+    "hybrid_rerank": 4.833334009163082,
+    "treemem_beam": 0.0018330174498260021,
+    "treemem_guided": 0.004083005478605628,
+    "treemem_guided_no_fallback": 0.00100000761449337,
+    "treemem_guided_plus_global": 0.0013329845387488604,
+    "treemem_manual": 0.001500011421740055,
+    "treemem_search": 0.0011249794624745846
+  },
+  "limit": null,
+  "machine": "arm64",
+  "packer_version": "budget_packer_v1",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "processor": "arm",
+  "python": "3.13.5 (v3.13.5:6cb20a219a8, Jun 11 2025, 12:23:45) [Clang 16.0.0 (clang-1600.0.26.6)]",
+  "repetitions": 1,
+  "schema_version": "1.0.0",
+  "split": "test",
+  "suite": "treemem-comprehensive-benchmark",
+  "unit_cap": 1000,
+  "vault_timings": {
+    "commit_ms": 11687.923182180384,
+    "place_ms": 7342.192632990191,
+    "remember_ms": 21608.167798316572,
+    "vault_build_ms": 43586.917999986326
+  }
+}

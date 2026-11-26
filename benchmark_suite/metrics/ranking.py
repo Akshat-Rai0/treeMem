@@ -126,3 +126,20 @@ def group_metrics(rows: Iterable[Dict[str, Any]], key: str = "category") -> Dict
     for r in rows:
         groups[str(r.get(key, "unknown"))].append(r)
     return {g: aggregate_rankings(rs) for g, rs in sorted(groups.items())}
+
+
+def bootstrap_mean_ci(values: Sequence[float], n_boot: int = 1000, seed: int = 0, alpha: float = 0.05) -> Optional[Dict[str, float]]:
+    """Deterministic bootstrap percentile CI for a mean."""
+    vals = [float(v) for v in values if v is not None]
+    if not vals:
+        return None
+    import random
+    rng = random.Random(seed)
+    n = len(vals)
+    means = []
+    for _ in range(n_boot):
+        means.append(sum(vals[rng.randrange(n)] for _ in range(n)) / n)
+    means.sort()
+    lo = means[int((alpha / 2) * (n_boot - 1))]
+    hi = means[int((1 - alpha / 2) * (n_boot - 1))]
+    return {"mean": sum(vals) / n, "ci95_low": lo, "ci95_high": hi, "n": n}

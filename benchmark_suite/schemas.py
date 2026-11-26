@@ -21,7 +21,7 @@ QUERY_CATEGORIES = (
 PRIVACY_MODES = ("public", "private", "inherited_private", "unplaced_private")
 RETRIEVAL_ARMS = (
     "flat_all", "bm25", "dense", "hybrid", "hybrid_rerank",
-    "treemem_manual", "treemem_guided", "treemem_guided_no_fallback", "treemem_search",
+    "treemem_manual", "treemem_guided", "treemem_guided_no_fallback", "treemem_search", "treemem_beam",
 )
 METRIC_KS = (1, 3, 5, 10)
 

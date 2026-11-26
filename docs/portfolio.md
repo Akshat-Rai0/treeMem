@@ -50,11 +50,14 @@ baselines in this harness. The 50k scale was attempted but is incomplete (killed
 **Equal-budget recall (`budget` experiment).** To remove the strawman of comparing TreeMem's ~1.5k-token descent
 payload against a full-corpus dump, every arm's retrieved context is packed under a strict token budget
 (`benchmark_suite/budgeting.py`) and recall is measured on the memory ids that fit. Measured test-split
-`recall_budget` at B=1,465 tokens: hybrid 0.910/0.818/0.637 vs TreeMem guided 0.061/0.019/0.013 at 100/1k/10k;
-BM25 0.897/0.814/0.665; `flat_all` under the same budget reaches only 0.501/0.004/0.000 — the budget, not the dump
-size, is what matters. TreeMem arms return very little retrievable context in this harness (guided descent mostly
-parent-stops or falls back to an empty search), so equal-budget recall trails flat hybrid by a wide margin; this is
-the honest head-to-head number. Raw episodes: `benchmark_suite/results/budget/scale_{100,1000,10000}/`.
+`recall_budget` at B=1,465 tokens after the retrieval-pipeline fixes below: `treemem_search` 0.886/0.791/0.664,
+`treemem_guided` 0.532/0.535/0.444 vs hybrid 0.910/0.818/0.637 and BM25 0.897/0.814/0.665 at 100/1k/10k;
+`flat_all` under the same budget reaches only 0.501/0.004/0.000 — the budget, not the dump size, is what matters.
+A `diagnose` experiment (`benchmark_suite/runners/diagnose.py`) instruments each retrieval stage and caught a
+benchmark-adapter bug that had zeroed `treemem_search`/guided-fallback hits suite-wide (shared-manager monkeypatch);
+post-fix, TreeMem's entry-level search is within ~0.02 recall of standalone BM25 at 10k, while guided descent still
+trails because intermediate tree levels are generic buckets with little query signal. Raw episodes:
+`benchmark_suite/results/budget/scale_{100,1000,10000}/` and `results/diagnose/scale_1000/` (local-only, gitignored).
 
 ---
 

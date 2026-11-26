@@ -44,17 +44,26 @@ mcp = MCPServer("treemem")
 
 
 @mcp.tool()
-def remember(fact: str, hint: str = "", sensitivity: str = "normal"):
+def remember(fact: str, hint: str = "", sensitivity: str = "normal", supersedes: str = "", retracts: str = "", valid_from: str = "", valid_to: str = ""):
     """
     Store a new fact in the append-only ground-truth log and receive placement candidates.
 
     Args:
         fact: The factual statement to remember.
         hint: Optional path hint where this fact might belong (e.g., 'identity/age').
+        sensitivity: 'normal' or 'private'.
+        supersedes: Optional entry_id (date#line) of an older fact this one replaces.
+            Mutually exclusive with retracts. Hidden from reads unless include_history=true.
+        retracts: Optional entry_id to tombstone (delete/ invalidate) — bookkeeping entry,
+            not a new memory. Mutually exclusive with supersedes.
+        valid_from / valid_to: Optional ISO-8601 valid-time interval for the fact.
+            Queries with at=<timestamp> return only facts valid at that time.
     """
     mgr = get_manager()
     try:
-        res = mgr.remember(fact=fact, hint=hint, sensitivity=sensitivity)
+        res = mgr.remember(fact=fact, hint=hint, sensitivity=sensitivity,
+                           supersedes=supersedes, retracts=retracts,
+                           valid_from=valid_from, valid_to=valid_to)
     except ValueError as exc:
         return _json_err(exc)
     return _json_ok(res)
@@ -80,7 +89,27 @@ def place(entry_id: str, path: str, sensitivity: str = "normal", volatile: bool 
 
 
 @mcp.tool()
-def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, max_depth: int = 3, reveal: bool = False):
+def retract(entry_id: str):
+    """
+    Tombstone a memory entry (delete/ invalidate it).
+
+    The fact remains in the append-only log and leaf files but is hidden from
+    recall/expand/search/compress by default. Pass include_history=true on read
+    tools to see retracted facts.
+
+    Args:
+        entry_id: The date#line ID of the fact to retract (from remember/search).
+    """
+    mgr = get_manager()
+    try:
+        res = mgr.retract(entry_id=entry_id)
+    except ValueError as exc:
+        return _json_err(exc)
+    return _json_ok(res)
+
+
+@mcp.tool()
+def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, max_depth: int = 3, reveal: bool = False, include_history: bool = False, at: str = ""):
     """
     Read a concise parent topic summary and one-line teasers for child topics.
 
@@ -100,7 +129,7 @@ def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, m
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth, reveal=effective_reveal)
+        res = mgr.recall(path=path, query=query, follow=follow, max_depth=max_depth, reveal=effective_reveal, include_history=include_history, at=at or None)
     except (ValueError, FileNotFoundError) as exc:
         return _json_err(exc)
     if denied:
@@ -110,7 +139,7 @@ def recall(path: str = "/", query: Optional[str] = None, follow: bool = False, m
 
 
 @mcp.tool()
-def expand(path: str, reveal: bool = False):
+def expand(path: str, reveal: bool = False, include_history: bool = False, at: str = ""):
     """
     Expand a node to inspect all its child summaries or leaf facts.
 
@@ -122,7 +151,7 @@ def expand(path: str, reveal: bool = False):
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.expand(path=path, reveal=effective_reveal)
+        res = mgr.expand(path=path, reveal=effective_reveal, include_history=include_history, at=at or None)
     except (ValueError, FileNotFoundError) as exc:
         return _json_err(exc)
     if denied:
@@ -132,7 +161,7 @@ def expand(path: str, reveal: bool = False):
 
 
 @mcp.tool()
-def compress(path: str, reveal: bool = False):
+def compress(path: str, reveal: bool = False, include_history: bool = False, at: str = ""):
     """
     Request a compression prompt and input summaries to re-summarize a dirty node.
 
@@ -142,7 +171,7 @@ def compress(path: str, reveal: bool = False):
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.compress(path=path, reveal=effective_reveal)
+        res = mgr.compress(path=path, reveal=effective_reveal, include_history=include_history, at=at or None)
     except (ValueError, FileNotFoundError) as exc:
         return _json_err(exc)
     if denied:
@@ -191,7 +220,7 @@ def auto_compress(path: Optional[str] = None):
 
 
 @mcp.tool()
-def search(query: str, limit: int = 10, reveal: bool = False):
+def search(query: str, limit: int = 10, reveal: bool = False, include_history: bool = False, at: str = ""):
     """
     Lexical BM25 search over all log entries and leaf notes (fallback when descent fails).
 
@@ -204,7 +233,7 @@ def search(query: str, limit: int = 10, reveal: bool = False):
     mgr = get_manager()
     effective_reveal, denied = resolve_reveal(reveal)
     try:
-        res = mgr.search(query=query, limit=limit, reveal=effective_reveal)
+        res = mgr.search(query=query, limit=limit, reveal=effective_reveal, include_history=include_history, at=at or None)
     except ValueError as exc:
         return _json_err(exc)
     if denied:

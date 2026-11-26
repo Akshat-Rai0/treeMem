@@ -23,3 +23,7 @@ bench/vaults/scaled_*/
 bench/agent_eval/runs/
 bench/agent_eval/runs_v2/
 bench/agent_eval/runs_v2_invalid_attempt1/
+*.mp3
+*.ogg
+*.wav
+*.jpg

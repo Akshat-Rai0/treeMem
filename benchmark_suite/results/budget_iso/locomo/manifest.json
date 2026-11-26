@@ -1,0 +1,142 @@
+{
+  "accounting": "final_payload_only",
+  "answers": true,
+  "arms": [
+    "flat_all",
+    "bm25",
+    "dense",
+    "hybrid",
+    "hybrid_rerank",
+    "treemem_guided",
+    "treemem_guided_no_fallback",
+    "treemem_guided_plus_global",
+    "treemem_beam",
+    "treemem_search",
+    "treemem_manual"
+  ],
+  "budgets": [
+    512,
+    1465,
+    4096
+  ],
+  "candidate_k": 200,
+  "config": {},
+  "config_hash": "700155501300",
+  "created_at": "2026-11-25T19:52:41Z",
+  "dataset_dir": "benchmark_suite/datasets/locomo",
+  "dataset_manifest": {
+    "categories": {
+      "direct": 841,
+      "multi_hop": 282,
+      "negative": 446,
+      "semantic": 96,
+      "temporal": 321
+    },
+    "generator_version": "public_import_locomo",
+    "include_llm_augmented": false,
+    "locomo_samples": 10,
+    "memories_file": "memories.jsonl",
+    "memories_sha256": "841f92e2b239801a56433346964e130d915eb6e9386d08de5fac415628805a6f",
+    "memory_stats": {
+      "categories": {
+        "conversation": 5882
+      },
+      "memories_written": 5882,
+      "privacy_modes": {
+        "public": 5882
+      },
+      "private_count": 0
+    },
+    "queries_file": "queries.jsonl",
+    "queries_sha256": "3fd2c8574c7cab388f7aae5ebecdcd81a29b3e47c0c1801f6c23199409bd13ff",
+    "query_count": 1986,
+    "query_stats": {
+      "abstain_expected": 453,
+      "categories": {
+        "direct": 841,
+        "multi_hop": 282,
+        "negative": 446,
+        "semantic": 96,
+        "temporal": 321
+      },
+      "privacy_expected": {
+        "public": 1986
+      },
+      "queries_written": 1986,
+      "splits": {
+        "dev": 396,
+        "test": 1194,
+        "val": 396
+      }
+    },
+    "scale": 5882,
+    "schema_version": "1.0.0",
+    "seed": null,
+    "source": "locomo",
+    "source_file": "/tmp/treemem_bench/locomo10.json",
+    "source_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+    "splits": {
+      "dev": 396,
+      "test": 1194,
+      "val": 396
+    }
+  },
+  "dependencies": {
+    "fastapi": "0.115.0",
+    "httpx": "0.27.2",
+    "matplotlib": "3.10.0",
+    "mcp": "1.26.0",
+    "numpy": "1.26.4",
+    "pandas": "3.0.5",
+    "pytest": "9.0.2",
+    "rank-bm25": "0.2.2",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.17.0",
+    "sentence-transformers": "5.4.1",
+    "tiktoken": "0.12.0",
+    "torch": "2.9.1",
+    "transformers": "4.57.3",
+    "treemem": "0.1.0",
+    "uvicorn": "0.54.0"
+  },
+  "env": {
+    "benchmark_llm_api_key_set": false,
+    "benchmark_llm_base_url_set": false,
+    "python": "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+    "treemem_allow_reveal": null,
+    "treemem_embedding_provider": null
+  },
+  "experiment": "budget",
+  "generator_version": "benchmark_suite_v1",
+  "git_revision": "a284527f5a9deb8ea4af2c85395fa99e909d4f1a",
+  "index_build_ms": {
+    "bm25": 53.994957997929305,
+    "dense": 2.8067499806638807,
+    "flat_all": 0.35454099997878075,
+    "hybrid": 51.99329199967906,
+    "hybrid_rerank": 55.90633300016634,
+    "treemem_beam": 0.0016249832697212696,
+    "treemem_guided": 0.005750014679506421,
+    "treemem_guided_no_fallback": 0.0013339740689843893,
+    "treemem_guided_plus_global": 0.0017500133253633976,
+    "treemem_manual": 0.00191599247045815,
+    "treemem_search": 0.0012920063454657793
+  },
+  "limit": null,
+  "machine": "arm64",
+  "packer_version": "budget_packer_v1",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "processor": "arm",
+  "python": "3.13.5 (v3.13.5:6cb20a219a8, Jun 11 2025, 12:23:45) [Clang 16.0.0 (clang-1600.0.26.6)]",
+  "repetitions": 1,
+  "schema_version": "1.0.0",
+  "split": "test",
+  "suite": "treemem-comprehensive-benchmark",
+  "unit_cap": 1000,
+  "vault_timings": {
+    "commit_ms": 604.3216210091487,
+    "place_ms": 33120.5851273844,
+    "remember_ms": 33663.24983339291,
+    "vault_build_ms": 68580.56458400097
+  }
+}

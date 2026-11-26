@@ -19,7 +19,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.33333333333333337,
               "full_support": 1.0,
               "items_in_budget": 52.92857142857143,
-              "latency_ms": 0.1322291448429626,
+              "latency_ms": 0.16643450154723333,
               "map": 0.869047619047619,
               "mrr": 0.869047619047619,
               "ndcg@1": 0.7857142857142857,
@@ -45,7 +45,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.03286384976525822,
               "full_support": 0.6666666666666666,
               "items_in_budget": 51.0,
-              "latency_ms": 0.11057633188708375,
+              "latency_ms": 0.1498193305451423,
               "map": 0.19282290115385078,
               "mrr": 0.2433453425229741,
               "ndcg@1": 0.16666666666666666,
@@ -71,7 +71,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.29687500000000006,
               "full_support": 0.984375,
               "items_in_budget": 52.078125,
-              "latency_ms": 0.13332812523003668,
+              "latency_ms": 0.17110679686993535,
               "map": 0.8552276239456824,
               "mrr": 0.8552276239456824,
               "ndcg@1": 0.828125,
@@ -97,7 +97,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.7499999999999999,
               "full_support": 1.0,
               "items_in_budget": 51.666666666666664,
-              "latency_ms": 0.14698600231592232,
+              "latency_ms": 0.1938265001323695,
               "map": 0.9398148148148149,
               "mrr": 0.9166666666666666,
               "ndcg@1": 0.8333333333333334,
@@ -123,7 +123,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.29687500000000006,
               "full_support": 0.953125,
               "items_in_budget": 50.640625,
-              "latency_ms": 0.15026301639409212,
+              "latency_ms": 0.18933715591629152,
               "map": 0.854744149779432,
               "mrr": 0.854744149779432,
               "ndcg@1": 0.828125,
@@ -149,7 +149,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.35294117647058826,
               "full_support": 0.6666666666666666,
               "items_in_budget": 51.0,
-              "latency_ms": 0.15843066406281045,
+              "latency_ms": 0.19693033148845038,
               "map": 0.6666666666666666,
               "mrr": 0.6666666666666666,
               "ndcg@1": 0.6666666666666666,
@@ -175,7 +175,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.35294117647058826,
               "full_support": 1.0,
               "items_in_budget": 51.666666666666664,
-              "latency_ms": 0.18009733078846088,
+              "latency_ms": 0.34072200166216743,
               "map": 0.6826388888888889,
               "mrr": 0.6777777777777777,
               "ndcg@1": 0.6666666666666666,
@@ -201,7 +201,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "f1@5": 0.0,
               "full_support": 1.0,
               "items_in_budget": 52.083333333333336,
-              "latency_ms": 0.125593833217863,
+              "latency_ms": 0.15959725108890174,
               "map": 0.0,
               "mrr": 0.0,
               "ndcg@1": 0.0,
@@ -213,7 +213,7 @@ This report is generated only from measured benchmark outputs. Sections without 
               "precision@3": 0.0,
               "precision@5": 0.0,
               "recall@1": 0.0,
-              "recall@10":
+              "recall@10"
 ```
 # Benchmark Tables
 
@@ -225,10 +225,10 @@ This report is generated only from measured benchmark outputs. Sections without 
 | flat_all | 0.003 | 0.029 | 0.166 | 0.501 | 0.910 | 0.939 |
 | hybrid | 0.835 | 0.852 | 0.886 | 0.910 | 0.939 | 0.939 |
 | hybrid_rerank | 0.822 | 0.831 | 0.886 | 0.886 | 0.886 | 0.886 |
-| treemem_guided | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 |
-| treemem_guided_no_fallback | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 |
-| treemem_manual | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 |
-| treemem_search | 0.049 | 0.049 | 0.049 | 0.049 | 0.049 | 0.049 |
+| treemem_guided | 0.532 | 0.532 | 0.532 | 0.532 | 0.532 | 0.532 |
+| treemem_guided_no_fallback | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 |
+| treemem_manual | 0.163 | 0.163 | 0.163 | 0.163 | 0.163 | 0.163 |
+| treemem_search | 0.824 | 0.845 | 0.878 | 0.886 | 0.886 | 0.886 |
 
 ## Table — Recall@5 by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -238,10 +238,10 @@ This report is generated only from measured benchmark outputs. Sections without 
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 | hybrid | 0.771 | 0.771 | 0.771 | 0.771 | 0.771 | 0.771 |
 | hybrid_rerank | 0.800 | 0.800 | 0.800 | 0.800 | 0.800 | 0.800 |
-| treemem_guided | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 |
-| treemem_guided_no_fallback | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 | 0.061 |
-| treemem_manual | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 |
-| treemem_search | 0.049 | 0.049 | 0.049 | 0.049 | 0.049 | 0.049 |
+| treemem_guided | 0.532 | 0.532 | 0.532 | 0.532 | 0.532 | 0.532 |
+| treemem_guided_no_fallback | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 | 0.073 |
+| treemem_manual | 0.163 | 0.163 | 0.163 | 0.163 | 0.163 | 0.163 |
+| treemem_search | 0.814 | 0.814 | 0.814 | 0.814 | 0.814 | 0.814 |
 
 ## Table — MRR by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -251,10 +251,10 @@ This report is generated only from measured benchmark outputs. Sections without 
 | flat_all | 0.001 | 0.003 | 0.006 | 0.012 | 0.016 | 0.016 |
 | hybrid | 0.676 | 0.677 | 0.678 | 0.678 | 0.679 | 0.679 |
 | hybrid_rerank | 0.671 | 0.672 | 0.673 | 0.673 | 0.673 | 0.673 |
-| treemem_guided | 0.016 | 0.016 | 0.016 | 0.016 | 0.016 | 0.016 |
-| treemem_guided_no_fallback | 0.016 | 0.016 | 0.016 | 0.016 | 0.016 | 0.016 |
-| treemem_manual | 0.024 | 0.024 | 0.024 | 0.024 | 0.024 | 0.024 |
-| treemem_search | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| treemem_guided | 0.531 | 0.531 | 0.531 | 0.531 | 0.531 | 0.531 |
+| treemem_guided_no_fallback | 0.029 | 0.029 | 0.029 | 0.029 | 0.029 | 0.029 |
+| treemem_manual | 0.122 | 0.122 | 0.122 | 0.122 | 0.122 | 0.122 |
+| treemem_search | 0.755 | 0.756 | 0.757 | 0.757 | 0.757 | 0.757 |
 
 ## Table — Mean Tokens Used by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -264,10 +264,10 @@ This report is generated only from measured benchmark outputs. Sections without 
 | flat_all | 242 | 486 | 973 | 1390 | 1940 | 1975 |
 | hybrid | 241 | 484 | 970 | 1389 | 1942 | 1975 |
 | hybrid_rerank | 241 | 484 | 930 | 934 | 934 | 934 |
-| treemem_guided | 67 | 67 | 67 | 67 | 67 | 67 |
-| treemem_guided_no_fallback | 67 | 67 | 67 | 67 | 67 | 67 |
-| treemem_manual | 8 | 8 | 8 | 8 | 8 | 8 |
-| treemem_search | 0 | 0 | 0 | 0 | 0 | 0 |
+| treemem_guided | 147 | 148 | 148 | 148 | 148 | 148 |
+| treemem_guided_no_fallback | 92 | 92 | 92 | 92 | 92 | 92 |
+| treemem_manual | 10 | 10 | 10 | 10 | 10 | 10 |
+| treemem_search | 237 | 473 | 818 | 845 | 845 | 845 |
 
 Manifest: `scale_100/manifest.json`
 
@@ -287,7 +287,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.33333333333333337,
               "full_support": 1.0,
               "items_in_budget": 55.732142857142854,
-              "latency_ms": 0.7328585174296417,
+              "latency_ms": 0.8511867949242254,
               "map": 0.9583333333333333,
               "mrr": 0.9583333333333333,
               "ndcg@1": 0.9285714285714286,
@@ -313,7 +313,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.030380472882544134,
               "full_support": 0.10810810810810811,
               "items_in_budget": 59.5945945945946,
-              "latency_ms": 0.5745506220862169,
+              "latency_ms": 0.6720157421974314,
               "map": 0.06064082758174544,
               "mrr": 0.12002402247775372,
               "ndcg@1": 0.05405405405405406,
@@ -339,7 +339,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.27976190476190477,
               "full_support": 0.9017857142857143,
               "items_in_budget": 54.160714285714285,
-              "latency_ms": 0.7396000087932667,
+              "latency_ms": 0.8750643386779952,
               "map": 0.832761584215569,
               "mrr": 0.832761584215569,
               "ndcg@1": 0.8214285714285714,
@@ -365,7 +365,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.48078078078078074,
               "full_support": 1.0,
               "items_in_budget": 56.95945945945946,
-              "latency_ms": 0.8484734595136566,
+              "latency_ms": 1.0095839726902243,
               "map": 0.6351946821023361,
               "mrr": 0.7802143604573272,
               "ndcg@1": 0.7297297297297297,
@@ -391,7 +391,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.27976190476190477,
               "full_support": 0.9017857142857143,
               "items_in_budget": 50.785714285714285,
-              "latency_ms": 0.8186063217051144,
+              "latency_ms": 0.8962530008440288,
               "map": 0.8306085455756509,
               "mrr": 0.8306085455756509,
               "ndcg@1": 0.8214285714285714,
@@ -417,7 +417,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.4032400839123528,
               "full_support": 0.6666666666666666,
               "items_in_budget": 50.23809523809524,
-              "latency_ms": 0.9101447136518324,
+              "latency_ms": 1.0749107618938156,
               "map": 0.7346681096681097,
               "mrr": 0.8344155844155845,
               "ndcg@1": 0.7602097383985235,
@@ -443,7 +443,7 @@ Manifest: `scale_100/manifest.json`
               "f1@5": 0.4032400839123528,
               "full_support": 0.6666666666666666,
               "items_in_budget": 48.666666666666664,
-              "latency_ms": 1.0086388571099156,
+              "latency_ms": 1.1045120003732987,
               "map": 0.7544858523119393,
               "mrr": 0.8581780538302277,
               "ndcg@1": 0.8078287860175711,
@@ -477,10 +477,10 @@ Manifest: `scale_100/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.004 | 0.131 | 0.517 |
 | hybrid | 0.652 | 0.720 | 0.798 | 0.818 | 0.822 | 0.836 |
 | hybrid_rerank | 0.674 | 0.711 | 0.772 | 0.773 | 0.773 | 0.773 |
-| treemem_guided | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 |
+| treemem_guided | 0.535 | 0.535 | 0.535 | 0.535 | 0.535 | 0.535 |
 | treemem_guided_no_fallback | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 |
-| treemem_manual | 0.040 | 0.040 | 0.040 | 0.040 | 0.040 | 0.040 |
-| treemem_search | 0.017 | 0.017 | 0.017 | 0.017 | 0.017 | 0.017 |
+| treemem_manual | 0.036 | 0.036 | 0.036 | 0.036 | 0.036 | 0.036 |
+| treemem_search | 0.753 | 0.775 | 0.784 | 0.791 | 0.807 | 0.824 |
 
 ## Table — Recall@5 by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -490,10 +490,10 @@ Manifest: `scale_100/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 | hybrid | 0.579 | 0.579 | 0.579 | 0.579 | 0.579 | 0.579 |
 | hybrid_rerank | 0.614 | 0.614 | 0.614 | 0.614 | 0.614 | 0.614 |
-| treemem_guided | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 |
+| treemem_guided | 0.535 | 0.535 | 0.535 | 0.535 | 0.535 | 0.535 |
 | treemem_guided_no_fallback | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 | 0.019 |
-| treemem_manual | 0.037 | 0.037 | 0.037 | 0.037 | 0.037 | 0.037 |
-| treemem_search | 0.017 | 0.017 | 0.017 | 0.017 | 0.017 | 0.017 |
+| treemem_manual | 0.034 | 0.034 | 0.034 | 0.034 | 0.034 | 0.034 |
+| treemem_search | 0.692 | 0.692 | 0.692 | 0.692 | 0.692 | 0.692 |
 
 ## Table — MRR by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -503,10 +503,10 @@ Manifest: `scale_100/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.002 | 0.005 |
 | hybrid | 0.551 | 0.554 | 0.555 | 0.556 | 0.556 | 0.556 |
 | hybrid_rerank | 0.569 | 0.572 | 0.573 | 0.573 | 0.573 | 0.573 |
-| treemem_guided | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 |
-| treemem_guided_no_fallback | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 |
-| treemem_manual | 0.036 | 0.036 | 0.036 | 0.036 | 0.036 | 0.036 |
-| treemem_search | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| treemem_guided | 0.530 | 0.530 | 0.530 | 0.530 | 0.530 | 0.530 |
+| treemem_guided_no_fallback | 0.006 | 0.006 | 0.006 | 0.006 | 0.006 | 0.006 |
+| treemem_manual | 0.031 | 0.031 | 0.031 | 0.031 | 0.031 | 0.031 |
+| treemem_search | 0.700 | 0.702 | 0.702 | 0.702 | 0.702 | 0.702 |
 
 ## Table — Mean Tokens Used by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -516,10 +516,10 @@ Manifest: `scale_100/manifest.json`
 | flat_all | 243 | 481 | 964 | 1390 | 1944 | 3882 |
 | hybrid | 240 | 483 | 968 | 1386 | 1939 | 3634 |
 | hybrid_rerank | 240 | 483 | 885 | 897 | 897 | 897 |
-| treemem_guided | 80 | 80 | 80 | 80 | 80 | 80 |
-| treemem_guided_no_fallback | 80 | 80 | 80 | 80 | 80 | 80 |
-| treemem_manual | 9 | 9 | 9 | 9 | 9 | 9 |
-| treemem_search | 0 | 0 | 0 | 0 | 0 | 0 |
+| treemem_guided | 158 | 158 | 158 | 158 | 158 | 158 |
+| treemem_guided_no_fallback | 97 | 97 | 97 | 97 | 97 | 97 |
+| treemem_manual | 11 | 11 | 11 | 11 | 11 | 11 |
+| treemem_search | 238 | 475 | 936 | 1332 | 1845 | 3177 |
 
 Manifest: `scale_1000/manifest.json`
 
@@ -539,7 +539,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.33333333333333337,
               "full_support": 1.0,
               "items_in_budget": 56.589285714285715,
-              "latency_ms": 8.335543929076396,
+              "latency_ms": 9.317423740477741,
               "map": 1.0,
               "mrr": 1.0,
               "ndcg@1": 1.0,
@@ -565,7 +565,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.022058823529411766,
               "full_support": 0.0,
               "items_in_budget": 75.0,
-              "latency_ms": 6.500942375298889,
+              "latency_ms": 7.210658133382302,
               "map": 0.020178807992990606,
               "mrr": 0.06761971444551056,
               "ndcg@1": 0.017857142857142856,
@@ -591,7 +591,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.30059523809523814,
               "full_support": 0.9017857142857143,
               "items_in_budget": 58.4375,
-              "latency_ms": 8.366402142720679,
+              "latency_ms": 9.547420392924064,
               "map": 0.8467261904761905,
               "mrr": 0.8467261904761905,
               "ndcg@1": 0.7946428571428571,
@@ -617,7 +617,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.2709821428571429,
               "full_support": 0.4375,
               "items_in_budget": 61.955357142857146,
-              "latency_ms": 9.281038276380318,
+              "latency_ms": 10.690383205396106,
               "map": 0.3233281862012373,
               "mrr": 0.654036396175435,
               "ndcg@1": 0.5714285714285714,
@@ -643,7 +643,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.2976190476190476,
               "full_support": 0.9017857142857143,
               "items_in_budget": 50.044642857142854,
-              "latency_ms": 9.705052116519905,
+              "latency_ms": 10.764434821404782,
               "map": 0.853422619047619,
               "mrr": 0.853422619047619,
               "ndcg@1": 0.8214285714285714,
@@ -669,7 +669,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.2692918076321438,
               "full_support": 0.41964285714285715,
               "items_in_budget": 47.63392857142857,
-              "latency_ms": 10.376194544993009,
+              "latency_ms": 11.356868696436452,
               "map": 0.41471694364548056,
               "mrr": 0.5776722735545574,
               "ndcg@1": 0.43885814636173864,
@@ -695,7 +695,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.3241910400523846,
               "full_support": 0.41964285714285715,
               "items_in_budget": 48.848214285714285,
-              "latency_ms": 10.904771178242559,
+              "latency_ms": 11.978655937777408,
               "map": 0.4549319727891156,
               "mrr": 0.6230654761904761,
               "ndcg@1": 0.45240991195830565,
@@ -721,7 +721,7 @@ Manifest: `scale_1000/manifest.json`
               "f1@5": 0.0,
               "full_support": 1.0,
               "items_in_budget": 56.25,
-              "latency_ms": 8.028770915795272
+              "latency_ms": 9.4004514176049
 ```
 # Benchmark Tables
 
@@ -733,10 +733,10 @@ Manifest: `scale_1000/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.086 | 0.354 |
 | hybrid | 0.475 | 0.570 | 0.627 | 0.637 | 0.648 | 0.674 |
 | hybrid_rerank | 0.528 | 0.575 | 0.613 | 0.613 | 0.613 | 0.613 |
-| treemem_guided | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 |
+| treemem_guided | 0.444 | 0.444 | 0.444 | 0.444 | 0.444 | 0.444 |
 | treemem_guided_no_fallback | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 |
-| treemem_manual | 0.025 | 0.027 | 0.029 | 0.030 | 0.032 | 0.032 |
-| treemem_search | 0.012 | 0.012 | 0.012 | 0.012 | 0.012 | 0.012 |
+| treemem_manual | 0.024 | 0.025 | 0.026 | 0.028 | 0.029 | 0.029 |
+| treemem_search | 0.591 | 0.610 | 0.643 | 0.664 | 0.682 | 0.692 |
 
 ## Table — Recall@5 by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -746,10 +746,10 @@ Manifest: `scale_1000/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 | hybrid | 0.370 | 0.370 | 0.370 | 0.370 | 0.370 | 0.370 |
 | hybrid_rerank | 0.439 | 0.439 | 0.439 | 0.439 | 0.439 | 0.439 |
-| treemem_guided | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 |
+| treemem_guided | 0.444 | 0.444 | 0.444 | 0.444 | 0.444 | 0.444 |
 | treemem_guided_no_fallback | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 | 0.013 |
-| treemem_manual | 0.022 | 0.022 | 0.022 | 0.022 | 0.022 | 0.022 |
-| treemem_search | 0.012 | 0.012 | 0.012 | 0.012 | 0.012 | 0.012 |
+| treemem_manual | 0.021 | 0.021 | 0.021 | 0.021 | 0.021 | 0.021 |
+| treemem_search | 0.543 | 0.543 | 0.543 | 0.543 | 0.543 | 0.543 |
 
 ## Table — MRR by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -759,10 +759,10 @@ Manifest: `scale_1000/manifest.json`
 | flat_all | 0.000 | 0.000 | 0.000 | 0.000 | 0.001 | 0.004 |
 | hybrid | 0.376 | 0.381 | 0.383 | 0.383 | 0.383 | 0.383 |
 | hybrid_rerank | 0.402 | 0.405 | 0.407 | 0.407 | 0.407 | 0.407 |
-| treemem_guided | 0.003 | 0.003 | 0.003 | 0.003 | 0.003 | 0.003 |
-| treemem_guided_no_fallback | 0.003 | 0.003 | 0.003 | 0.003 | 0.003 | 0.003 |
-| treemem_manual | 0.027 | 0.027 | 0.027 | 0.027 | 0.027 | 0.027 |
-| treemem_search | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| treemem_guided | 0.448 | 0.448 | 0.448 | 0.448 | 0.448 | 0.448 |
+| treemem_guided_no_fallback | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 | 0.004 |
+| treemem_manual | 0.025 | 0.025 | 0.025 | 0.025 | 0.025 | 0.025 |
+| treemem_search | 0.567 | 0.568 | 0.568 | 0.568 | 0.568 | 0.569 |
 
 ## Table — Mean Tokens Used by Token Budget
 | System | B=256 | B=512 | B=1024 | B=1465 | B=2048 | B=4096 |
@@ -772,10 +772,10 @@ Manifest: `scale_1000/manifest.json`
 | flat_all | 237 | 481 | 973 | 1391 | 1943 | 3890 |
 | hybrid | 240 | 482 | 967 | 1384 | 1936 | 3533 |
 | hybrid_rerank | 240 | 482 | 868 | 889 | 889 | 889 |
-| treemem_guided | 83 | 83 | 83 | 83 | 83 | 83 |
-| treemem_guided_no_fallback | 83 | 83 | 83 | 83 | 83 | 83 |
-| treemem_manual | 15 | 18 | 22 | 25 | 29 | 30 |
-| treemem_search | 0 | 0 | 0 | 0 | 0 | 0 |
+| treemem_guided | 160 | 160 | 160 | 160 | 160 | 160 |
+| treemem_guided_no_fallback | 98 | 98 | 98 | 98 | 98 | 98 |
+| treemem_manual | 15 | 18 | 21 | 24 | 27 | 29 |
+| treemem_search | 238 | 478 | 960 | 1375 | 1905 | 3233 |
 
 Manifest: `scale_10000/manifest.json`
 
