@@ -12,9 +12,11 @@ does today; measured results live in `benchmark_suite/reports/`.
 The vault is a directory of human-readable Markdown files:
 
 - `log/YYYY-MM-DD.md` — append-only daily ledger. Each line is
-  `- <id> | <time> | session=<s> | fact: <text> | hint: <path>` (fields are
-  escaped so `|` and `\` round-trip). **The log is the ground truth**; every
-  other structure is a rebuildable derivative.
+  `- <id> | <time> | session=<s> | fact: <text> | hint: <path>` with optional
+  `sens: private`, `supersedes: <entry_id>`, `retracts: <entry_id>`,
+  `valid_from: <ISO>`, `valid_to: <ISO>` fields (all escaped so `|`/`\`
+  round-trip). **The log is the ground truth**; every other structure is a
+  rebuildable derivative.
 - `<path>/summary.md` — one file per node: YAML frontmatter
   (`name, aliases, dirty, updated, tokens, sensitivity, children_cap`) plus a
   summary body, a `## Children` teaser list, and (for leaves) a `## Facts`
@@ -90,6 +92,30 @@ runs the same validation loop with an external LLM caller, bottom-up over
 never child bodies. Cost is O(1) in vault size: one file read plus teaser
 formatting (~40–150 tokens). `expand(path)` drills one level (child summaries
 or leaf facts). `search(query, limit)` is BM25 over log entries + node docs.
+
+### 3.1 Temporal semantics (supersede / retract / valid-time)
+
+- `remember(..., supersedes=<entry_id>)` marks the target as replaced; the new
+  fact is the successor. `retract(entry_id)` appends a tombstone line
+  (`retracts: <entry_id>`, placeholder fact, **not indexed**) that deletes the
+  fact semantically. `supersedes` and `retracts` are mutually exclusive.
+- Both produce a *hidden* entry: filtered from `expand`, guided leaf payloads,
+  `compress` inputs, and `search` hits unless `include_history=true`.
+- `valid_from`/`valid_to` (optional ISO-8601) define a fact's valid-time
+  interval `[from, to)`. Effective interval when fields are absent:
+  `from` = the entry's append timestamp; `to` = the append timestamp of the
+  entry that supersedes/retracts it (open if none).
+- `at=<ISO-8601>` on `recall`/`expand`/`search`/`compress` filters leaf facts
+  and search hits to those whose effective interval contains `at` —
+  point-in-time queries over memory. `at` takes precedence over
+  `include_history`.
+- All temporal state derives from the log, so rebuild/restart preserves it.
+  Health invariant 9 verifies every `supersedes`/`retracts` target exists.
+- `remember` also emits a non-blocking `contradiction_warning` when a new fact
+  has high lexical overlap with an existing fact but differing numbers or
+  negation cues — a heuristic prompt to pass `supersedes=`, not a proof.
+
+### 3.2 Token accounting
 
 Token accounting is exact (`tiktoken` cl100k_base; a labeled 1.3× conservative
 fallback when unavailable — `status()`/`/api/health` report which is active).

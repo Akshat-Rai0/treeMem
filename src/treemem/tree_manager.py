@@ -500,14 +500,14 @@ class TreeManager:
             return None
         fact_nums = set(re.findall(r"\d+", fact))
         fact_neg = bool(re.search(r"\b(not|no|never|isn't|don't|doesn't|won't)\b", fact.lower()))
-        fact_toks = {t for t in re.findall(r"\b\w+\b", fact.lower()) if len(t) > 3}
+        fact_toks = {t for t in re.findall(r"\b\w+\b", fact.lower()) if len(t) > 2}
         for hit in hits:
             if not isinstance(hit, dict) or hit.get("entry_id") == entry_id:
                 continue
             text = hit.get("text", "")
             hit_nums = set(re.findall(r"\d+", text))
             hit_neg = bool(re.search(r"\b(not|no|never|isn't|don't|doesn't|won't)\b", text.lower()))
-            hit_toks = {t for t in re.findall(r"\b\w+\b", text.lower()) if len(t) > 3}
+            hit_toks = {t for t in re.findall(r"\b\w+\b", text.lower()) if len(t) > 2}
             overlap = len(fact_toks & hit_toks)
             if overlap < 3:
                 continue

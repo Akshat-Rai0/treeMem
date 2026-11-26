@@ -202,18 +202,19 @@ Add TreeMem to your agent harness configuration (e.g. Claude Desktop, Antigravit
 
 > With `pipx`/`uvx` installed, `"command": "uvx"` and `"args": ["--from", "git+https://github.com/Akshat-Rai0/treeMem", "treemem", "serve", "/absolute/path/to/my_memory", "--mcp"]` runs TreeMem without a local install.
 
-### The 11 MCP Tools
+### The 12 MCP Tools
 
 | Tool | Parameters | Description |
 |:---|:---|:---|
-| `remember` | `fact: str, hint?: str, sensitivity?: str` | Appends fact to today's log, returns entry ID and candidate topic paths. `sensitivity` can be "normal" (default) or "private". |
+| `remember` | `fact: str, hint?: str, sensitivity?: str, supersedes?: str, retracts?: str, valid_from?: str, valid_to?: str` | Appends fact to today's log, returns entry ID and candidate topic paths. `sensitivity` can be "normal" (default) or "private". `supersedes`/`retracts` link this fact to an older `entry_id` (mutually exclusive); `valid_from`/`valid_to` set an ISO-8601 validity interval for `at=` queries. |
+| `retract` | `entry_id: str` | Tombstones a memory (delete/invalidate). The fact stays in the log but is hidden from reads unless `include_history=true`. |
 | `place` | `entry_id: str, path: str, sensitivity?: str, volatile?: bool` | Places fact into a leaf node and marks all ancestors `dirty`. `volatile` marks facts that can be transcluded without dirtying embedding parents. |
-| `recall` | `path: str = "/"`, `query?: str`, `follow?: bool`, `max_depth?: int`, `reveal?: bool` | Reads node summary and 1-line child teasers (**never** child bodies). With `query` it adds the descent-gate verdict; with `follow=true` the server follows the gate read-only (never into private nodes) and returns where it stopped, in one call. `reveal=true` requests private details (honored only when server operator grants it). |
-| `expand` | `path: str, reveal: bool = false` | Drills down into child summaries or raw leaf facts. `reveal=true` is only honored when the server operator set `TREEMEM_ALLOW_REVEAL=1`; otherwise private content stays hidden and the result carries `reveal_denied`. |
-| `compress` | `path: str, reveal: bool = false` | Returns compression prompt and child text to clean a dirty node (Option A). `reveal=true` requests private details (honored only when server operator grants it). |
+| `recall` | `path: str = "/"`, `query?: str`, `follow?: bool`, `max_depth?: int`, `reveal?: bool`, `include_history?: bool`, `at?: str` | Reads node summary and 1-line child teasers (**never** child bodies). With `query` it adds the descent-gate verdict; with `follow=true` the server follows the gate read-only (never into private nodes) and returns where it stopped, in one call. `reveal=true` requests private details (honored only when server operator grants it). `include_history=true` shows superseded/retracted facts; `at=<ISO-8601>` returns facts valid at that time. |
+| `expand` | `path: str, reveal: bool = false, include_history?: bool, at?: str` | Drills down into child summaries or raw leaf facts. `reveal=true` is only honored when the server operator set `TREEMEM_ALLOW_REVEAL=1`; otherwise private content stays hidden and the result carries `reveal_denied`. `include_history`/`at` control superseded-fact and valid-time filtering as in `recall`. |
+| `compress` | `path: str, reveal: bool = false, include_history?: bool, at?: str` | Returns compression prompt and child text to clean a dirty node (Option A). `reveal=true` requests private details (honored only when server operator grants it). |
 | `auto_compress` | `path?: str` | (Optional) Compresses dirty nodes bottom-up using an external LLM (Groq); reads API keys from `.env`. |
 | `commit_summary` | `path: str, text: str` | Validates token cap, child list, and privacy before committing atomically. |
-| `search` | `query: str, limit: int = 10, reveal: bool = False` | BM25 lexical search over log entries and leaves (fallback mechanism). Hits under private nodes are withheld unless `reveal=true` **and** the operator granted reveal (`TREEMEM_ALLOW_REVEAL=1`). |
+| `search` | `query: str, limit: int = 10, reveal: bool = False, include_history?: bool, at?: str` | BM25 lexical search over log entries and leaves (fallback mechanism). Hits under private nodes are withheld unless `reveal=true` **and** the operator granted reveal (`TREEMEM_ALLOW_REVEAL=1`). Superseded/retracted hits are hidden unless `include_history=true`; `at=<ISO-8601>` filters by fact validity interval. |
 | `split` | `path: str, groups: dict` | Splits an overflowing node into subtopics to preserve branching caps. |
 | `rebuild` | `path?: str` | Reconstructs tree structure from append-only log files. Uses the placement journal as primary source, falling back to hints. |
 | `status` | *None* | Session-start health report with total nodes, facts, and dirty count. |

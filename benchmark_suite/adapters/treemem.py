@@ -84,7 +84,14 @@ class TreeMemVault:
             sensitivity = "private" if mem.sensitivity == "private" or mem.provenance.get("privacy_mode") in {"private", "inherited_private", "unplaced_private"} else "normal"
             sup_entry = memory_entry.get(mem.supersedes) if getattr(mem, "supersedes", None) else None
             vf = getattr(mem, "temporal_valid_from", None) or ""
+            if not vf:
+                # Fall back to the record timestamp so at= queries see the
+                # fact as valid from when the event it describes occurred.
+                ts = getattr(mem, "timestamp", "") or ""
+                vf = ts if ("T" in ts and mgr._parse_ts(ts) is not None) else ""
             vt = getattr(mem, "temporal_valid_to", None) or ""
+            if vt and mgr._parse_ts(vt) is None:
+                vt = ""
             # Unplaced private facts are logged but intentionally not placed.
             if mem.provenance.get("privacy_mode") == "unplaced_private":
                 t0 = time.perf_counter()

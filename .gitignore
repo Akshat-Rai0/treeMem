@@ -27,3 +27,4 @@ bench/agent_eval/runs_v2_invalid_attempt1/
 *.ogg
 *.wav
 *.jpg
+/benchmark_suite/results/budget_iso/scale_10000/episodes.jsonl
