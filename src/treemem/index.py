@@ -466,8 +466,13 @@ class SearchIndex:
             if doc["entry_id"] == entry_id:
                 doc["path"] = path
 
-    def query(self, query_str: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Search over log entries and return matching hits."""
+    def query(self, query_str: str, limit: int = 10, lexical_only: bool = False) -> List[Dict[str, Any]]:
+        """Search over log entries and return matching hits.
+
+        lexical_only=True skips all embedding calls (no query embedding, no
+        dense scoring) — required for checks that must not leak text to a
+        remote embedding provider.
+        """
         if not self.entry_docs or not query_str.strip():
             return []
 
@@ -487,7 +492,8 @@ class SearchIndex:
 
         dense_entry_sims = None
         if (
-            self.embedding_provider is not None
+            not lexical_only
+            and self.embedding_provider is not None
             and self._entry_embeddings is not None
             and len(self._entry_embeddings) == len(self.entry_docs)
             and _NUMPY_AVAILABLE

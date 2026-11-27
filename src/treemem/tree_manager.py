@@ -495,7 +495,7 @@ class TreeManager:
         cues differ — a deliberately conservative signal, not a proof.
         """
         try:
-            hits = self.index.query(fact, limit=5)
+            hits = self.index.query(fact, limit=5, lexical_only=True)
         except Exception:
             return None
         fact_nums = set(re.findall(r"\d+", fact))
